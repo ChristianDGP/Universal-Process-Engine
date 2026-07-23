@@ -1,0 +1,6 @@
+{
+  "name": "Universal Process Engine",
+  "description": "An institutional BPMN 2.0-compliant business process architecture design, generation, and simulation engine based on FCE/KPIs and TO-BE frameworks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
