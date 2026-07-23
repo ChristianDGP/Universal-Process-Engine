@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { ProcessDefinition } from "./types";
-import { BLANK_PROCESS_PRESET } from "./presets";
+import { BLANK_PROCESS_PRESET, WAREHOUSE_LOGISTICS_PRESET } from "./presets";
 import ProcessSelector from "./components/ProcessSelector";
 import FrameworkDocViewer from "./components/FrameworkDocViewer";
 import CodeGenerator from "./components/CodeGenerator";
 import ProcessSimulator from "./components/ProcessSimulator";
-import { FileText, Code2, PlayCircle, Settings, ShieldAlert } from "lucide-react";
+import { autoSaveProcessToCloud } from "./firebaseSync";
+import { FileText, Code2, PlayCircle, Settings, ShieldAlert, Cloud, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function App() {
-  const [currentProcess, setCurrentProcess] = useState<ProcessDefinition>(BLANK_PROCESS_PRESET);
+  const [currentProcess, setCurrentProcess] = useState<ProcessDefinition>(WAREHOUSE_LOGISTICS_PRESET);
   const [activeView, setActiveView] = useState<"doc" | "code" | "simulator">("doc");
   const [apiHealth, setApiHealth] = useState({ healthy: false, loading: true });
+  const [autoSyncState, setAutoSyncState] = useState<{
+    status: "idle" | "saving" | "synced" | "error";
+    lastSavedAt?: string;
+    errorMsg?: string;
+  }>({ status: "idle" });
 
   // Check health of Gemini server-side API on startup
   useEffect(() => {
@@ -23,6 +29,32 @@ export default function App() {
         setApiHealth({ healthy: false, loading: false });
       });
   }, []);
+
+  // AUTOMATIC SYNC TO FIREBASE FIRESTORE ON PROCESS CHANGE
+  useEffect(() => {
+    if (!currentProcess || !currentProcess.name || currentProcess.name === BLANK_PROCESS_PRESET.name) {
+      return;
+    }
+
+    setAutoSyncState((prev) => ({ ...prev, status: "saving" }));
+    const timer = setTimeout(async () => {
+      try {
+        await autoSaveProcessToCloud(currentProcess);
+        setAutoSyncState({
+          status: "synced",
+          lastSavedAt: new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        });
+      } catch (err: any) {
+        console.error("Auto-sync to Firebase error:", err);
+        setAutoSyncState({
+          status: "error",
+          errorMsg: err.message || "Error al auto-sincronizar con Firebase Cloud",
+        });
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [currentProcess]);
 
   return (
     <div className="min-h-screen bg-slate-50/50 text-slate-800 flex flex-col font-sans antialiased selection:bg-slate-900 selection:text-white">
@@ -39,7 +71,35 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Automatic Firebase Sync Indicator Badge */}
+            <div className="flex items-center gap-1.5 text-xs bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-1.5 rounded-sm font-medium">
+              <Cloud className="w-3.5 h-3.5 text-emerald-700" />
+              {autoSyncState.status === "saving" && (
+                <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                  <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                  Auto-sincronizando en Firebase Cloud...
+                </span>
+              )}
+              {autoSyncState.status === "synced" && (
+                <span className="flex items-center gap-1 text-emerald-800 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Autosincronizado ({autoSyncState.lastSavedAt})
+                </span>
+              )}
+              {autoSyncState.status === "error" && (
+                <span className="flex items-center gap-1 text-rose-700 font-semibold">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                  Sincronización pendiente
+                </span>
+              )}
+              {autoSyncState.status === "idle" && (
+                <span className="text-slate-600 font-semibold">
+                  Firebase Cloud: Conectado
+                </span>
+              )}
+            </div>
+
             <div className="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200/60 px-3 py-1.5 rounded-sm">
               <span className={`w-2 h-2 rounded-full ${apiHealth.healthy ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`}></span>
               <span className="text-slate-600 font-semibold font-mono">
