@@ -51,17 +51,8 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
       (cloudEntries) => {
         setCloudConnected(true);
         setCloudError(null);
-
-        if (cloudEntries && cloudEntries.length > 0) {
-          setSavedProcesses((prev) => {
-            const map = new Map<string, SavedProcessEntry>();
-            prev.forEach((p) => map.set(p.id, p));
-            cloudEntries.forEach((p) => map.set(p.id, p));
-            const merged = Array.from(map.values()).sort((a, b) => b.id.localeCompare(a.id));
-            localStorage.setItem("upe_saved_processes_v1", JSON.stringify(merged));
-            return merged;
-          });
-        }
+        setSavedProcesses(cloudEntries || []);
+        localStorage.setItem("upe_saved_processes_v1", JSON.stringify(cloudEntries || []));
       },
       (err) => {
         console.warn("Firebase Firestore connection status:", err);
@@ -244,17 +235,31 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
     };
   };
 
-  // Clear all library entries
-  const handleClearLibrary = () => {
-    if (!confirm("⚠️ ¿Está seguro de eliminar TODOS los procesos guardados en la librería local? Esta acción no se puede deshacer a menos que tenga un respaldo descargado.")) {
+  // Clear all library entries from local storage and Firebase Cloud
+  const handleClearLibrary = async () => {
+    if (!confirm("⚠️ ¿Está seguro de eliminar TODOS los procesos guardados en la librería y en Firebase Cloud? Esta acción no se puede deshacer a menos que tenga un respaldo descargado.")) {
       return;
     }
-    setSavedProcesses([]);
-    localStorage.removeItem("upe_saved_processes_v1");
-    setAdminMsg({
-      type: "success",
-      text: "La librería de procesos locales ha sido eliminada por completo."
-    });
+    try {
+      setCloudSyncing(true);
+      for (const p of savedProcesses) {
+        await deleteProcessFromCloud(p.id);
+      }
+      setSavedProcesses([]);
+      localStorage.removeItem("upe_saved_processes_v1");
+      setCloudSyncing(false);
+      setAdminMsg({
+        type: "success",
+        text: "La librería de procesos y la base de datos Firebase Cloud se han eliminado por completo."
+      });
+    } catch (err: any) {
+      console.error(err);
+      setCloudSyncing(false);
+      setAdminMsg({
+        type: "error",
+        text: err.message || "Error al vaciar la librería en Firebase Cloud."
+      });
+    }
   };
 
   // Export JSON file

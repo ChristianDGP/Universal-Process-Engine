@@ -35,6 +35,8 @@ export async function seedDefaultPresetModels(): Promise<boolean> {
   }
 }
 
+let initialSeedAttempted = false;
+
 // Subscribe to real-time changes in Firestore processes collection
 export function subscribeToCloudProcesses(
   onData: (entries: SavedProcessEntry[]) => void,
@@ -46,11 +48,18 @@ export function subscribeToCloudProcesses(
       colRef,
       (snapshot) => {
         if (snapshot.empty) {
-          console.log("Firestore collection is empty. Auto-seeding initial preset models...");
-          seedDefaultPresetModels();
+          if (!initialSeedAttempted) {
+            initialSeedAttempted = true;
+            console.log("Firestore collection is empty on initial load. Auto-seeding default preset models...");
+            seedDefaultPresetModels();
+          } else {
+            console.log("Firestore collection is now empty.");
+            onData([]);
+          }
           return;
         }
 
+        initialSeedAttempted = true;
         const entries: SavedProcessEntry[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
