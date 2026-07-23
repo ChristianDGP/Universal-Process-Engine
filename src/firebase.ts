@@ -3,9 +3,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import firebaseConfig from "../firebase-applet-config.json";
 
-// Read configuration from firebase-applet-config.json or VITE_ environment variables
-const isCustomProjectId = Boolean(import.meta.env.VITE_FIREBASE_PROJECT_ID);
-
+// Read configuration from VITE_ environment variables or default to firebase-applet-config.json
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
@@ -17,15 +15,8 @@ const config = {
 
 const app = !getApps().length ? initializeApp(config) : getApp();
 
-// If running with custom Vercel project ID (e.g. upengine-27a11), use VITE_FIREBASE_DATABASE_ID or default.
-// If running in AI Studio, use firebaseConfig.firestoreDatabaseId if present.
-let databaseId: string | undefined = undefined;
-
-if (isCustomProjectId) {
-  databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || undefined;
-} else if (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== "(default)") {
-  databaseId = firebaseConfig.firestoreDatabaseId;
-}
+const customDbId = import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId;
+const databaseId = customDbId && customDbId !== "(default)" ? customDbId : undefined;
 
 export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
 export default app;
