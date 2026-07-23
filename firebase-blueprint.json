@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "processes": {
+      "title": "Proceso TO-BE",
+      "description": "Modelos de procesos almacenados en la nube",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "savedAt": {
+          "type": "string"
+        },
+        "process": {
+          "type": "object"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "process"
+      ]
+    }
+  }
+}

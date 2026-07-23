@@ -1,13 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ProcessDefinition } from "../types";
 import { PRESETS, BLANK_PROCESS_PRESET } from "../presets";
-import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown } from "lucide-react";
+import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff } from "lucide-react";
+import { subscribeToCloudProcesses, saveProcessToCloud, deleteProcessFromCloud, bulkSyncProcessesToCloud, SavedProcessEntry } from "../firebaseSync";
 
-interface SavedProcessEntry {
-  id: string;
-  savedAt: string;
-  process: ProcessDefinition;
-}
 
 interface ProcessSelectorProps {
   currentProcess: ProcessDefinition;
@@ -28,8 +24,19 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
   const [savedProcesses, setSavedProcesses] = useState<SavedProcessEntry[]>([]);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
-  // Load saved processes from localStorage on mount
+  // Cloud Firebase state
+  const [cloudConnected, setCloudConnected] = useState<boolean>(true);
+  const [cloudSyncing, setCloudSyncing] = useState<boolean>(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+
+  // Administration & Backup state
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [restoreMode, setRestoreMode] = useState<"merge" | "replace">("merge");
+  const [adminMsg, setAdminMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Subscribe to Firebase Cloud Firestore for real-time process synchronization
   useEffect(() => {
+    // Initial load from localStorage for quick render
     try {
       const stored = localStorage.getItem("upe_saved_processes_v1");
       if (stored) {
@@ -38,11 +45,38 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
     } catch (err) {
       console.error("Error loading library from localStorage:", err);
     }
+
+    // Connect real-time Firebase Firestore listener
+    const unsubscribe = subscribeToCloudProcesses(
+      (cloudEntries) => {
+        setCloudConnected(true);
+        setCloudError(null);
+
+        if (cloudEntries && cloudEntries.length > 0) {
+          setSavedProcesses((prev) => {
+            const map = new Map<string, SavedProcessEntry>();
+            prev.forEach((p) => map.set(p.id, p));
+            cloudEntries.forEach((p) => map.set(p.id, p));
+            const merged = Array.from(map.values()).sort((a, b) => b.id.localeCompare(a.id));
+            localStorage.setItem("upe_saved_processes_v1", JSON.stringify(merged));
+            return merged;
+          });
+        }
+      },
+      (err) => {
+        console.warn("Firebase Firestore connection status:", err);
+        setCloudConnected(false);
+        setCloudError(err.message || "Error al conectar con la nube Firebase");
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
-  // Save current process into library
-  const handleSaveToLibrary = () => {
+  // Save current process into library and sync to Firebase Cloud
+  const handleSaveToLibrary = async () => {
     try {
+      setCloudSyncing(true);
       const newEntry: SavedProcessEntry = {
         id: `proc_${Date.now()}`,
         savedAt: new Date().toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }),
@@ -52,21 +86,175 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
       setSavedProcesses(updated);
       localStorage.setItem("upe_saved_processes_v1", JSON.stringify(updated));
       
-      setSaveSuccessMsg(`¡Proceso "${currentProcess.name}" guardado exitosamente en la librería!`);
+      // Sync to Firebase Cloud
+      await saveProcessToCloud(newEntry);
+      setCloudSyncing(false);
+
+      setSaveSuccessMsg(`¡Proceso "${currentProcess.name}" guardado y sincronizado en Firebase Cloud!`);
       setTimeout(() => setSaveSuccessMsg(null), 4000);
     } catch (err) {
       console.error(err);
-      alert("Error al guardar en el almacenamiento local.");
+      setCloudSyncing(false);
+      alert("Error al guardar en el almacenamiento.");
     }
   };
 
-  // Delete from library
-  const handleDeleteFromLibrary = (id: string, e: React.MouseEvent) => {
+  // Delete from library and Firebase Cloud
+  const handleDeleteFromLibrary = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("¿Deseas eliminar este diseño guardado de la librería?")) return;
+    if (!confirm("¿Deseas eliminar este diseño guardado de la librería y Firebase Cloud?")) return;
     const updated = savedProcesses.filter(p => p.id !== id);
     setSavedProcesses(updated);
     localStorage.setItem("upe_saved_processes_v1", JSON.stringify(updated));
+    await deleteProcessFromCloud(id);
+  };
+
+  // Trigger manual cloud sync
+  const handleManualCloudSync = async () => {
+    try {
+      setCloudSyncing(true);
+      await bulkSyncProcessesToCloud(savedProcesses);
+      setCloudSyncing(false);
+      setAdminMsg({
+        type: "success",
+        text: `¡Sincronización manual exitosa! ${savedProcesses.length} modelo(s) respaldados en Firebase Firestore.`
+      });
+    } catch (err: any) {
+      setCloudSyncing(false);
+      setAdminMsg({
+        type: "error",
+        text: err.message || "Error al sincronizar con Firebase Cloud."
+      });
+    }
+  };
+
+  // Generate and Download Complete System Backup JSON
+  const handleGenerateSystemBackup = () => {
+    try {
+      const backupPayload = {
+        appName: "Sistema de Modelado de Procesos TO-BE (UPE)",
+        backupVersion: "1.0",
+        generatedAt: new Date().toISOString(),
+        formattedDate: new Date().toLocaleString("es-CL"),
+        totalProcesses: savedProcesses.length,
+        activeProcess: currentProcess.name ? currentProcess : null,
+        savedProcesses: savedProcesses
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupPayload, null, 2));
+      const dateSuffix = new Date().toISOString().slice(0, 10);
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `Respaldo_Sistema_UPE_${dateSuffix}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      setAdminMsg({
+        type: "success",
+        text: `¡Respaldo generado con éxito! Archivo de seguridad descargado conteniendo ${savedProcesses.length} proceso(s) guardados.`
+      });
+    } catch (err) {
+      console.error(err);
+      setAdminMsg({
+        type: "error",
+        text: "Ocurrió un error al empaquetar el archivo de respaldo."
+      });
+    }
+  };
+
+  // Restore System Backup JSON
+  const handleRestoreSystemBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.readAsText(file, "UTF-8");
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        
+        let importedEntries: SavedProcessEntry[] = [];
+        let loadedCount = 0;
+
+        // Case 1: Standard Full System Backup JSON
+        if (parsed && Array.isArray(parsed.savedProcesses)) {
+          importedEntries = parsed.savedProcesses;
+          loadedCount = importedEntries.length;
+        } 
+        // Case 2: Array of Saved Process Entries or ProcessDefinitions
+        else if (Array.isArray(parsed)) {
+          importedEntries = parsed.map((item, idx) => {
+            if (item.process && item.process.name) return item;
+            return {
+              id: `proc_imported_${Date.now()}_${idx}`,
+              savedAt: new Date().toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }),
+              process: item
+            };
+          });
+          loadedCount = importedEntries.length;
+        }
+        // Case 3: Single Process Definition JSON
+        else if (parsed && parsed.name && parsed.subprocesses) {
+          const singleEntry: SavedProcessEntry = {
+            id: `proc_imported_${Date.now()}`,
+            savedAt: new Date().toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }),
+            process: parsed
+          };
+          importedEntries = [singleEntry];
+          loadedCount = 1;
+        } else {
+          throw new Error("El archivo no tiene una estructura de respaldo de procesos válida.");
+        }
+
+        let updatedList: SavedProcessEntry[] = [];
+
+        if (restoreMode === "replace") {
+          updatedList = importedEntries;
+        } else {
+          // Merge mode: avoid exact duplicate ids or duplicate names
+          const existingNames = new Set(savedProcesses.map(p => p.process.name));
+          const newUnique = importedEntries.filter(entry => !existingNames.has(entry.process.name));
+          updatedList = [...newUnique, ...savedProcesses];
+        }
+
+        setSavedProcesses(updatedList);
+        localStorage.setItem("upe_saved_processes_v1", JSON.stringify(updatedList));
+
+        // If active process is included, optionally set it
+        if (parsed.activeProcess && parsed.activeProcess.name) {
+          onProcessSelect(parsed.activeProcess);
+        } else if (importedEntries.length > 0 && restoreMode === "replace") {
+          onProcessSelect(importedEntries[0].process);
+        }
+
+        setAdminMsg({
+          type: "success",
+          text: `¡Respaldo restaurado exitosamente! Se procesaron ${loadedCount} modelo(s) de proceso (${restoreMode === "replace" ? "Librería reemplazada" : "Librería combinada"}).`
+        });
+      } catch (err: any) {
+        console.error(err);
+        setAdminMsg({
+          type: "error",
+          text: err.message || "Error al interpretar el archivo de respaldo JSON."
+        });
+      } finally {
+        e.target.value = "";
+      }
+    };
+  };
+
+  // Clear all library entries
+  const handleClearLibrary = () => {
+    if (!confirm("⚠️ ¿Está seguro de eliminar TODOS los procesos guardados en la librería local? Esta acción no se puede deshacer a menos que tenga un respaldo descargado.")) {
+      return;
+    }
+    setSavedProcesses([]);
+    localStorage.removeItem("upe_saved_processes_v1");
+    setAdminMsg({
+      type: "success",
+      text: "La librería de procesos locales ha sido eliminada por completo."
+    });
   };
 
   // Export JSON file
@@ -291,10 +479,30 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div className="flex-1 max-w-xl space-y-1.5" ref={comboboxRef}>
           <div className="flex items-center justify-between gap-2">
-            <label htmlFor="process-search-input" className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <BookOpen className="w-4 h-4 text-slate-700" />
-              Diseño de Proceso Activo
-            </label>
+            <div className="flex items-center gap-2.5">
+              <label htmlFor="process-search-input" className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-slate-700" />
+                Diseño de Proceso Activo
+              </label>
+
+              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-extrabold tracking-wider border ${
+                cloudConnected
+                  ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                  : "bg-amber-50 text-amber-900 border-amber-200"
+              }`} title="Estado de la base de datos Firebase Cloud Firestore">
+                {cloudConnected ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Firebase Cloud Sync 🟢
+                  </>
+                ) : (
+                  <>
+                    <CloudOff className="w-3 h-3 text-amber-600" />
+                    Modo Local
+                  </>
+                )}
+              </span>
+            </div>
 
             <button
               type="button"
@@ -431,7 +639,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start lg:self-end">
-          {/* Action buttons: Save & Library */}
+          {/* Action buttons: Save, Library, Admin/Backups */}
           <button
             onClick={handleSaveToLibrary}
             className="px-3 py-2 text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 cursor-pointer"
@@ -447,6 +655,18 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
           >
             <Library className="w-3.5 h-3.5 text-slate-600" />
             Librería ({savedProcesses.length})
+          </button>
+
+          <button
+            onClick={() => {
+              setAdminMsg(null);
+              setShowAdminModal(true);
+            }}
+            className="px-3 py-2 text-xs font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+            title="Gestión de respaldos, exportación e importación del sistema"
+          >
+            <HardDrive className="w-3.5 h-3.5 text-indigo-700" />
+            Respaldos & Admin
           </button>
 
           <label className="px-3 py-2 text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors flex items-center gap-1.5" title="Importar informe en Word (.docx) e incorporarlo a la librería">
@@ -628,10 +848,231 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
             </div>
 
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-xs text-slate-500">
-              <span>{savedProcesses.length} procesos guardados en almacenamiento local</span>
+              <span className="flex items-center gap-2">
+                <span>{savedProcesses.length} procesos guardados en la librería local</span>
+                <span>&bull;</span>
+                <button
+                  onClick={() => {
+                    setShowLibrary(false);
+                    setShowAdminModal(true);
+                  }}
+                  className="text-indigo-700 font-bold hover:underline flex items-center gap-1"
+                >
+                  <HardDrive className="w-3 h-3" />
+                  Gestión de Respaldos
+                </button>
+              </span>
               <button
                 onClick={() => setShowLibrary(false)}
                 className="px-4 py-2 bg-slate-900 text-white font-semibold hover:bg-slate-800"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADMINISTRATION & BACKUP MODAL */}
+      {showAdminModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-scaleUp">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-900 text-white">
+              <div>
+                <h3 className="text-base font-bold flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  Administración y Gestión de Respaldos
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Genera o restaura una copia de seguridad consolidada de todos los diseños de procesos.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAdminModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-sm transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              {/* Feedback messages */}
+              {adminMsg && (
+                <div
+                  className={`p-4 text-xs font-semibold flex items-start justify-between gap-3 border ${
+                    adminMsg.type === "success"
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                      : "bg-rose-50 border-rose-200 text-rose-900"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {adminMsg.type === "success" ? (
+                      <Check className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+                    )}
+                    <span>{adminMsg.text}</span>
+                  </div>
+                  <button
+                    onClick={() => setAdminMsg(null)}
+                    className="text-slate-400 hover:text-slate-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Action 0: Firebase Cloud Sync */}
+              <div className="p-4 border border-emerald-200 bg-emerald-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-emerald-950 font-bold text-sm">
+                    <CloudCheck className="w-5 h-5 text-emerald-700" />
+                    Sincronización Cloud con Firebase Firestore
+                  </div>
+                  <span className={`px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border ${
+                    cloudConnected ? "bg-emerald-100 text-emerald-900 border-emerald-300" : "bg-amber-100 text-amber-900 border-amber-300"
+                  }`}>
+                    {cloudConnected ? "Conectado a Firestore 🟢" : "Desconectado (Modo Local)"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Tus modelos de proceso están vinculados con la base de datos noSQL en tiempo real de <strong>Firebase Firestore</strong>. Los cambios guardados se reflejarán automáticamente en la nube.
+                </p>
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleManualCloudSync}
+                    disabled={cloudSyncing}
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    {cloudSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    {cloudSyncing ? "Sincronizando..." : "Sincronizar Librería con Firebase Cloud"}
+                  </button>
+                  {cloudError && (
+                    <span className="text-xs text-rose-700 font-medium">
+                      ⚠️ {cloudError}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action 1: Export Complete Backup */}
+              <div className="p-4 border border-indigo-100 bg-indigo-50/40 space-y-3">
+                <div className="flex items-center gap-2.5 text-indigo-950 font-bold text-sm">
+                  <FileDown className="w-5 h-5 text-indigo-700" />
+                  Generar y Descargar Respaldo Completo
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Exporta un archivo de respaldo estructurado en formato <strong>JSON</strong> que contiene la totalidad de los modelos de procesos guardados en la librería local (<strong>{savedProcesses.length} procesos</strong>) y la configuración del proceso activo.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGenerateSystemBackup}
+                  className="px-4 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Descargar Respaldo del Sistema (.json)
+                </button>
+              </div>
+
+              {/* Action 2: Import & Restore Backup */}
+              <div className="p-4 border border-slate-200 bg-slate-50/50 space-y-4">
+                <div className="flex items-center gap-2.5 text-slate-900 font-bold text-sm">
+                  <FileUp className="w-5 h-5 text-slate-700" />
+                  Subir y Restaurar Respaldo
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Carga un archivo de respaldo previo en formato <strong>.json</strong> para incorporar sus modelos a tu espacio de trabajo.
+                </p>
+
+                {/* Restoration Mode Selector */}
+                <div className="space-y-2 bg-white p-3 border border-slate-200">
+                  <span className="text-[11px] font-black uppercase text-slate-700 tracking-wider block">
+                    Modo de Restauración:
+                  </span>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="restoreMode"
+                        value="merge"
+                        checked={restoreMode === "merge"}
+                        onChange={() => setRestoreMode("merge")}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Combinar (Agregar procesos sin duplicar)
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="restoreMode"
+                        value="replace"
+                        checked={restoreMode === "replace"}
+                        onChange={() => setRestoreMode("replace")}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Reemplazar (Sobrescribir librería actual)
+                    </label>
+                  </div>
+                </div>
+
+                <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors cursor-pointer shadow-sm">
+                  <Upload className="w-4 h-4 text-slate-300" />
+                  Seleccionar Archivo de Respaldo (.json)
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleRestoreSystemBackup}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Action 3: Storage Status & Maintenance */}
+              <div className="p-4 border border-slate-200 bg-white space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider">
+                    <Database className="w-4 h-4 text-slate-600" />
+                    Estado del Almacenamiento Local
+                  </div>
+                  <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5">
+                    {savedProcesses.length} registro(s)
+                  </span>
+                </div>
+
+                <div className="text-xs text-slate-600 space-y-1">
+                  <div>Procesos almacenados en navegador: <strong>{savedProcesses.length}</strong></div>
+                  <div>Proceso activo actual: <strong>{currentProcess.name || "Sin Definir (En Blanco)"}</strong></div>
+                </div>
+
+                {savedProcesses.length > 0 && (
+                  <div className="pt-2 border-t border-slate-100 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleClearLibrary}
+                      className="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Vaciar Librería Local
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-xs text-slate-500">
+              <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                Los respaldos se almacenan de forma segura y portable en formato JSON.
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAdminModal(false)}
+                className="px-5 py-2 bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors"
               >
                 Cerrar
               </button>
