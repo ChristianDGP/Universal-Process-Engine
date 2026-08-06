@@ -3,14 +3,13 @@ import { ProcessDefinition } from "./types";
 import { BLANK_PROCESS_PRESET, WAREHOUSE_LOGISTICS_PRESET } from "./presets";
 import ProcessSelector from "./components/ProcessSelector";
 import FrameworkDocViewer from "./components/FrameworkDocViewer";
-import CodeGenerator from "./components/CodeGenerator";
 import ProcessSimulator from "./components/ProcessSimulator";
 import { autoSaveProcessToCloud } from "./firebaseSync";
-import { FileText, Code2, PlayCircle, Settings, ShieldAlert, Cloud, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { FileText, PlayCircle, Settings, ShieldAlert, Cloud, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function App() {
-  const [currentProcess, setCurrentProcess] = useState<ProcessDefinition>(WAREHOUSE_LOGISTICS_PRESET);
-  const [activeView, setActiveView] = useState<"doc" | "code" | "simulator">("doc");
+  const [currentProcess, setCurrentProcess] = useState<ProcessDefinition>(BLANK_PROCESS_PRESET);
+  const [activeView, setActiveView] = useState<"doc" | "simulator">("doc");
   const [apiHealth, setApiHealth] = useState({ healthy: false, loading: true });
   const [autoSyncState, setAutoSyncState] = useState<{
     status: "idle" | "saving" | "synced" | "error";
@@ -72,34 +71,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Automatic Firebase Sync Indicator Badge */}
-            <div className="flex items-center gap-1.5 text-xs bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-1.5 rounded-sm font-medium">
-              <Cloud className="w-3.5 h-3.5 text-emerald-700" />
-              {autoSyncState.status === "saving" && (
-                <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                  <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
-                  Auto-sincronizando en Firebase Cloud...
-                </span>
-              )}
-              {autoSyncState.status === "synced" && (
-                <span className="flex items-center gap-1 text-emerald-800 font-bold">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Autosincronizado ({autoSyncState.lastSavedAt})
-                </span>
-              )}
-              {autoSyncState.status === "error" && (
-                <span className="flex items-center gap-1 text-rose-700 font-semibold">
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                  Sincronización pendiente
-                </span>
-              )}
-              {autoSyncState.status === "idle" && (
-                <span className="text-slate-600 font-semibold">
-                  Firebase Cloud: Conectado
-                </span>
-              )}
-            </div>
-
             <div className="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200/60 px-3 py-1.5 rounded-sm">
               <span className={`w-2 h-2 rounded-full ${apiHealth.healthy ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`}></span>
               <span className="text-slate-600 font-semibold font-mono">
@@ -146,17 +117,6 @@ export default function App() {
             <PlayCircle className="w-4 h-4" />
             2. Simulador & KPIs Dashboard
           </button>
-          <button
-            onClick={() => setActiveView("code")}
-            className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] ${
-              activeView === "code"
-                ? "border-slate-900 text-slate-900 font-black"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <Code2 className="w-4 h-4" />
-            3. Arquitectura Técnica (SQL & APIs)
-          </button>
         </div>
 
         {/* ACTIVE WORKSPACE RENDER */}
@@ -166,10 +126,6 @@ export default function App() {
               process={currentProcess}
               onProcessChange={(updated) => setCurrentProcess(updated)}
             />
-          )}
-
-          {activeView === "code" && (
-            <CodeGenerator process={currentProcess} />
           )}
 
           {activeView === "simulator" && (

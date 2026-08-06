@@ -12,8 +12,21 @@ interface ProcessSelectorProps {
 }
 
 export default function ProcessSelector({ currentProcess, onProcessSelect }: ProcessSelectorProps) {
-  const [customName, setCustomName] = useState("");
-  const [customContext, setCustomContext] = useState("");
+  const [customName, setCustomName] = useState(() => {
+    return sessionStorage.getItem("upe_custom_name_draft") || "";
+  });
+  const [customContext, setCustomContext] = useState(() => {
+    return sessionStorage.getItem("upe_custom_context_draft") || "";
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem("upe_custom_name_draft", customName);
+  }, [customName]);
+
+  useEffect(() => {
+    sessionStorage.setItem("upe_custom_context_draft", customContext);
+  }, [customContext]);
+
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [wordParsing, setWordParsing] = useState(false);
@@ -23,6 +36,16 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
   const [showLibrary, setShowLibrary] = useState(false);
   const [savedProcesses, setSavedProcesses] = useState<SavedProcessEntry[]>([]);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  // In-app confirm modal state (replacing browser native confirm/alert)
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    confirmVariant?: "danger" | "primary";
+    onConfirm: () => void;
+  } | null>(null);
 
   // Cloud Firebase state
   const [cloudConnected, setCloudConnected] = useState<boolean>(true);
@@ -83,21 +106,34 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
 
       setSaveSuccessMsg(`¡Proceso "${currentProcess.name}" guardado y sincronizado en Firebase Cloud!`);
       setTimeout(() => setSaveSuccessMsg(null), 4000);
+      setError(null);
     } catch (err) {
       console.error(err);
       setCloudSyncing(false);
-      alert("Error al guardar en el almacenamiento.");
+      setError("Error al guardar el proceso en la librería local o en Firebase Cloud.");
     }
   };
 
   // Delete from library and Firebase Cloud
-  const handleDeleteFromLibrary = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteFromLibrary = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("¿Deseas eliminar este diseño guardado de la librería y Firebase Cloud?")) return;
-    const updated = savedProcesses.filter(p => p.id !== id);
-    setSavedProcesses(updated);
-    localStorage.setItem("upe_saved_processes_v1", JSON.stringify(updated));
-    await deleteProcessFromCloud(id);
+    const target = savedProcesses.find(p => p.id === id);
+    const procName = target?.process?.name ? `"${target.process.name}"` : "este diseño";
+    setConfirmModal({
+      isOpen: true,
+      title: "Eliminar diseño guardado",
+      message: `¿Deseas eliminar ${procName} de la librería y de Firebase Cloud? Esta acción no se puede deshacer.`,
+      confirmText: "Eliminar",
+      confirmVariant: "danger",
+      onConfirm: async () => {
+        const updated = savedProcesses.filter(p => p.id !== id);
+        setSavedProcesses(updated);
+        localStorage.setItem("upe_saved_processes_v1", JSON.stringify(updated));
+        await deleteProcessFromCloud(id);
+        setSaveSuccessMsg("Diseño eliminado correctamente de la librería y Firebase Cloud.");
+        setTimeout(() => setSaveSuccessMsg(null), 3000);
+      }
+    });
   };
 
   // Trigger manual cloud sync
@@ -236,30 +272,36 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
   };
 
   // Clear all library entries from local storage and Firebase Cloud
-  const handleClearLibrary = async () => {
-    if (!confirm("⚠️ ¿Está seguro de eliminar TODOS los procesos guardados en la librería y en Firebase Cloud? Esta acción no se puede deshacer a menos que tenga un respaldo descargado.")) {
-      return;
-    }
-    try {
-      setCloudSyncing(true);
-      for (const p of savedProcesses) {
-        await deleteProcessFromCloud(p.id);
+  const handleClearLibrary = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Vaciar Toda la Librería",
+      message: "⚠️ ¿Está seguro de eliminar TODOS los procesos guardados en la librería y en Firebase Cloud? Esta acción no se puede deshacer a menos que tenga un respaldo descargado.",
+      confirmText: "Sí, Vaciar Todo",
+      confirmVariant: "danger",
+      onConfirm: async () => {
+        try {
+          setCloudSyncing(true);
+          for (const p of savedProcesses) {
+            await deleteProcessFromCloud(p.id);
+          }
+          setSavedProcesses([]);
+          localStorage.removeItem("upe_saved_processes_v1");
+          setCloudSyncing(false);
+          setAdminMsg({
+            type: "success",
+            text: "La librería de procesos y la base de datos Firebase Cloud se han eliminado por completo."
+          });
+        } catch (err: any) {
+          console.error(err);
+          setCloudSyncing(false);
+          setAdminMsg({
+            type: "error",
+            text: err.message || "Error al vaciar la librería en Firebase Cloud."
+          });
+        }
       }
-      setSavedProcesses([]);
-      localStorage.removeItem("upe_saved_processes_v1");
-      setCloudSyncing(false);
-      setAdminMsg({
-        type: "success",
-        text: "La librería de procesos y la base de datos Firebase Cloud se han eliminado por completo."
-      });
-    } catch (err: any) {
-      console.error(err);
-      setCloudSyncing(false);
-      setAdminMsg({
-        type: "error",
-        text: err.message || "Error al vaciar la librería en Firebase Cloud."
-      });
-    }
+    });
   };
 
   // Export JSON file
@@ -339,12 +381,14 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
           const parsed = JSON.parse(event.target?.result as string);
           if (parsed && parsed.name && parsed.subprocesses) {
             onProcessSelect(parsed);
-            alert(`Proceso "${parsed.name}" importado y cargado en el área de trabajo.`);
+            setSaveSuccessMsg(`¡Proceso "${parsed.name}" importado y cargado en el área de trabajo!`);
+            setTimeout(() => setSaveSuccessMsg(null), 4000);
+            setError(null);
           } else {
-            alert("El archivo JSON no tiene una estructura válida de ProcessDefinition.");
+            setError("El archivo JSON seleccionado no contiene una estructura válida de ProcessDefinition.");
           }
         } catch (err) {
-          alert("Error al leer el archivo JSON.");
+          setError("Error al leer el archivo JSON. Verifique que el formato sea correcto.");
         }
       };
     }
@@ -381,20 +425,28 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          processName: customName,
-          descriptionContext: customContext
+          processName: customName.trim(),
+          descriptionContext: customContext.trim()
         })
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Error al generar el proceso");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Error al generar el proceso mediante la Inteligencia Artificial.");
       }
 
       const generatedProcess: ProcessDefinition = await response.json();
+      if (!generatedProcess || !generatedProcess.name || !generatedProcess.subprocesses) {
+        throw new Error("El modelo generado por la IA no devolvió la estructura completa esperada.");
+      }
+
       onProcessSelect(generatedProcess);
+      setSaveSuccessMsg(`¡Proceso "${generatedProcess.name}" generado exitosamente mediante IA!`);
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
       setCustomName("");
       setCustomContext("");
+      sessionStorage.removeItem("upe_custom_name_draft");
+      sessionStorage.removeItem("upe_custom_context_draft");
     } catch (err: any) {
       console.error(err);
       setError(err.message || "No se pudo conectar con el servidor de IA.");
@@ -427,10 +479,8 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
     const handleClickOutside = (event: MouseEvent) => {
       if (comboboxRef.current && !comboboxRef.current.contains(event.target as Node)) {
         setIsComboboxOpen(false);
-        // Restore current process name if left mismatched or empty
-        if (!comboboxQuery.trim()) {
-          handleClearToBlank();
-        } else if (!isBlankProcess(currentProcess.name)) {
+        // Restore current process name in search query without resetting custom draft inputs
+        if (!isBlankProcess(currentProcess.name)) {
           setComboboxQuery(currentProcess.name);
         } else {
           setComboboxQuery("");
@@ -439,7 +489,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [currentProcess.name, comboboxQuery]);
+  }, [currentProcess.name]);
 
   // Clear or reset to Blank process
   const handleClearToBlank = () => {
@@ -447,6 +497,8 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
     setComboboxQuery("");
     setCustomName("");
     setCustomContext("");
+    sessionStorage.removeItem("upe_custom_name_draft");
+    sessionStorage.removeItem("upe_custom_context_draft");
     setError(null);
     setIsComboboxOpen(false);
   };
@@ -489,35 +541,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
                 <BookOpen className="w-4 h-4 text-slate-700" />
                 Diseño de Proceso Activo
               </label>
-
-              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-extrabold tracking-wider border ${
-                cloudConnected
-                  ? "bg-emerald-50 text-emerald-900 border-emerald-200"
-                  : "bg-amber-50 text-amber-900 border-amber-200"
-              }`} title="Estado de la base de datos Firebase Cloud Firestore">
-                {cloudConnected ? (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Firebase Cloud Sync 🟢
-                  </>
-                ) : (
-                  <>
-                    <CloudOff className="w-3 h-3 text-amber-600" />
-                    Modo Local
-                  </>
-                )}
-              </span>
             </div>
-
-            <button
-              type="button"
-              onClick={handleClearToBlank}
-              className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
-              title="Limpiar y volver a estado en blanco"
-            >
-              <RotateCcw className="w-3 h-3 text-slate-600" />
-              Limpiar (Quedar en Blanco)
-            </button>
           </div>
 
           {/* Searchable Combobox Input & Dropdown */}
@@ -731,7 +755,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
           <div className="md:self-end">
             <button
               type="submit"
-              disabled={loading || !customName.trim() || !customContext.trim()}
+              disabled={loading}
               className="w-full md:w-auto px-6 py-2.5 bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -1080,6 +1104,44 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
                 className="px-5 py-2 bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors"
               >
                 Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NATIVE IN-PAGE CONFIRM MODAL */}
+      {confirmModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 max-w-md w-full shadow-2xl p-6 space-y-4 animate-scaleUp">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">{confirmModal.title}</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.message}</p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className={`px-4 py-2 text-xs font-semibold text-white transition-colors ${
+                  confirmModal.confirmVariant === "danger"
+                    ? "bg-rose-600 hover:bg-rose-700"
+                    : "bg-slate-900 hover:bg-slate-800"
+                }`}
+              >
+                {confirmModal.confirmText || "Confirmar"}
               </button>
             </div>
           </div>

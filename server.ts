@@ -49,6 +49,7 @@ CRITICAL TO-BE & BPMN 2.0 SPECIFICATION RULES:
 8. Variantes: Rare execution forms or cross-references. If none exist, set value EXACTLY to "No tiene".
 9. Cross-references ("Referencias cruzadas"): If an activity references or repeats another activity, use cross-references (e.g. "Ver Actividad 4.1.1"). Do not duplicate identical fichas.
 10. COMPLETE SEQUENCE: Each subprocess MUST contain between 3 and 6 detailed sequential activities (4.X.1, 4.X.2, 4.X.3, 4.X.4, etc.) to fully model the complete operational workflow without skipping steps.
+11. ESTADOS OFICIALES Y ALINEACIÓN CON SUBPROCESOS BPMN 2.0 (Ref. 3.4 y 3.5): El arreglo "stateMachine.states" debe corresponder exactamente 1 a 1 en orden secuencial con la lista de subprocesos definidos en "subprocesses" (Ref. 3.5), de modo que cada estado oficial coincida directamente con su etapa/subproceso correspondiente desde el Evento de Inicio (Gatillo) hasta el Evento de Término.
 
 The JSON object MUST match the following TypeScript interface exactly:
 
@@ -126,6 +127,58 @@ interface ProcessDefinition {
 
 Create 3-5 subprocesses (4.1, 4.2, 4.3, etc.) and for EACH subprocess provide 3 to 6 comprehensive, step-by-step activities (4.1.1, 4.1.2, 4.1.3, 4.1.4...). All names, definitions, descriptions, formulas, and technical aspects must feel robust and institutional in Spanish.`;
 
+// Helper function for Gemini API calls with retries and fallback
+async function generateContentWithRetryAndFallback(promptContent: string, temperature = 0.2) {
+  if (!ai) {
+    throw new Error("Gemini API Client is not configured. Please supply a GEMINI_API_KEY.");
+  }
+
+  const candidateModels = ["gemini-3.6-flash", "gemini-flash-latest"];
+  let lastErr: any = null;
+
+  for (const model of candidateModels) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`[Gemini API] Attempt ${attempt} using model '${model}'...`);
+        const res = await ai.models.generateContent({
+          model,
+          contents: promptContent,
+          config: {
+            systemInstruction: systemInstruction,
+            responseMimeType: "application/json",
+            temperature,
+          },
+        });
+        return res;
+      } catch (err: any) {
+        lastErr = err;
+        console.warn(`[Gemini API] Model '${model}' attempt ${attempt} failed: ${err?.message || err}`);
+        const errStr = JSON.stringify(err || {});
+        const isRetryable = errStr.includes("503") || errStr.includes("429") || errStr.includes("UNAVAILABLE") || errStr.includes("HIGH_DEMAND") || err?.status === 503;
+        if (isRetryable && attempt < 3) {
+          const backoffMs = attempt * 1200;
+          console.log(`[Gemini API] Retrying in ${backoffMs}ms...`);
+          await new Promise((r) => setTimeout(r, backoffMs));
+        } else if (!isRetryable) {
+          break;
+        }
+      }
+    }
+  }
+  throw lastErr;
+}
+
+function formatGeminiUserError(error: any): string {
+  const errStr = String(error?.message || error || "");
+  if (errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("demand")) {
+    return "El modelo de Inteligencia Artificial está experimentando una alta demanda temporal en los servidores de Google. Por favor, reintente en unos segundos.";
+  }
+  if (errStr.includes("429") || errStr.includes("RESOURCE_EXHAUSTED")) {
+    return "Se ha alcanzado el límite de peticiones de la API. Por favor, espere un momento e intente nuevamente.";
+  }
+  return error?.message || "Error al procesar la solicitud con Inteligencia Artificial.";
+}
+
 // API endpoint to generate process
 app.post("/api/generate", async (req, res) => {
   try {
@@ -134,34 +187,23 @@ app.post("/api/generate", async (req, res) => {
       return res.status(400).json({ error: "Process name is required" });
     }
 
-    if (!ai) {
-      return res.status(503).json({
-        error: "Gemini API Client is not configured. Please supply a GEMINI_API_KEY.",
-      });
-    }
-
     const prompt = `Generate a complete process definition for the following business process:
 Process Name: "${processName}"
 Context/Details: "${descriptionContext || "Standard enterprise implementation."}"`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.2,
-      },
-    });
+    const response = await generateContentWithRetryAndFallback(prompt, 0.2);
 
     const responseText = response.text || "{}";
-    const cleanedText = responseText.trim();
+    let cleanedText = responseText.trim();
+    if (cleanedText.startsWith("```")) {
+      cleanedText = cleanedText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+    }
     const processData = JSON.parse(cleanedText);
 
     res.json(processData);
   } catch (error: any) {
     console.error("Error generating process:", error);
-    res.status(500).json({ error: error.message || "Failed to generate process" });
+    res.status(503).json({ error: formatGeminiUserError(error) });
   }
 });
 
@@ -189,12 +231,6 @@ app.post("/api/parse-word", async (req, res) => {
       return res.status(400).json({ error: "No text could be extracted from the provided Word document. Asegúrese de que el archivo sea un documento .docx válido." });
     }
 
-    if (!ai) {
-      return res.status(503).json({
-        error: "Gemini API Client is not configured. Please supply a GEMINI_API_KEY.",
-      });
-    }
-
     const parsePrompt = `You are provided with the text extracted from a business process report or Word document:
 ---
 ${extractedDocumentText.slice(0, 25000)}
@@ -208,24 +244,19 @@ Map every subprocess and activity mentioned in the document. Ensure:
 - Each subprocess contains all relevant activities described in the document (3-6 activities per subprocess).
 - Include SIPOC, KPIs, Glossary, Risks, and State Machine based on the document's contents.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: parsePrompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.1,
-      },
-    });
+    const response = await generateContentWithRetryAndFallback(parsePrompt, 0.1);
 
     const responseText = response.text || "{}";
-    const cleanedText = responseText.trim();
+    let cleanedText = responseText.trim();
+    if (cleanedText.startsWith("```")) {
+      cleanedText = cleanedText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+    }
     const processData = JSON.parse(cleanedText);
 
     res.json(processData);
   } catch (error: any) {
     console.error("Error parsing Word document:", error);
-    res.status(500).json({ error: error.message || "Failed to parse Word document" });
+    res.status(503).json({ error: formatGeminiUserError(error) });
   }
 });
 

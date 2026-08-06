@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ProcessDefinition, ProcessInstance, SimulationLogEntry } from "../types";
-import { Play, RotateCcw, Plus, AlertCircle, ShieldAlert, CheckCircle2, RefreshCw, BarChart2, ListTodo, UserCheck, Sliders, Filter, Activity, Clock, Target, Layers } from "lucide-react";
+import { Play, PlayCircle, RotateCcw, Plus, AlertCircle, ShieldAlert, CheckCircle2, RefreshCw, BarChart2, ListTodo, UserCheck, Sliders, Filter, Activity, Clock, Target, Layers } from "lucide-react";
 
 interface ProcessSimulatorProps {
   process: ProcessDefinition;
@@ -279,7 +279,30 @@ export default function ProcessSimulator({ process }: ProcessSimulatorProps) {
     );
   };
 
-  const filteredKpis = process.kpis.filter((k) => {
+  if (!process || !process.name || process.name.trim() === "") {
+    return (
+      <div className="bg-white border border-slate-200 shadow-sm overflow-hidden">
+        {/* Tab Header */}
+        <div className="bg-slate-50 border-b border-slate-200 flex justify-between items-center px-6 py-4 flex-wrap gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 tracking-tight">Simulador & KPIs Dashboard</h3>
+            <p className="text-xs text-slate-500">Monitoreo y pruebas operativas de procesos</p>
+          </div>
+        </div>
+        <div className="p-16 text-center">
+          <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
+            <PlayCircle className="w-6 h-6" />
+          </div>
+          <h4 className="text-base font-bold text-slate-900 tracking-tight">Ningún proceso seleccionado</h4>
+          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+            Por favor seleccione un proceso existente en la librería o genere un nuevo modelo TO-BE en el selector superior para iniciar la simulación y el tablero de KPIs.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const filteredKpis = (process.kpis || []).filter((k) => {
     if (selectedPeriod === "ALL") return true;
     return k.periodicity?.toUpperCase() === selectedPeriod.toUpperCase();
   });

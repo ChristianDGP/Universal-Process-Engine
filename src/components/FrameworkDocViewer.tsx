@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ProcessDefinition, SubprocessDefinition, ActivityFicha } from "../types";
-import { FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X, Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink } from "lucide-react";
 
 interface FrameworkDocViewerProps {
   process: ProcessDefinition;
@@ -39,6 +39,15 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
     name: "",
     narrative: ""
   });
+
+  // In-page confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Activity Ficha Editing State
   const [editingAct, setEditingAct] = useState<{ subIndex: string; actIndex: string } | null>(null);
@@ -136,11 +145,20 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
   };
 
   const handleDeleteSubprocess = (subIndex: string) => {
-    if (!confirm(`¿Deseas eliminar el Subproceso ${subIndex} y todas sus actividades contenidas?`)) return;
-    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
-    updated.subprocesses = updated.subprocesses.filter((s) => s.index !== subIndex);
-    const reindexed = reindexProcess(updated);
-    if (onProcessChange) onProcessChange(reindexed);
+    const sub = process.subprocesses.find((s) => s.index === subIndex);
+    const subName = sub ? `"${sub.name}" (${subIndex})` : `Subproceso ${subIndex}`;
+    setConfirmModal({
+      isOpen: true,
+      title: "Eliminar Subproceso",
+      message: `¿Deseas eliminar el ${subName} y todas sus actividades contenidas? Esta acción reindexará el mapa de procesos.`,
+      confirmText: "Eliminar Subproceso",
+      onConfirm: () => {
+        const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+        updated.subprocesses = updated.subprocesses.filter((s) => s.index !== subIndex);
+        const reindexed = reindexProcess(updated);
+        if (onProcessChange) onProcessChange(reindexed);
+      }
+    });
   };
 
   const handleSaveActivity = (e: React.FormEvent) => {
@@ -181,15 +199,73 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
   };
 
   const handleDeleteActivity = (subIndex: string, actIndex: string) => {
-    if (!confirm(`¿Deseas eliminar la Ficha de Actividad ${actIndex}?`)) return;
-    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
-    const targetSub = updated.subprocesses.find((s) => s.index === subIndex);
-    if (targetSub) {
-      targetSub.activities = targetSub.activities.filter((a) => a.index !== actIndex);
-      const reindexed = reindexProcess(updated);
-      if (onProcessChange) onProcessChange(reindexed);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Eliminar Ficha de Actividad",
+      message: `¿Deseas eliminar la Ficha de Actividad ${actIndex}? Esta acción no se puede deshacer.`,
+      confirmText: "Eliminar Actividad",
+      onConfirm: () => {
+        const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+        const targetSub = updated.subprocesses.find((s) => s.index === subIndex);
+        if (targetSub) {
+          targetSub.activities = targetSub.activities.filter((a) => a.index !== actIndex);
+          const reindexed = reindexProcess(updated);
+          if (onProcessChange) onProcessChange(reindexed);
+        }
+      }
+    });
   };
+
+  if (!process || !process.name || process.name.trim() === "") {
+    return (
+      <div className="bg-white border border-slate-200 shadow-sm overflow-hidden">
+        {/* Tab Header */}
+        <div className="bg-slate-50 border-b border-slate-200 flex justify-between items-center px-6 py-4 flex-wrap gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 tracking-tight">Manual de Especificación de Procesos</h3>
+            <p className="text-xs text-slate-500">Documentación de Estándares Institucionales TO-BE & FCE</p>
+          </div>
+        </div>
+        <div className="p-16 text-center">
+          <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FileText className="w-6 h-6" />
+          </div>
+          <h4 className="text-base font-bold text-slate-900 tracking-tight">Ningún proceso seleccionado</h4>
+          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+            Por favor seleccione un proceso existente en la librería o genere un nuevo modelo TO-BE en el selector superior para visualizar la especificación técnica, matriz FCE y actividades.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Map official states (3.4) with subprocesses (3.5) for BPMN 2.0 alignment
+  const mappedStatesAndSubs = (() => {
+    const states = process.stateMachine?.states || [];
+    const subs = process.subprocesses || [];
+    const transitions = process.stateMachine?.transitions || [];
+
+    const maxLen = Math.max(states.length, subs.length);
+    const result = [];
+
+    for (let i = 0; i < maxLen; i++) {
+      const sub = subs[i];
+      const stateName = states[i] || (sub ? `Estado (${sub.name})` : `Estado #${i + 1}`);
+      const trans = transitions.find((t) => t.from === stateName || t.to === stateName);
+      const role = trans?.role || process.responsibleRole || "Operador Proceso";
+
+      result.push({
+        stateName,
+        subIndex: sub?.index,
+        subName: sub?.name,
+        role,
+        isInitial: i === 0 || stateName === process.stateMachine?.initialState,
+        isFinal: i === maxLen - 1
+      });
+    }
+
+    return result;
+  })();
 
   return (
     <div className="bg-white border border-slate-200 shadow-sm overflow-hidden">
@@ -371,36 +447,157 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
             </section>
 
             {/* 3.4. Modelo Descriptivo */}
-            <section className="space-y-4">
-              <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-slate-500" />
-                3.4. Modelo Descriptivo (Matriz de Transiciones y Roles)
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="border border-slate-200">
-                  <div className="bg-slate-50 p-3 border-b border-slate-200 font-semibold text-xs text-slate-700">
-                    Estados Oficiales del Proceso
-                  </div>
-                  <div className="p-4 flex flex-wrap gap-2">
-                    {process.stateMachine.states.map((state) => (
-                      <span
-                        key={state}
-                        className={`px-2.5 py-1 text-xs font-semibold ${
-                          state === process.stateMachine.initialState
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-700 border border-slate-200"
-                        }`}
-                      >
-                        {state}
+            <section className="space-y-4" id="section-3-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-slate-500" />
+                  3.4. Modelo Descriptivo (Estados Oficiales del Proceso y Diagrama BPMN 2.0)
+                </h4>
+                <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 border border-slate-200 self-start sm:self-auto uppercase tracking-wider">
+                  Metodología BPMN 2.0
+                </span>
+              </div>
+
+              {/* Diagrama BPMN 2.0 de Estados Oficiales Enlazados con Subprocesos */}
+              <div className="border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-800 border-b border-slate-200 pb-2">
+                  <span className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    Flujo de Estados Oficiales Enlazados con Subprocesos (Punto 3.5)
+                  </span>
+                  <span className="text-[11px] font-normal text-slate-500 hidden md:inline">
+                    Haz clic en un estado para ir a su Subproceso en 3.5 (SIPOC)
+                  </span>
+                </div>
+
+                {/* Contenedor Flujo BPMN con Scroll Horizontal */}
+                <div className="overflow-x-auto pb-3">
+                  <div className="flex items-center gap-3 min-w-max py-4 px-3">
+                    {/* Evento de Inicio (Círculo Verde BPMN 2.0) */}
+                    <div className="flex flex-col items-center group">
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 border-2 border-emerald-600 flex items-center justify-center text-emerald-700 shadow-sm transition-transform group-hover:scale-105" title="Evento de Inicio BPMN 2.0 (Círculo Verde)">
+                        <span className="w-4 h-4 bg-emerald-600 rounded-full"></span>
+                      </div>
+                      <span className="text-[11px] font-bold text-emerald-800 mt-2 text-center max-w-[110px]">
+                        EVENTO DE INICIO
                       </span>
+                      <span className="text-[10px] text-slate-500 text-center max-w-[130px] italic line-clamp-2 mt-0.5">
+                        {process.scopeStart || "Gatillo de Inicio"}
+                      </span>
+                    </div>
+
+                    {/* Conector Flecha */}
+                    <div className="flex items-center text-slate-400 font-bold text-xs px-1">
+                      <div className="w-8 h-0.5 bg-slate-300"></div>
+                      <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
+                    </div>
+
+                    {/* Estados Oficiales Enlazados a Subprocesos */}
+                    {mappedStatesAndSubs.map((item, idx) => (
+                      <React.Fragment key={idx}>
+                        <a
+                          href={item.subIndex ? `#sipoc-sub-${item.subIndex}` : `#section-3-5`}
+                          onClick={(e) => {
+                            if (item.subIndex) {
+                              e.preventDefault();
+                              const el = document.getElementById(`sipoc-sub-${item.subIndex}`);
+                              if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }
+                          }}
+                          className="flex flex-col items-center group hover:no-underline"
+                        >
+                          <div className="px-4 py-3 bg-white border-2 border-slate-800 shadow-sm hover:border-blue-600 hover:bg-blue-50/50 transition-all text-center min-w-[160px] max-w-[210px] relative">
+                            <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 mb-1 border-b border-slate-100 pb-1">
+                              <span className="font-bold text-slate-700">Estado #{idx + 1}</span>
+                              {item.subIndex && (
+                                <span className="bg-slate-900 text-white font-bold px-1.5 py-0.5 text-[9px] uppercase tracking-wider">
+                                  Subp {item.subIndex}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 leading-snug">
+                              {item.stateName}
+                            </div>
+                            {item.subName && (
+                              <div className="text-[10px] text-slate-500 mt-1 truncate max-w-[180px] italic" title={item.subName}>
+                                {item.subName}
+                              </div>
+                            )}
+                            <div className="mt-2 pt-1 border-t border-slate-100 flex items-center justify-center gap-1 text-[9px] font-semibold text-slate-600">
+                              <span className="truncate max-w-[140px]">{item.role}</span>
+                              <ExternalLink className="w-2.5 h-2.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </div>
+                        </a>
+
+                        {/* Conector Flecha entre Estados */}
+                        <div className="flex items-center text-slate-400 font-bold text-xs px-1">
+                          <div className="w-8 h-0.5 bg-slate-300"></div>
+                          <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
+                        </div>
+                      </React.Fragment>
+                    ))}
+
+                    {/* Evento de Término (Círculo Rojo BPMN 2.0) */}
+                    <div className="flex flex-col items-center group">
+                      <div className="w-12 h-12 rounded-full bg-rose-100 border-4 border-rose-600 flex items-center justify-center text-rose-700 shadow-sm transition-transform group-hover:scale-105" title="Evento de Término BPMN 2.0 (Círculo Rojo)">
+                        <span className="w-4 h-4 bg-rose-600 rounded-full"></span>
+                      </div>
+                      <span className="text-[11px] font-bold text-rose-800 mt-2 text-center max-w-[110px]">
+                        EVENTO DE TÉRMINO
+                      </span>
+                      <span className="text-[10px] text-slate-500 text-center max-w-[130px] italic line-clamp-2 mt-0.5">
+                        {process.scopeEnd || "Entregable Finalizado"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tablas Descriptivas de Estados y SLAs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div className="border border-slate-200">
+                  <div className="bg-slate-50 p-3 border-b border-slate-200 font-semibold text-xs text-slate-700 flex items-center justify-between">
+                    <span>Matriz de Coincidencia de Estados Oficiales y Subprocesos</span>
+                    <span className="text-[10px] font-mono text-slate-500">3.4 ↔ 3.5</span>
+                  </div>
+                  <div className="p-3 space-y-2 max-h-[220px] overflow-y-auto">
+                    {mappedStatesAndSubs.map((st, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200/80 text-xs">
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-slate-900"></span>
+                            {st.stateName}
+                          </div>
+                          {st.subName && (
+                            <div className="text-[10px] text-slate-500 font-medium">
+                              Subproceso: ({st.subIndex}) {st.subName}
+                            </div>
+                          )}
+                        </div>
+                        {st.subIndex && (
+                          <a
+                            href={`#sipoc-sub-${st.subIndex}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const el = document.getElementById(`sipoc-sub-${st.subIndex}`);
+                              if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }}
+                            className="px-2 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px] transition-colors flex items-center gap-1 shrink-0"
+                          >
+                            Ir a 3.5 SIPOC
+                          </a>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
+
                 <div className="border border-slate-200">
                   <div className="bg-slate-50 p-3 border-b border-slate-200 font-semibold text-xs text-slate-700">
-                    SLA y Escalación Operativa
+                    SLA y Escalación Operativa por Estado
                   </div>
-                  <div className="p-4 space-y-3">
+                  <div className="p-3 space-y-3 max-h-[220px] overflow-y-auto">
                     {process.stateMachine.slaRules.map((rule, idx) => (
                       <div key={idx} className="text-xs leading-relaxed text-slate-600 border-b border-slate-100 pb-2 last:border-0 last:pb-0">
                         <span className="font-bold text-rose-600 uppercase tracking-wider mr-1.5">[SLA {rule.state}]</span>
@@ -413,10 +610,15 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
             </section>
 
             {/* 3.5. Matriz SIPOC */}
-            <section className="space-y-4">
-              <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <Table className="w-4 h-4 text-slate-500" />
-                3.5. Ficha de Subprocesos (Matriz SIPOC)
+            <section className="space-y-4" id="section-3-5">
+              <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Table className="w-4 h-4 text-slate-500" />
+                  3.5. Ficha de Subprocesos (Matriz SIPOC Enlazada con Estados 3.4)
+                </div>
+                <span className="text-[10px] font-mono text-slate-500 font-normal">
+                  Ref. BPMN 2.0
+                </span>
               </h4>
               <div className="border border-slate-200 overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs min-w-[700px]">
@@ -424,25 +626,44 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                     <tr className="bg-slate-900 text-white uppercase tracking-wider font-bold text-[10px]">
                       <th className="p-3">S (Proveedor)</th>
                       <th className="p-3">I (Insumo)</th>
-                      <th className="p-3">P (Subproceso)</th>
+                      <th className="p-3">P (Subproceso & Estado Oficial 3.4)</th>
                       <th className="p-3">O (Entregable)</th>
                       <th className="p-3">C (Usuario Final)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {process.subprocesses.flatMap((sub) =>
-                      sub.sipoc.map((s, idx) => (
-                        <tr key={`${sub.index}-${idx}`} className="border-b border-slate-200 hover:bg-slate-50/50">
+                    {process.subprocesses.flatMap((sub) => {
+                      const matchedItem = mappedStatesAndSubs.find((m) => m.subIndex === sub.index);
+                      const matchingStateName = matchedItem?.stateName || process.stateMachine?.states[process.subprocesses.findIndex(s => s.index === sub.index)];
+
+                      return sub.sipoc.map((s, idx) => (
+                        <tr key={`${sub.index}-${idx}`} id={`sipoc-sub-${sub.index}`} className="border-b border-slate-200 hover:bg-slate-50/50 transition-colors">
                           <td className="p-3 text-slate-700 font-medium">{s.supplier}</td>
                           <td className="p-3 text-slate-600">{s.inputs}</td>
                           <td className="p-3 font-bold text-slate-900">
-                            ({sub.index}) {sub.name}
+                            <div className="space-y-1">
+                              <div>({sub.index}) {sub.name}</div>
+                              {matchingStateName && (
+                                <a
+                                  href="#section-3-4"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    const el = document.getElementById("section-3-4");
+                                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                                  }}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-[9.5px] font-semibold hover:bg-blue-100 transition-colors rounded-none"
+                                  title="Ver Estado Oficial en el Diagrama BPMN 2.0 (3.4)"
+                                >
+                                  <Layers className="w-2.5 h-2.5" /> Estado 3.4: {matchingStateName}
+                                </a>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 text-slate-600">{s.outputs}</td>
                           <td className="p-3 text-slate-700 font-medium">{s.customer}</td>
                         </tr>
-                      ))
-                    )}
+                      ));
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -925,6 +1146,40 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* NATIVE IN-PAGE CONFIRM MODAL */}
+      {confirmModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 max-w-md w-full shadow-2xl p-6 space-y-4 animate-scaleUp">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">{confirmModal.title}</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.message}</p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition-colors"
+              >
+                {confirmModal.confirmText || "Eliminar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
