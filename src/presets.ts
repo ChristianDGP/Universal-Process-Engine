@@ -129,11 +129,11 @@ export const WAREHOUSE_LOGISTICS_PRESET: ProcessDefinition = {
       activities: [
         {
           index: "4.1.1",
-          name: "Verificar Arribo y Documentación Fiscal",
+          name: "Verificar Documentación Fiscal de Arribo",
           description: "El recepcionista de bodega solicita la guía de despacho física y verifica en el ERP que exista una Orden de Compra activa vinculada en estado Liberada.",
           supportTech: "Módulo de Compras del ERP SAP",
           infoInputs: "Arribo de transporte con guía de despacho",
-          result: "Pre-ingreso de documento registrado",
+          result: "Conforme: Pre-ingreso de documento aprobado y registrado / No Conforme: Reclamación en andén por orden no liberada o inconsistencia",
           rules: "Aplicar procedimiento de validación tributaria y Orden de Compra en estado Liberada.",
           variants: "Si la guía de despacho presenta inconformidades graves, se genera rechazo directo en andén."
         },
@@ -185,11 +185,11 @@ export const WAREHOUSE_LOGISTICS_PRESET: ProcessDefinition = {
       activities: [
         {
           index: "4.2.1",
-          name: "Validar Atributos Críticos y Lotes",
+          name: "Validar Atributos Críticos de Lote",
           description: "El inspector técnico de calidad extrae muestras aleatorias, verifica fechas de vencimiento, integridad de envases primarios y registros de temperatura.",
           supportTech: "Portal Web de Calidad de Insumos",
           infoInputs: "Pallets etiquetados temporalmente en zona de tránsito",
-          result: "Dictamen técnico de calidad ingresado",
+          result: "Conforme: Dictamen técnico aprobado y lote liberado / No Conforme: Lote retenido y rechazado o derivado a cuarentena",
           rules: "Aplicar Norma Técnica de Inspección Muestral AQL y rango 2°C a 8°C para productos refrigerados.",
           variants: "Si la temperatura sobrepasa el rango permitido, el lote completo pasa a estado Quarantined."
         },
@@ -413,12 +413,12 @@ export const CLINICAL_TRIAGE_PRESET: ProcessDefinition = {
         },
         {
           index: "4.2.2",
-          name: "Evaluar Nivel de Gravedad y Asignar Categoria ESI",
+          name: "Categorizar Gravedad de Paciente ESI",
           description: "La enfermera evalúa la necesidad de recursos y constantes vitales para asignar el nivel ESI del 1 al 5 en el sistema hospitalario.",
           supportTech: "Módulo de Categorización HIS con soporte ESI",
           infoInputs: "Signos vitales registrados",
-          result: "Categorización ESI asignada",
-          rules: "Aplicar Manual del Algoritmo ESI Versión 4.",
+          result: "ESI 1-2: Prioridad crítica asignada y derivación directa a Reanimación/Box / ESI 3-5: Prioridad no crítica asignada y derivación a Sala de Espera",
+          rules: "Aplicar Manual del Algoritmo ESI Versión 4. Priorizar de acuerdo a parámetros fisiológicos y factores de riesgo.",
           variants: "No tiene"
         },
         {
@@ -449,12 +449,12 @@ export const CLINICAL_TRIAGE_PRESET: ProcessDefinition = {
       activities: [
         {
           index: "4.3.1",
-          name: "Derivar Paciente y Transferir Custodia",
+          name: "Derivar Paciente a Zona de Atención",
           description: "Se deriva físicamente al paciente a box clínico o sala de espera según la categoría asignada, registrando la transferencia de custodia.",
           supportTech: "Sistema de Control de Flujo Urgencia HIS",
           infoInputs: "Orden de espera activa generada en tablero",
-          result: "Custodia clínica transferida",
-          rules: "No tiene",
+          result: "Conforme: Custodia clínica transferida a Box o Sala de Espera / No Conforme: Paciente retenido en triaje por reevaluación o saturación de capacidad",
+          rules: "Aplicar Protocolo de Transferencia Segura de Custodia Clínica.",
           variants: "No tiene"
         },
         {

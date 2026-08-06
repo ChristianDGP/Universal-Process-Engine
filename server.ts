@@ -40,15 +40,15 @@ You must return your response STRICTLY as a single JSON object. Do not include a
 
 CRITICAL TO-BE & BPMN 2.0 SPECIFICATION RULES:
 1. Subprocess Names (Ref. 3.3.2 BPMN 2.0): Must be ABSTRACT NOUNS referring to the product or outcome of the subprocess (e.g. "Recepción e Inspección de Insumos", "Categorización y Clasificación de Pacientes").
-2. Activity Names (Ref. 2.2 BPMN 2.0): Must start with an INFINITIVE VERB (unconjugated, e.g., "Verificar documentación", "Evaluar signos vitales", "Registrar ingreso").
+2. Activity Names (Ref. 2.2 BPMN 2.0): ATOMIC ACTIVITIES ONLY. NEVER combine two actions in a single name (e.g. NEVER "Recepcionar muestras y validar códigos"). Must be split into distinct atomic activities ("Recibir Muestras", "Validar Código"). Each activity MUST start with a SINGLE INFINITIVE VERB. VOCABULARY RULE: Always prefer "Recibir" instead of "Recepcionar". Do NOT artificially limit the number of activities; use as many as needed to model the full workflow.
 3. Activity Description: Paragraph describing what the activity does in PRESENT TENSE ("tiempo presente", e.g., "El operador verifica la orden de compra y registra...").
-4. Events & Results (Ref. 2.2 BPMN 2.0): Expressed in PAST PARTICIPLE phrase representing a finished state (e.g., "Orden recibida", "Pacientes categorizados").
+4. Events & Results (Ref. 2.2 BPMN 2.0): Expressed in PAST PARTICIPLE phrase representing a finished state. For VALIDATION / VERIFICATION / INSPECTION / APPROVAL activities, MUST include AT LEAST 2 EXPLICIT RESULTS (e.g., "Conforme: Documentación validada y aceptada / No Conforme: Registro rechazado por inconformidad").
 5. Support Tech: IT software system or module. MANDATORY: MUST NOT contain Office, Drive, Mail, Hardware, or Equipamiento.
 6. Insumos de Información: Activating event or result of previous activity. MANDATORY: MUST NOT contain Protocolos or Manuales. (Protocol/manual rules MUST go under "rules").
-7. Reglas de Negocio: Specific rule or protocol (e.g. "Aplicar Protocolo XXX", "Aplicar Norma Técnica YYY"). If no specific rules exist, set value EXACTLY to "No tiene".
+7. Reglas de Negocio: Specific rule or protocol (e.g. "Aplicar Protocolo XXX", "Aplicar Norma Técnica YYY"). MANDATORY: When an activity involves validation/decision logic with multiple criteria, PRIVILEGE using "rules" to detail all decision conditions, acceptance criteria, and rejection thresholds. If no specific rules exist, set value EXACTLY to "No tiene".
 8. Variantes: Rare execution forms or cross-references. If none exist, set value EXACTLY to "No tiene".
 9. Cross-references ("Referencias cruzadas"): If an activity references or repeats another activity, use cross-references (e.g. "Ver Actividad 4.1.1"). Do not duplicate identical fichas.
-10. COMPLETE SEQUENCE: Each subprocess MUST contain between 3 and 6 detailed sequential activities (4.X.1, 4.X.2, 4.X.3, 4.X.4, etc.) to fully model the complete operational workflow without skipping steps.
+10. COMPLETE SEQUENCE: Each subprocess MUST contain detailed sequential activities (4.X.1, 4.X.2, 4.X.3, 4.X.4, etc., typically 3 to 6 per subprocess or more if needed) to fully model the complete operational workflow without skipping steps or clumping tasks.
 11. ESTADOS OFICIALES Y ALINEACIÓN CON SUBPROCESOS BPMN 2.0 (Ref. 3.4 y 3.5): El arreglo "stateMachine.states" debe corresponder exactamente 1 a 1 en orden secuencial con la lista de subprocesos definidos en "subprocesses" (Ref. 3.5), de modo que cada estado oficial coincida directamente con su etapa/subproceso correspondiente desde el Evento de Inicio (Gatillo) hasta el Evento de Término.
 
 The JSON object MUST match the following TypeScript interface exactly:
