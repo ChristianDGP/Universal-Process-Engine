@@ -1050,55 +1050,7 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                 </div>
               </div>
 
-              {/* Tablas Descriptivas de Estados y SLAs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                <div className="border border-slate-200">
-                  <div className="bg-slate-50 p-3 border-b border-slate-200 font-semibold text-xs text-slate-700 flex items-center justify-between">
-                    <span>Matriz de Coincidencia de Estados Oficiales y Subprocesos</span>
-                    <span className="text-[10px] font-mono text-slate-500">3.4 ↔ 3.5</span>
-                  </div>
-                  <div className="p-3 space-y-2 max-h-[220px] overflow-y-auto">
-                    {process.subprocesses.map((sub) => (
-                      <div key={sub.index} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200/80 text-xs">
-                        <div className="space-y-0.5">
-                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-slate-900"></span>
-                            {sub.name}
-                          </div>
-                          <div className="text-[10px] text-slate-500 font-medium">
-                            Subproceso Index: ({sub.index})
-                          </div>
-                        </div>
-                        <a
-                          href={`#sipoc-sub-${sub.index}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            const el = document.getElementById(`sipoc-sub-${sub.index}`);
-                            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                          }}
-                          className="px-2 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px] transition-colors flex items-center gap-1 shrink-0"
-                        >
-                          Ir a 3.5 SIPOC
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="border border-slate-200">
-                  <div className="bg-slate-50 p-3 border-b border-slate-200 font-semibold text-xs text-slate-700">
-                    SLA y Escalación Operativa por Estado
-                  </div>
-                  <div className="p-3 space-y-3 max-h-[220px] overflow-y-auto">
-                    {process.stateMachine?.slaRules?.map((rule, idx) => (
-                      <div key={idx} className="text-xs leading-relaxed text-slate-600 border-b border-slate-100 pb-2 last:border-0 last:pb-0">
-                        <span className="font-bold text-rose-600 uppercase tracking-wider mr-1.5">[SLA {rule.state}]</span>
-                        Límite: <strong className="text-slate-900">{rule.timeoutHours}h</strong>. <span className="italic">{rule.action}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </section>
 
             {/* 3.5. Matriz SIPOC */}
