@@ -47,10 +47,22 @@ export interface StateTransition {
   role: string;
 }
 
+export interface BpmnGateway {
+  id: string;
+  name: string; // e.g., "¿Documentación y Atributos Conformes?"
+  type: "EXCLUSIVE_XOR" | "PARALLEL_AND" | "INCLUSIVE_OR";
+  afterState: string; // State or subprocess after which gateway is evaluated
+  conditionTrueTarget: string; // e.g., Next Subprocess / State
+  conditionFalseTarget: string; // e.g., Exception State / Rechazo
+  role: string;
+}
+
 export interface ProcessStateMachine {
   states: string[]; // e.g., ["Draft", "Pending", "Approved", "Executed", "Rejected", "Quarantined"]
   initialState: string;
   transitions: StateTransition[];
+  gateways?: BpmnGateway[];
+  endEvents?: string[];
   custodyTransfers: {
     state: string;
     fromRole: string;
