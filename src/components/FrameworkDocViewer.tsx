@@ -614,7 +614,7 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
               <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Table className="w-4 h-4 text-slate-500" />
-                  3.5. Ficha de Subprocesos (Matriz SIPOC Enlazada con Estados 3.4)
+                  3.5. Ficha de Subprocesos (Matriz SIPOC)
                 </div>
                 <span className="text-[10px] font-mono text-slate-500 font-normal">
                   Ref. BPMN 2.0
@@ -626,44 +626,25 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                     <tr className="bg-slate-900 text-white uppercase tracking-wider font-bold text-[10px]">
                       <th className="p-3">S (Proveedor)</th>
                       <th className="p-3">I (Insumo)</th>
-                      <th className="p-3">P (Subproceso & Estado Oficial 3.4)</th>
+                      <th className="p-3">P (Subproceso)</th>
                       <th className="p-3">O (Entregable)</th>
                       <th className="p-3">C (Usuario Final)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {process.subprocesses.flatMap((sub) => {
-                      const matchedItem = mappedStatesAndSubs.find((m) => m.subIndex === sub.index);
-                      const matchingStateName = matchedItem?.stateName || process.stateMachine?.states[process.subprocesses.findIndex(s => s.index === sub.index)];
-
-                      return sub.sipoc.map((s, idx) => (
+                    {process.subprocesses.flatMap((sub) =>
+                      sub.sipoc.map((s, idx) => (
                         <tr key={`${sub.index}-${idx}`} id={`sipoc-sub-${sub.index}`} className="border-b border-slate-200 hover:bg-slate-50/50 transition-colors">
                           <td className="p-3 text-slate-700 font-medium">{s.supplier}</td>
                           <td className="p-3 text-slate-600">{s.inputs}</td>
                           <td className="p-3 font-bold text-slate-900">
-                            <div className="space-y-1">
-                              <div>({sub.index}) {sub.name}</div>
-                              {matchingStateName && (
-                                <a
-                                  href="#section-3-4"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    const el = document.getElementById("section-3-4");
-                                    if (el) el.scrollIntoView({ behavior: "smooth" });
-                                  }}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-[9.5px] font-semibold hover:bg-blue-100 transition-colors rounded-none"
-                                  title="Ver Estado Oficial en el Diagrama BPMN 2.0 (3.4)"
-                                >
-                                  <Layers className="w-2.5 h-2.5" /> Estado 3.4: {matchingStateName}
-                                </a>
-                              )}
-                            </div>
+                            ({sub.index}) {sub.name}
                           </td>
                           <td className="p-3 text-slate-600">{s.outputs}</td>
                           <td className="p-3 text-slate-700 font-medium">{s.customer}</td>
                         </tr>
-                      ));
-                    })}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
