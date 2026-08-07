@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ProcessDefinition } from "../types";
 import { PRESETS, BLANK_PROCESS_PRESET } from "../presets";
-import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff, Zap } from "lucide-react";
+import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff, Zap, ShieldAlert, Lock } from "lucide-react";
 import { subscribeToCloudProcesses, saveProcessToCloud, deleteProcessFromCloud, bulkSyncProcessesToCloud, SavedProcessEntry } from "../firebaseSync";
 import { generateFallbackProcess } from "../lib/processTemplateGenerator";
-
+import { UserRole } from "../firebase";
 
 interface ProcessSelectorProps {
   currentProcess: ProcessDefinition;
   onProcessSelect: (process: ProcessDefinition) => void;
   onProcessUpdate?: (process: ProcessDefinition) => void;
+  userRole?: UserRole;
 }
 
-export default function ProcessSelector({ currentProcess, onProcessSelect }: ProcessSelectorProps) {
+export default function ProcessSelector({ currentProcess, onProcessSelect, userRole = "admin" }: ProcessSelectorProps) {
+  const isAdmin = userRole === "admin";
   const [customName, setCustomName] = useState(() => {
     return sessionStorage.getItem("upe_custom_name_draft") || "";
   });
@@ -690,46 +692,53 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
 
         <div className="flex flex-wrap items-center gap-2 self-start lg:self-end">
           {/* Action buttons: Save, Library, Admin/Backups */}
-          <button
-            onClick={handleSaveToLibrary}
-            className="px-3 py-2 text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 cursor-pointer"
-            title="Guardar diseño de proceso actual en tu librería local"
-          >
-            <BookmarkPlus className="w-3.5 h-3.5" />
-            Guardar Diseño
-          </button>
+          {isAdmin && (
+            <button
+              onClick={handleSaveToLibrary}
+              className="px-3 py-2 text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Guardar diseño de proceso actual en tu librería local"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5 text-emerald-700" />
+              Guardar Diseño
+            </button>
+          )}
 
           <button
             onClick={() => setShowLibrary(true)}
-            className="px-3 py-2 text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 transition-colors flex items-center gap-1.5 relative cursor-pointer"
+            className="px-3 py-2 text-xs font-bold bg-slate-900 text-white border border-slate-900 hover:bg-slate-800 transition-colors flex items-center gap-1.5 relative cursor-pointer shadow-sm"
+            title="Explorar la Librería de Procesos"
           >
-            <Library className="w-3.5 h-3.5 text-slate-600" />
+            <Library className="w-3.5 h-3.5 text-slate-300" />
             Librería ({savedProcesses.length})
           </button>
 
-          <button
-            onClick={() => {
-              setAdminMsg(null);
-              setShowAdminModal(true);
-            }}
-            className="px-3 py-2 text-xs font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
-            title="Gestión de respaldos, exportación e importación del sistema"
-          >
-            <HardDrive className="w-3.5 h-3.5 text-indigo-700" />
-            Respaldos & Admin
-          </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => {
+                  setAdminMsg(null);
+                  setShowAdminModal(true);
+                }}
+                className="px-3 py-2 text-xs font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title="Gestión de respaldos, exportación e importación del sistema"
+              >
+                <HardDrive className="w-3.5 h-3.5 text-indigo-700" />
+                Respaldos & Admin
+              </button>
 
-          <label className="px-3 py-2 text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors flex items-center gap-1.5" title="Importar informe en Word (.docx) e incorporarlo a la librería">
-            {wordParsing ? <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-700" /> : <FileText className="w-3.5 h-3.5 text-blue-700" />}
-            {wordParsing ? "Interpretando Word..." : "Importar Word (.docx)"}
-            <input type="file" accept=".docx,.doc" onChange={handleImportWord} disabled={wordParsing} className="hidden" />
-          </label>
+              <label className="px-3 py-2 text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors flex items-center gap-1.5 shadow-xs" title="Importar informe en Word (.docx) e incorporarlo a la librería">
+                {wordParsing ? <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-700" /> : <FileText className="w-3.5 h-3.5 text-blue-700" />}
+                {wordParsing ? "Interpretando Word..." : "Importar Word (.docx)"}
+                <input type="file" accept=".docx,.doc" onChange={handleImportWord} disabled={wordParsing} className="hidden" />
+              </label>
 
-          <label className="px-3 py-2 text-xs font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors flex items-center gap-1">
-            <Upload className="w-3.5 h-3.5" />
-            Importar JSON
-            <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
-          </label>
+              <label className="px-3 py-2 text-xs font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors flex items-center gap-1">
+                <Upload className="w-3.5 h-3.5" />
+                Importar JSON
+                <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
+              </label>
+            </>
+          )}
         </div>
       </div>
 
@@ -742,89 +751,112 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
 
       <div className="border-t border-slate-100 my-5"></div>
 
-      {/* Generator Form */}
-      <form onSubmit={handleGenerate} className="space-y-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2 flex items-center">
-              Modelar Nuevo Proceso
-              <span className="text-rose-600 font-bold ml-1">*</span>
-            </label>
-            <input
-              type="text"
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              placeholder="Ej. Compras Públicas, Onboarding de Personal, Triage Dental, Licitaciones..."
-              disabled={loading}
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-shadow bg-slate-50/50"
-            />
-          </div>
-          <div className="flex-[2]">
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2 flex items-center">
-              Contexto o Alcance Operativo (Obligatorio)
-              <span className="text-rose-600 font-bold ml-1">*</span>
-            </label>
-            <input
-              type="text"
-              value={customContext}
-              onChange={(e) => setCustomContext(e.target.value)}
-              placeholder="Ej. Inicia con la orden de pedido del área usuaria y finaliza con la firma del contrato digital por la dirección."
-              disabled={loading}
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-shadow bg-slate-50/50"
-            />
-          </div>
-          <div className="md:self-end">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full md:w-auto px-6 py-2.5 bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4 text-amber-400 fill-amber-400" />
-              )}
-              Generar Proceso TO-BE
-            </button>
-          </div>
-        </div>
-
-        {loading && (
-          <div className="bg-slate-50 border border-slate-100 p-4 flex items-center gap-3 animate-pulse">
-            <Loader2 className="w-5 h-5 text-slate-900 animate-spin" />
-            <div className="text-xs text-slate-600 font-medium">
-              <span className="text-slate-900 font-semibold mr-1">Paso {loadingStep + 1} de {loadingMessages.length}:</span>
-              {loadingMessages[loadingStep]}
+      {/* Generator Form / Analyst Banner */}
+      {!isAdmin ? (
+        <div className="bg-slate-50 border border-slate-200 p-4 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 font-bold">
+              <Library className="w-4 h-4 text-slate-800" />
             </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-rose-50 border border-rose-200 p-4 rounded-sm space-y-3 animate-fadeIn">
-            <div className="flex items-start gap-2.5 text-xs text-rose-800 font-medium">
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <p className="font-bold text-rose-950">Atención durante la generación con Inteligencia Artificial:</p>
-                <p className="leading-relaxed">{error}</p>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-rose-200/60 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[11px] text-rose-700 font-medium">
-                ¿Desea generar la estructura base sin esperar a la IA?
+            <div>
+              <span className="font-bold text-slate-900 block text-xs uppercase tracking-wider">Modo Consulta (Perfil Analista)</span>
+              <span className="text-slate-600 text-xs">
+                Tienes acceso para explorar y revisar los procesos documentados en la <strong className="text-slate-900">Librería</strong>. La creación e importación de nuevos procesos está gestionada por la Administración.
               </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowLibrary(true)}
+            className="px-4 py-2 bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors shrink-0 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <Library className="w-3.5 h-3.5" />
+            Abrir Librería ({savedProcesses.length})
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleGenerate} className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2 flex items-center">
+                Modelar Nuevo Proceso
+                <span className="text-rose-600 font-bold ml-1">*</span>
+              </label>
+              <input
+                type="text"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="Ej. Compras Públicas, Onboarding de Personal, Triage Dental, Licitaciones..."
+                disabled={loading}
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-shadow bg-slate-50/50"
+              />
+            </div>
+            <div className="flex-[2]">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2 flex items-center">
+                Contexto o Alcance Operativo (Obligatorio)
+                <span className="text-rose-600 font-bold ml-1">*</span>
+              </label>
+              <input
+                type="text"
+                value={customContext}
+                onChange={(e) => setCustomContext(e.target.value)}
+                placeholder="Ej. Inicia con la orden de pedido del área usuaria y finaliza con la firma del contrato digital por la dirección."
+                disabled={loading}
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-shadow bg-slate-50/50"
+              />
+            </div>
+            <div className="md:self-end">
               <button
-                type="button"
-                onClick={handleExecuteFallback}
-                className="px-3.5 py-1.5 bg-rose-900 hover:bg-rose-950 text-white font-bold text-xs rounded flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                type="submit"
+                disabled={loading}
+                className="w-full md:w-auto px-6 py-2.5 bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
               >
-                <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                Generar Estructura TO-BE Base (Modo Plantilla)
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-amber-400 fill-amber-400" />
+                )}
+                Generar Proceso TO-BE
               </button>
             </div>
           </div>
-        )}
-      </form>
+
+          {loading && (
+            <div className="bg-slate-50 border border-slate-100 p-4 flex items-center gap-3 animate-pulse">
+              <Loader2 className="w-5 h-5 text-slate-900 animate-spin" />
+              <div className="text-xs text-slate-600 font-medium">
+                <span className="text-slate-900 font-semibold mr-1">Paso {loadingStep + 1} de {loadingMessages.length}:</span>
+                {loadingMessages[loadingStep]}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-rose-50 border border-rose-200 p-4 rounded-sm space-y-3 animate-fadeIn">
+              <div className="flex items-start gap-2.5 text-xs text-rose-800 font-medium">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="font-bold text-rose-950">Atención durante la generación con Inteligencia Artificial:</p>
+                  <p className="leading-relaxed">{error}</p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-rose-200/60 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] text-rose-700 font-medium">
+                  ¿Desea generar la estructura base sin esperar a la IA?
+                </span>
+                <button
+                  type="button"
+                  onClick={handleExecuteFallback}
+                  className="px-3.5 py-1.5 bg-rose-900 hover:bg-rose-950 text-white font-bold text-xs rounded flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                  Generar Estructura TO-BE Base (Modo Plantilla)
+                </button>
+              </div>
+            </div>
+          )}
+        </form>
+      )}
 
       {/* LIBRARY MODAL */}
       {showLibrary && (
@@ -891,26 +923,28 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        <button
-                          onClick={(e) => handleExportJSON(item.process, e)}
-                          className={`p-2 text-xs font-medium border transition-colors flex items-center gap-1 ${
-                            currentProcess.name === item.process.name
-                              ? "bg-slate-800 text-white border-slate-700 hover:bg-slate-700"
-                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                          }`}
-                          title="Descargar JSON"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleDeleteFromLibrary(item.id, e)}
-                          className="p-2 text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
-                          title="Eliminar de librería"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      {isAdmin && (
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          <button
+                            onClick={(e) => handleExportJSON(item.process, e)}
+                            className={`p-2 text-xs font-medium border transition-colors flex items-center gap-1 ${
+                              currentProcess.name === item.process.name
+                                ? "bg-slate-800 text-white border-slate-700 hover:bg-slate-700"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                            title="Descargar JSON"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteFromLibrary(item.id, e)}
+                            className="p-2 text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
+                            title="Eliminar de librería"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -919,18 +953,22 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
 
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-xs text-slate-500">
               <span className="flex items-center gap-2">
-                <span>{savedProcesses.length} procesos guardados en la librería local</span>
-                <span>&bull;</span>
-                <button
-                  onClick={() => {
-                    setShowLibrary(false);
-                    setShowAdminModal(true);
-                  }}
-                  className="text-indigo-700 font-bold hover:underline flex items-center gap-1"
-                >
-                  <HardDrive className="w-3 h-3" />
-                  Gestión de Respaldos
-                </button>
+                <span>{savedProcesses.length} procesos guardados en la librería</span>
+                {isAdmin && (
+                  <>
+                    <span>&bull;</span>
+                    <button
+                      onClick={() => {
+                        setShowLibrary(false);
+                        setShowAdminModal(true);
+                      }}
+                      className="text-indigo-700 font-bold hover:underline flex items-center gap-1"
+                    >
+                      <HardDrive className="w-3 h-3" />
+                      Gestión de Respaldos
+                    </button>
+                  </>
+                )}
               </span>
               <button
                 onClick={() => setShowLibrary(false)}

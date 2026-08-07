@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ProcessDefinition, SubprocessDefinition, ActivityFicha, BpmnGateway, StateTransition, KPIDefinition } from "../types";
+import { UserRole } from "../firebase";
 import {
   FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
@@ -10,9 +11,11 @@ import {
 interface FrameworkDocViewerProps {
   process: ProcessDefinition;
   onProcessChange?: (updated: ProcessDefinition) => void;
+  userRole?: UserRole;
 }
 
-export default function FrameworkDocViewer({ process, onProcessChange }: FrameworkDocViewerProps) {
+export default function FrameworkDocViewer({ process, onProcessChange, userRole = "admin" }: FrameworkDocViewerProps) {
+  const isAdmin = userRole === "admin";
   const [activeTab, setActiveTab] = useState<"fce" | "tobe">("tobe");
 
   // Section 4 Collapse / Expand State
