@@ -70,14 +70,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200/60 px-3 py-1.5 rounded-sm">
-              <span className={`w-2 h-2 rounded-full ${apiHealth.healthy ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`}></span>
-              <span className="text-slate-600 font-semibold font-mono">
-                {apiHealth.loading ? "Checking API..." : apiHealth.healthy ? "Gemini 3.6-Flash: Active" : "Local Mode: Active"}
-              </span>
-            </div>
-          </div>
+          {/* Header right controls */}
         </div>
       </header>
 

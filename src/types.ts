@@ -57,10 +57,24 @@ export interface BpmnGateway {
   role: string;
 }
 
+export interface BpmnStartEvent {
+  id: string;
+  name: string; // e.g., "Orden de Atención Recibida"
+  targetSubprocess: string; // Subprocess name it links into
+}
+
+export interface BpmnEndEvent {
+  id: string;
+  name: string; // e.g., "Tratamiento de Hemodiálisis Realizado"
+  fromSubprocess: string; // Subprocess name it originates from
+}
+
 export interface ProcessStateMachine {
   states: string[]; // e.g., ["Draft", "Pending", "Approved", "Executed", "Rejected", "Quarantined"]
   initialState: string;
   transitions: StateTransition[];
+  startEvents?: BpmnStartEvent[];
+  endEventsList?: BpmnEndEvent[];
   gateways?: BpmnGateway[];
   endEvents?: string[];
   custodyTransfers: {
