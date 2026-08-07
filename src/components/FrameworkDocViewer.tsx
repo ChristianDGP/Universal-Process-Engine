@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ProcessDefinition, SubprocessDefinition, ActivityFicha, BpmnGateway, StateTransition, BpmnStartEvent, BpmnEndEvent } from "../types";
+import { ProcessDefinition, SubprocessDefinition, ActivityFicha, BpmnGateway, StateTransition } from "../types";
 import {
   FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
@@ -59,22 +59,18 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
 
   // Start Event Editing Modal State
   const [startModalOpen, setStartModalOpen] = useState(false);
-  const [editingStartEventId, setEditingStartEventId] = useState<string | null>(null);
-  const [startForm, setStartForm] = useState<{ id: string; name: string; targetSubprocess: string }>({
-    id: "start_1",
-    name: process?.scopeStart || "Solicitud / Orden Recibida",
-    targetSubprocess: process?.stateMachine?.initialState || process?.subprocesses[0]?.name || ""
+  const [startForm, setStartForm] = useState<{ scopeStart: string; initialState: string }>({
+    scopeStart: process?.scopeStart || "",
+    initialState: process?.stateMachine?.initialState || ""
   });
   const [isNewInitialSub, setIsNewInitialSub] = useState<boolean>(false);
   const [customInitialSubName, setCustomInitialSubName] = useState<string>("");
 
   // End Event Editing Modal State
   const [endModalOpen, setEndModalOpen] = useState(false);
-  const [editingEndEventId, setEditingEndEventId] = useState<string | null>(null);
-  const [endForm, setEndForm] = useState<{ id: string; name: string; fromSubprocess: string }>({
-    id: "end_1",
-    name: process?.scopeEnd || "Tratamiento / Proceso Finalizado",
-    fromSubprocess: process?.subprocesses[process?.subprocesses.length - 1]?.name || ""
+  const [endForm, setEndForm] = useState<{ scopeEnd: string; alternateStates: string }>({
+    scopeEnd: process?.scopeEnd || "",
+    alternateStates: process?.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined"
   });
 
   // Gateway BPMN 2.0 Modal State
@@ -105,13 +101,6 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
   // Canvas Height & Layout Settings (Bizagi Modeler Style)
   const [canvasHeight, setCanvasHeight] = useState<number>(550); // Default 550px height
   const [showGrid, setShowGrid] = useState<boolean>(true);
-
-  // Helper for Past Participle recommendation (Requirement 3)
-  const isPastParticiple = (text: string) => {
-    if (!text || text.trim().length === 0) return true;
-    const cleaned = text.trim().toLowerCase();
-    return /(ado|ada|ados|adas|ido|ida|idos|idas|to|ta|tos|tas|so|sa|sos|sas|cho|cha|chos|chas)$/.test(cleaned);
-  };
 
   // Function to validate diagram consistency and save
   const handleSaveModelWithValidation = () => {
@@ -206,69 +195,41 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
       };
     }
 
-    // 1. Ensure Start Events and End Events exist
-    if (!updated.stateMachine.startEvents || updated.stateMachine.startEvents.length === 0) {
-      updated.stateMachine.startEvents = [
-        {
-          id: "start_1",
-          name: updated.scopeStart || "Solicitud / Orden Recibida",
-          targetSubprocess: updated.stateMachine.initialState || updated.subprocesses[0]?.name || ""
-        }
-      ];
-    }
-
-    if (!updated.stateMachine.endEventsList || updated.stateMachine.endEventsList.length === 0) {
-      const lastSub = updated.subprocesses[updated.subprocesses.length - 1]?.name || "";
-      updated.stateMachine.endEventsList = [
-        {
-          id: "end_1",
-          name: updated.scopeEnd || "Tratamiento / Proceso Finalizado",
-          fromSubprocess: lastSub
-        }
-      ];
-    }
-
-    // Sync scopeStart and scopeEnd from events
-    updated.scopeStart = updated.stateMachine.startEvents.map((s) => s.name).filter(Boolean).join(" / ");
-    updated.scopeEnd = updated.stateMachine.endEventsList.map((e) => e.name).filter(Boolean).join(" / ");
-
-    // 2. Re-index subprocesses and ensure SIPOC rows and activities are strictly synchronized as per Rule 3.5
+    // 1. Re-index subprocesses and ensure SIPOC rows and activities are aligned
     updated.subprocesses = updated.subprocesses.map((sub: SubprocessDefinition, sIdx: number) => {
       const subIndex = `4.${sIdx + 1}`;
       sub.index = subIndex;
 
+      // Sync SIPOC rows
+      if (!sub.sipoc || sub.sipoc.length === 0) {
+        sub.sipoc = [
+          {
+            supplier: updated.suppliers || "Proveedor Externo / Interno",
+            inputs: updated.processInputs || "Insumo o Solicitud de Proceso",
+            subprocess: sub.name,
+            outputs: updated.processOutputs || "Entregable Registrado",
+            customer: updated.customers || "Unidad Destinataria"
+          }
+        ];
+      } else {
+        sub.sipoc = sub.sipoc.map((s) => ({
+          ...s,
+          subprocess: sub.name
+        }));
+      }
+
       // Sync activities indices
-      sub.activities = (sub.activities || []).map((act: ActivityFicha, aIdx: number) => {
+      sub.activities = sub.activities.map((act: ActivityFicha, aIdx: number) => {
         act.index = `${subIndex}.${aIdx + 1}`;
         if (!act.rules || !act.rules.trim()) act.rules = "No tiene";
         if (!act.variants || !act.variants.trim()) act.variants = "No tiene";
         return act;
       });
 
-      // Strict SIPOC Row Rule (3.5):
-      // S (Subproceso): Nombre del subproceso (el mismo que el diagrama)
-      // I (Entrada): Evento/insumo de la primera actividad del subproceso
-      // P (Procesamiento): Resumen de lo que transforma el subproceso (narrativa)
-      // O (Resultado): Evento/resultado de la última actividad del subproceso
-      // C (Usuarios/Destinatarios): Actores participantes del subproceso
-      const firstActInput = sub.activities[0]?.infoInputs || updated.processInputs || "Insumo o Gatillo de Entrada";
-      const lastActOutput = sub.activities[sub.activities.length - 1]?.result || updated.processOutputs || "Resultado Entregado";
-      const actorsList = Array.from(new Set(sub.activities.map((a) => a.supportTech).filter(Boolean))).join(", ") || updated.customers || updated.responsibleRole || "Unidad Destinataria";
-
-      sub.sipoc = [
-        {
-          supplier: updated.suppliers || "Proveedor Externo / Interno",
-          inputs: firstActInput,
-          subprocess: sub.name,
-          outputs: lastActOutput,
-          customer: actorsList
-        }
-      ];
-
       return sub;
     });
 
-    // 3. Sync stateMachine.states with subprocess names
+    // 2. Sync stateMachine.states with subprocess names
     const subNames = updated.subprocesses.map((s) => s.name);
     updated.stateMachine.states = subNames;
 
@@ -276,7 +237,7 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
       updated.stateMachine.initialState = subNames[0];
     }
 
-    // 4. Generate sequential transitions between consecutive states
+    // 3. Generate sequential transitions between consecutive states
     const newTransitions: StateTransition[] = [];
     for (let i = 0; i < subNames.length - 1; i++) {
       const from = subNames[i];
@@ -314,7 +275,7 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
 
     updated.stateMachine.transitions = newTransitions;
 
-    // 5. Sync SLA rules for every state
+    // 4. Sync SLA rules for every state
     const existingSlas = updated.stateMachine.slaRules || [];
     updated.stateMachine.slaRules = subNames.map((st) => {
       const existing = existingSlas.find((s) => s.state === st);
@@ -330,71 +291,32 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
     return updated;
   };
 
-  // Open Add Start Event Modal
-  const handleOpenAddStartEvent = (presetSub?: string) => {
-    setEditingStartEventId(null);
-    setStartForm({
-      id: `start_${Date.now()}`,
-      name: "Solicitud / Orden Recibida",
-      targetSubprocess: presetSub || process.subprocesses[0]?.name || ""
-    });
-    setIsNewInitialSub(false);
-    setCustomInitialSubName("");
-    setStartModalOpen(true);
-  };
-
-  // Open Edit Start Event Modal
-  const handleOpenEditStartEvent = (evt: BpmnStartEvent) => {
-    setEditingStartEventId(evt.id);
-    setStartForm({
-      id: evt.id,
-      name: evt.name,
-      targetSubprocess: evt.targetSubprocess
-    });
-    setIsNewInitialSub(false);
-    setCustomInitialSubName("");
-    setStartModalOpen(true);
-  };
-
-  // Delete Start Event
-  const handleDeleteStartEvent = (eventId: string) => {
-    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
-    if (updated.stateMachine?.startEvents) {
-      updated.stateMachine.startEvents = updated.stateMachine.startEvents.filter((s) => s.id !== eventId);
-    }
-    const synced = syncProcessModel(updated);
-    if (onProcessChange) onProcessChange(synced);
-  };
-
-  // Save Start Event
+  // Handler: Save Start Event
   const handleSaveStartEvent = (e: React.FormEvent) => {
     e.preventDefault();
     const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
-    if (!updated.stateMachine) {
-      updated.stateMachine = { states: [], initialState: "", transitions: [], custodyTransfers: [], exceptions: [], slaRules: [] };
-    }
-    if (!updated.stateMachine.startEvents) {
-      updated.stateMachine.startEvents = [];
-    }
+    updated.scopeStart = startForm.scopeStart;
 
-    let targetSub = startForm.targetSubprocess;
+    let targetInitialState = startForm.initialState;
     if ((isNewInitialSub || updated.subprocesses.length === 0) && customInitialSubName.trim()) {
-      targetSub = customInitialSubName.trim();
+      targetInitialState = customInitialSubName.trim();
     }
 
-    if (targetSub) {
-      const exists = updated.subprocesses.some((s) => s.name.toLowerCase() === targetSub.toLowerCase());
+    if (targetInitialState) {
+      // Check if targetInitialState exists in subprocesses
+      const exists = updated.subprocesses.some((s) => s.name.toLowerCase() === targetInitialState.toLowerCase());
       if (!exists) {
+        // Automatically create new subproceso
         const nextIdx = `4.${updated.subprocesses.length + 1}`;
         const newSub: SubprocessDefinition = {
           index: nextIdx,
-          name: targetSub,
-          narrative: `Subproceso inicial de ${targetSub}`,
+          name: targetInitialState,
+          narrative: `Subproceso inicial de ${targetInitialState}`,
           sipoc: [
             {
-              supplier: updated.suppliers || "Proveedor de Entrada",
-              inputs: startForm.name || "Gatillo de Inicio",
-              subprocess: targetSub,
+              supplier: updated.suppliers || "Proveedor de Inicio",
+              inputs: startForm.scopeStart || "Gatillo de Inicio",
+              subprocess: targetInitialState,
               outputs: updated.processOutputs || "Entregable Registrado",
               customer: updated.customers || "Unidad Destinataria"
             }
@@ -402,11 +324,11 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
           activities: [
             {
               index: `${nextIdx}.1`,
-              name: `Ejecutar ${targetSub}`,
-              description: `Se inicia la gestión de ${targetSub} conforme al gatillo de entrada.`,
+              name: `Ejecutar ${targetInitialState}`,
+              description: `Se inicia la gestión de ${targetInitialState} conforme al gatillo de entrada.`,
               supportTech: "Sistema ERP / Módulo de Gestión",
-              infoInputs: startForm.name || "Gatillo de Inicio",
-              result: `${targetSub} Ejecutado`,
+              infoInputs: startForm.scopeStart || "Gatillo de Inicio",
+              result: `${targetInitialState} Ejecutado`,
               rules: "No tiene",
               variants: "No tiene"
             }
@@ -414,96 +336,39 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
         };
         updated.subprocesses.push(newSub);
       }
-    }
 
-    const newEvt: BpmnStartEvent = {
-      id: startForm.id || `start_${Date.now()}`,
-      name: startForm.name.trim() || "Solicitud Recibida",
-      targetSubprocess: targetSub || updated.subprocesses[0]?.name || ""
-    };
-
-    if (editingStartEventId) {
-      const idx = updated.stateMachine.startEvents.findIndex((s) => s.id === editingStartEventId);
-      if (idx !== -1) {
-        updated.stateMachine.startEvents[idx] = newEvt;
-      } else {
-        updated.stateMachine.startEvents.push(newEvt);
+      if (!updated.stateMachine) {
+        updated.stateMachine = { states: [], initialState: "", transitions: [], custodyTransfers: [], exceptions: [], slaRules: [] };
       }
-    } else {
-      updated.stateMachine.startEvents.push(newEvt);
+      updated.stateMachine.initialState = targetInitialState;
     }
 
     const synced = syncProcessModel(updated);
     if (onProcessChange) onProcessChange(synced);
     setStartModalOpen(false);
-    setEditingStartEventId(null);
   };
 
-  // Open Add End Event Modal
-  const handleOpenAddEndEvent = (presetFromSub?: string) => {
-    setEditingEndEventId(null);
-    const lastSubName = process.subprocesses[process.subprocesses.length - 1]?.name || "";
-    setEndForm({
-      id: `end_${Date.now()}`,
-      name: "Tratamiento / Atención Finalizada",
-      fromSubprocess: presetFromSub || lastSubName
-    });
-    setEndModalOpen(true);
-  };
-
-  // Open Edit End Event Modal
-  const handleOpenEditEndEvent = (evt: BpmnEndEvent) => {
-    setEditingEndEventId(evt.id);
-    setEndForm({
-      id: evt.id,
-      name: evt.name,
-      fromSubprocess: evt.fromSubprocess
-    });
-    setEndModalOpen(true);
-  };
-
-  // Delete End Event
-  const handleDeleteEndEvent = (eventId: string) => {
-    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
-    if (updated.stateMachine?.endEventsList) {
-      updated.stateMachine.endEventsList = updated.stateMachine.endEventsList.filter((e) => e.id !== eventId);
-    }
-    const synced = syncProcessModel(updated);
-    if (onProcessChange) onProcessChange(synced);
-  };
-
-  // Save End Event
+  // Handler: Save End Event
   const handleSaveEndEvent = (e: React.FormEvent) => {
     e.preventDefault();
     const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
-    if (!updated.stateMachine) {
-      updated.stateMachine = { states: [], initialState: "", transitions: [], custodyTransfers: [], exceptions: [], slaRules: [] };
-    }
-    if (!updated.stateMachine.endEventsList) {
-      updated.stateMachine.endEventsList = [];
-    }
-
-    const newEvt: BpmnEndEvent = {
-      id: endForm.id || `end_${Date.now()}`,
-      name: endForm.name.trim() || "Entregable Registrado",
-      fromSubprocess: endForm.fromSubprocess || updated.subprocesses[updated.subprocesses.length - 1]?.name || ""
-    };
-
-    if (editingEndEventId) {
-      const idx = updated.stateMachine.endEventsList.findIndex((e) => e.id === editingEndEventId);
-      if (idx !== -1) {
-        updated.stateMachine.endEventsList[idx] = newEvt;
-      } else {
-        updated.stateMachine.endEventsList.push(newEvt);
+    updated.scopeEnd = endForm.scopeEnd;
+    
+    // Parse alternate terminal states (e.g. "Rechazado, Quarantined")
+    if (endForm.alternateStates) {
+      const altStates = endForm.alternateStates.split(",").map((s) => s.trim()).filter(Boolean);
+      if (!updated.stateMachine) {
+        updated.stateMachine = { states: [], initialState: "", transitions: [], custodyTransfers: [], exceptions: [], slaRules: [] };
       }
-    } else {
-      updated.stateMachine.endEventsList.push(newEvt);
+      updated.stateMachine.exceptions = altStates.map((st) => ({
+        triggerState: "Cualquier Estado",
+        targetState: st,
+        handler: `Tratamiento de excepción e ingreso a estado terminal '${st}'`
+      }));
     }
-
     const synced = syncProcessModel(updated);
     if (onProcessChange) onProcessChange(synced);
     setEndModalOpen(false);
-    setEditingEndEventId(null);
   };
 
   // Handler: Save BPMN Gateway
@@ -577,46 +442,14 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
       // Edit existing subprocess
       const targetSub = updated.subprocesses.find((s) => s.index === editingSubIndex);
       if (targetSub) {
-        const oldName = targetSub.name;
-        const newName = subForm.name.trim();
-
-        targetSub.name = newName;
+        targetSub.name = subForm.name;
         targetSub.narrative = subForm.narrative;
 
-        // Cascading updates for renamed subprocess across all references in the document
-        if (oldName !== newName) {
-          if (updated.stateMachine?.startEvents) {
-            updated.stateMachine.startEvents.forEach((se) => {
-              if (se.targetSubprocess === oldName) se.targetSubprocess = newName;
-            });
-          }
-          if (updated.stateMachine?.endEventsList) {
-            updated.stateMachine.endEventsList.forEach((ee) => {
-              if (ee.fromSubprocess === oldName) ee.fromSubprocess = newName;
-            });
-          }
-          if (updated.stateMachine?.gateways) {
-            updated.stateMachine.gateways.forEach((gw) => {
-              if (gw.afterState === oldName) gw.afterState = newName;
-              if (gw.conditionTrueTarget === oldName) gw.conditionTrueTarget = newName;
-              if (gw.conditionFalseTarget === oldName) gw.conditionFalseTarget = newName;
-            });
-          }
-          if (updated.stateMachine?.initialState === oldName) {
-            updated.stateMachine.initialState = newName;
-          }
-          if (updated.stateMachine?.slaRules) {
-            updated.stateMachine.slaRules.forEach((s) => {
-              if (s.state === oldName) s.state = newName;
-            });
-          }
-        }
-
         // Update SLA rule if exists or add it
-        const slaIdx = updated.stateMachine?.slaRules?.findIndex((s) => s.state === newName);
+        const slaIdx = updated.stateMachine?.slaRules?.findIndex((s) => s.state === targetSub.name);
         if (slaIdx !== undefined && slaIdx !== -1 && updated.stateMachine?.slaRules) {
           updated.stateMachine.slaRules[slaIdx] = {
-            state: newName,
+            state: subForm.name,
             timeoutHours: subForm.slaHours || 12,
             action: subForm.slaAction || "Alerta de escalamiento por retraso de SLA"
           };
@@ -1118,13 +951,12 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                   {/* Evento Inicio */}
                   <div
                     draggable={true}
-                    onClick={() => handleOpenAddStartEvent()}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("application/bpmn-element", "START_EVENT");
                       e.dataTransfer.effectAllowed = "copy";
                     }}
-                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-[11px] rounded flex items-center gap-1.5 cursor-pointer active:cursor-grabbing shadow-sm transition-transform hover:scale-105"
-                    title="Haz clic o Arrastra para agregar un Evento de Inicio"
+                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-[11px] rounded flex items-center gap-1.5 cursor-grab active:cursor-grabbing shadow-sm"
+                    title="Arrastra este Evento de Inicio sobre el diagrama para configurarlo"
                   >
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
                     <span>🟢 Evento Inicio</span>
@@ -1133,25 +965,12 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                   {/* Subproceso */}
                   <div
                     draggable={true}
-                    onClick={() => {
-                      setEditingSubIndex(null);
-                      setSubForm({
-                        index: "",
-                        name: "",
-                        role: process.responsibleRole || "Operador de Proceso",
-                        narrative: "",
-                        slaHours: 12,
-                        slaAction: "Escalamiento preventivo a Jefatura por sobrepaso de SLA",
-                        initialActivityName: "Ejecutar Verificación Inicial"
-                      });
-                      setSubModalOpen(true);
-                    }}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("application/bpmn-element", "SUBPROCESS");
                       e.dataTransfer.effectAllowed = "copy";
                     }}
-                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-900 font-bold text-[11px] rounded flex items-center gap-1.5 cursor-pointer active:cursor-grabbing shadow-sm transition-transform hover:scale-105"
-                    title="Haz clic o Arrastra para agregar un Subproceso"
+                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-900 font-bold text-[11px] rounded flex items-center gap-1.5 cursor-grab active:cursor-grabbing shadow-sm"
+                    title="Arrastra este Subproceso sobre el diagrama para agregarlo"
                   >
                     <span className="w-2.5 h-2.5 rounded bg-blue-600"></span>
                     <span>🟦 Subproceso</span>
@@ -1160,25 +979,12 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                   {/* Compuerta */}
                   <div
                     draggable={true}
-                    onClick={() => {
-                      setEditingGatewayId(null);
-                      const lastState = process.subprocesses[process.subprocesses.length - 1]?.name || "";
-                      setGatewayForm({
-                        name: "¿Atributos y Documentación Conformes?",
-                        type: "EXCLUSIVE_XOR",
-                        afterState: lastState,
-                        conditionTrueTarget: "",
-                        conditionFalseTarget: "Rechazado",
-                        role: process.responsibleRole || "Operador de Proceso"
-                      });
-                      setGatewayModalOpen(true);
-                    }}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("application/bpmn-element", "GATEWAY");
                       e.dataTransfer.effectAllowed = "copy";
                     }}
-                    className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-[11px] rounded flex items-center gap-1.5 cursor-pointer active:cursor-grabbing shadow-sm transition-transform hover:scale-105"
-                    title="Haz clic o Arrastra para agregar una Compuerta de Decisión"
+                    className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-[11px] rounded flex items-center gap-1.5 cursor-grab active:cursor-grabbing shadow-sm"
+                    title="Arrastra esta Compuerta sobre el diagrama para agregarla"
                   >
                     <GitFork className="w-3.5 h-3.5 text-amber-700" />
                     <span>🔀 Compuerta</span>
@@ -1187,13 +993,12 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                   {/* Evento Término */}
                   <div
                     draggable={true}
-                    onClick={() => handleOpenAddEndEvent()}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("application/bpmn-element", "END_EVENT");
                       e.dataTransfer.effectAllowed = "copy";
                     }}
-                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-bold text-[11px] rounded flex items-center gap-1.5 cursor-pointer active:cursor-grabbing shadow-sm transition-transform hover:scale-105"
-                    title="Haz clic o Arrastra para agregar un Evento de Término"
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-900 font-bold text-[11px] rounded flex items-center gap-1.5 cursor-grab active:cursor-grabbing shadow-sm"
+                    title="Arrastra este Evento de Término sobre el diagrama para configurarlo"
                   >
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-600"></span>
                     <span>🔴 Evento Término</span>
@@ -1309,7 +1114,18 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                       e.preventDefault();
                       const bpmnType = e.dataTransfer.getData("application/bpmn-element");
                       if (bpmnType === "START_EVENT") {
-                        handleOpenAddStartEvent();
+                        setStartForm({
+                          scopeStart: process.scopeStart || "",
+                          initialState: process.stateMachine?.initialState || (process.subprocesses[0]?.name || "")
+                        });
+                        if (process.subprocesses.length === 0) {
+                          setIsNewInitialSub(true);
+                          setCustomInitialSubName("");
+                        } else {
+                          setIsNewInitialSub(false);
+                          setCustomInitialSubName("");
+                        }
+                        setStartModalOpen(true);
                       } else if (bpmnType === "SUBPROCESS") {
                         setEditingSubIndex(null);
                         setSubForm({
@@ -1335,7 +1151,11 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                         });
                         setGatewayModalOpen(true);
                       } else if (bpmnType === "END_EVENT") {
-                        handleOpenAddEndEvent();
+                        setEndForm({
+                          scopeEnd: process.scopeEnd || "",
+                          alternateStates: process.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined"
+                        });
+                        setEndModalOpen(true);
                       }
                     }}
                     className={`flex-1 overflow-x-auto overflow-y-auto p-6 transition-all relative ${
@@ -1343,82 +1163,45 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-max min-h-full py-4 px-2">
-                      {/* Renderizar Eventos de Inicio (Círculos Verdes BPMN 2.0) */}
-                      {(() => {
-                        const startEventsList = (process.stateMachine?.startEvents && process.stateMachine.startEvents.length > 0)
-                          ? process.stateMachine.startEvents
-                          : [{ id: "start_1", name: process.scopeStart || "Solicitud Recibida", targetSubprocess: process.subprocesses[0]?.name || "" }];
-
-                        return (
-                          <div className="flex items-center gap-2">
-                            <div className="flex flex-col gap-2.5 items-center justify-center bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-300 relative shadow-2xs">
-                              <div className="flex items-center justify-between w-full gap-2 border-b border-emerald-200 pb-1 px-1">
-                                <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wide flex items-center gap-1">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                                  Inicio ({startEventsList.length})
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenAddStartEvent()}
-                                  className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold flex items-center gap-0.5 shadow-2xs transition-colors cursor-pointer"
-                                  title="Agregar un nuevo Evento de Inicio"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  <span>+ Evento</span>
-                                </button>
-                              </div>
-
-                              <div className="flex flex-wrap md:flex-col gap-3 justify-center items-center">
-                                {startEventsList.map((sEvt, sIdx) => (
-                                  <div key={sEvt.id} className="flex flex-col items-center group/card relative bg-white p-2 rounded-lg border border-emerald-200 shadow-2xs">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEditStartEvent(sEvt)}
-                                      className="w-11 h-11 rounded-full bg-emerald-100 border-2 border-emerald-600 flex items-center justify-center text-emerald-700 shadow-sm transition-transform hover:scale-110 relative cursor-pointer"
-                                      title="Editar Evento de Inicio"
-                                    >
-                                      <span className="w-3.5 h-3.5 bg-emerald-600 rounded-full"></span>
-                                      <div className="absolute -top-1 -right-1 bg-slate-900 text-white p-0.5 rounded-full opacity-0 group-hover/card:opacity-100 transition-opacity">
-                                        <Edit2 className="w-2.5 h-2.5" />
-                                      </div>
-                                    </button>
-
-                                    <div className="flex items-center gap-1 mt-1">
-                                      <span className="text-[10px] font-extrabold text-emerald-900 text-center">
-                                        INICIO {startEventsList.length > 1 ? `#${sIdx + 1}` : ""}
-                                      </span>
-                                      {startEventsList.length > 1 && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteStartEvent(sEvt.id)}
-                                          className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                                          title="Eliminar este Evento de Inicio"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                    </div>
-
-                                    <span className="text-[10px] font-medium text-slate-800 text-center max-w-[120px] line-clamp-2 mt-0.5">
-                                      {sEvt.name}
-                                    </span>
-                                    {sEvt.targetSubprocess && (
-                                      <span className="text-[9px] font-mono text-emerald-700 mt-0.5 bg-emerald-50 px-1 rounded border border-emerald-200">
-                                        ➔ {sEvt.targetSubprocess}
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center text-slate-400 font-bold text-xs px-1">
-                              <div className="w-8 h-0.5 bg-slate-300"></div>
-                              <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
-                            </div>
+                      {/* Evento de Inicio (Círculo Verde BPMN 2.0) */}
+                      <div className="flex flex-col items-center group relative">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStartForm({
+                              scopeStart: process.scopeStart || "",
+                              initialState: process.stateMachine?.initialState || (process.subprocesses[0]?.name || "")
+                            });
+                            if (process.subprocesses.length === 0) {
+                              setIsNewInitialSub(true);
+                              setCustomInitialSubName("");
+                            } else {
+                              setIsNewInitialSub(false);
+                              setCustomInitialSubName("");
+                            }
+                            setStartModalOpen(true);
+                          }}
+                          className="w-13 h-13 rounded-full bg-emerald-100 border-2 border-emerald-600 flex items-center justify-center text-emerald-700 shadow-md transition-transform hover:scale-110 relative"
+                          title="Editar Evento de Inicio"
+                        >
+                          <span className="w-4 h-4 bg-emerald-600 rounded-full"></span>
+                          <div className="absolute -top-1 -right-1 bg-slate-900 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Edit2 className="w-2.5 h-2.5" />
                           </div>
-                        );
-                      })()}
+                        </button>
+                        <span className="text-[11px] font-bold text-emerald-800 mt-2 text-center max-w-[110px]">
+                          EVENTO DE INICIO
+                        </span>
+                        <span className="text-[10px] text-slate-600 text-center max-w-[130px] italic line-clamp-2 mt-0.5">
+                          {process.scopeStart || "Gatillo de Inicio"}
+                        </span>
+                      </div>
+
+                      {/* Conector Flecha */}
+                      <div className="flex items-center text-slate-400 font-bold text-xs px-1">
+                        <div className="w-8 h-0.5 bg-slate-300"></div>
+                        <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
+                      </div>
 
                       {/* Subprocesos y Compuertas BPMN 2.0 */}
                       {process.subprocesses.map((sub, sIdx) => {
@@ -1626,82 +1409,32 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                         );
                       })}
 
-                      {/* Renderizar Eventos de Término (Círculos Rojos BPMN 2.0) */}
-                      {(() => {
-                        const endEventsList = (process.stateMachine?.endEventsList && process.stateMachine.endEventsList.length > 0)
-                          ? process.stateMachine.endEventsList
-                          : [{ id: "end_1", name: process.scopeEnd || "Atención Finalizada", fromSubprocess: process.subprocesses[process.subprocesses.length - 1]?.name || "" }];
-
-                        return (
-                          <div className="flex items-center gap-2">
-                            <div className="flex items-center text-slate-400 font-bold text-xs px-1">
-                              <div className="w-8 h-0.5 bg-slate-300"></div>
-                              <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
-                            </div>
-
-                            <div className="flex flex-col gap-2.5 items-center justify-center bg-rose-50/60 p-2.5 rounded-xl border border-rose-300 relative shadow-2xs">
-                              <div className="flex items-center justify-between w-full gap-2 border-b border-rose-200 pb-1 px-1">
-                                <span className="text-[10px] font-extrabold text-rose-800 uppercase tracking-wide flex items-center gap-1">
-                                  <span className="w-2 h-2 rounded-full bg-rose-600"></span>
-                                  Término ({endEventsList.length})
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenAddEndEvent()}
-                                  className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-bold flex items-center gap-0.5 shadow-2xs transition-colors cursor-pointer"
-                                  title="Agregar un nuevo Evento de Término"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  <span>+ Evento</span>
-                                </button>
-                              </div>
-
-                              <div className="flex flex-wrap md:flex-col gap-3 justify-center items-center">
-                                {endEventsList.map((eEvt, eIdx) => (
-                                  <div key={eEvt.id} className="flex flex-col items-center group/card relative bg-white p-2 rounded-lg border border-rose-200 shadow-2xs">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEditEndEvent(eEvt)}
-                                      className="w-11 h-11 rounded-full bg-rose-100 border-4 border-rose-600 flex items-center justify-center text-rose-700 shadow-md transition-transform hover:scale-110 relative cursor-pointer"
-                                      title="Editar Evento de Término"
-                                    >
-                                      <span className="w-3.5 h-3.5 bg-rose-600 rounded-full"></span>
-                                      <div className="absolute -top-1 -right-1 bg-slate-900 text-white p-0.5 rounded-full opacity-0 group-hover/card:opacity-100 transition-opacity">
-                                        <Edit2 className="w-2.5 h-2.5" />
-                                      </div>
-                                    </button>
-
-                                    <div className="flex items-center gap-1 mt-1">
-                                      <span className="text-[10px] font-extrabold text-rose-900 text-center">
-                                        FIN {endEventsList.length > 1 ? `#${eIdx + 1}` : ""}
-                                      </span>
-                                      {endEventsList.length > 1 && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteEndEvent(eEvt.id)}
-                                          className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                                          title="Eliminar este Evento de Término"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                    </div>
-
-                                    <span className="text-[10px] font-medium text-slate-800 text-center max-w-[120px] line-clamp-2 mt-0.5">
-                                      {eEvt.name}
-                                    </span>
-                                    {eEvt.fromSubprocess && (
-                                      <span className="text-[9px] font-mono text-rose-700 mt-0.5 bg-rose-50 px-1 rounded border border-rose-200">
-                                        ◄ {eEvt.fromSubprocess}
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                      {/* Evento de Término (Círculo Rojo BPMN 2.0) */}
+                      <div className="flex flex-col items-center group relative">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEndForm({
+                              scopeEnd: process.scopeEnd || "",
+                              alternateStates: process.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined"
+                            });
+                            setEndModalOpen(true);
+                          }}
+                          className="w-13 h-13 rounded-full bg-rose-100 border-4 border-rose-600 flex items-center justify-center text-rose-700 shadow-md transition-transform hover:scale-110 relative"
+                          title="Editar Evento de Término"
+                        >
+                          <span className="w-4 h-4 bg-rose-600 rounded-full"></span>
+                          <div className="absolute -top-1 -right-1 bg-slate-900 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Edit2 className="w-2.5 h-2.5" />
                           </div>
-                        );
-                      })()}
+                        </button>
+                        <span className="text-[11px] font-bold text-rose-800 mt-2 text-center max-w-[110px]">
+                          EVENTO DE TÉRMINO
+                        </span>
+                        <span className="text-[10px] text-slate-600 text-center max-w-[140px] italic line-clamp-2 mt-0.5">
+                          {process.scopeEnd || "Entregable Finalizado"}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2402,7 +2135,7 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-emerald-600"></span>
-                {editingStartEventId ? "Editar Evento de Inicio BPMN 2.0" : "Agregar Nuevo Evento de Inicio BPMN 2.0"}
+                Editar Evento de Inicio BPMN 2.0 (Circulo Verde)
               </h3>
               <button onClick={() => setStartModalOpen(false)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
@@ -2411,39 +2144,30 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
 
             <form onSubmit={handleSaveStartEvent} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Nombre del Evento de Inicio</label>
-                <input
-                  type="text"
+                <label className="block font-bold text-slate-700 mb-1">Gatillo / Disparador de Inicio de Proceso</label>
+                <textarea
+                  rows={3}
                   required
-                  value={startForm.name}
-                  onChange={(e) => setStartForm({ ...startForm, name: e.target.value })}
-                  placeholder="Ej. Orden recibida, Solicitud ingresada, Requerimiento registrado"
-                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900 font-semibold"
+                  value={startForm.scopeStart}
+                  onChange={(e) => setStartForm({ ...startForm, scopeStart: e.target.value })}
+                  placeholder="Ej. Recepción de solicitud de compra o requerimiento de cliente"
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
                 />
               </div>
 
-              {!isPastParticiple(startForm.name) && (
-                <div className="bg-amber-50 border border-amber-300 p-2.5 rounded text-[11px] text-amber-900 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong>Recomendación BPMN 2.0:</strong> Se sugiere expresar los eventos de inicio y término en <em>participio pasivo</em> (algo que ya haya finalizado u ocurrido), por ejemplo: <strong>"Orden recibida"</strong>, <strong>"Solicitud ingresada"</strong>, <strong>"Paciente admitido"</strong>.
-                  </div>
-                </div>
-              )}
-
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Subproceso Destino / Vinculado</label>
+                <label className="block font-bold text-slate-700 mb-1">Estado Inicial / Subproceso Vinculado</label>
                 <div className="space-y-2">
                   {process.subprocesses.length > 0 && (
                     <select
-                      value={isNewInitialSub ? "__NEW__" : startForm.targetSubprocess}
+                      value={isNewInitialSub ? "__NEW__" : startForm.initialState}
                       onChange={(e) => {
                         if (e.target.value === "__NEW__") {
                           setIsNewInitialSub(true);
                           setCustomInitialSubName("");
                         } else {
                           setIsNewInitialSub(false);
-                          setStartForm({ ...startForm, targetSubprocess: e.target.value });
+                          setStartForm({ ...startForm, initialState: e.target.value });
                         }
                       }}
                       className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900 font-medium"
@@ -2469,11 +2193,11 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                         required
                         value={customInitialSubName}
                         onChange={(e) => setCustomInitialSubName(e.target.value)}
-                        placeholder="Ej. Recepción y Admitido de Paciente"
+                        placeholder="Ej. Recepción y Admitido de Paciente / Solicitud"
                         className="w-full px-3 py-2 border border-blue-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-blue-700"
                       />
                       <p className="text-[10px] text-blue-800 font-medium">
-                        ✨ Al guardar, se creará este nuevo subproceso en el diagrama y se enlazará con este Evento de Inicio.
+                        ✨ Al guardar, se creará automáticamente este subproceso en el diagrama y se conectará directamente con el Evento de Inicio.
                       </p>
                     </div>
                   )}
@@ -2507,7 +2231,7 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-rose-600"></span>
-                {editingEndEventId ? "Editar Evento de Término BPMN 2.0" : "Agregar Nuevo Evento de Término BPMN 2.0"}
+                Editar Evento de Término BPMN 2.0 (Circulo Rojo)
               </h3>
               <button onClick={() => setEndModalOpen(false)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
@@ -2516,39 +2240,29 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
 
             <form onSubmit={handleSaveEndEvent} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Nombre del Evento de Término</label>
-                <input
-                  type="text"
+                <label className="block font-bold text-slate-700 mb-1">Entregable / Evento de Término Principal</label>
+                <textarea
+                  rows={3}
                   required
-                  value={endForm.name}
-                  onChange={(e) => setEndForm({ ...endForm, name: e.target.value })}
-                  placeholder="Ej. Atención finalizada, Producto entregado, Traslado ejecutado"
-                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900 font-semibold"
+                  value={endForm.scopeEnd}
+                  onChange={(e) => setEndForm({ ...endForm, scopeEnd: e.target.value })}
+                  placeholder="Ej. Producto o servicio entregado a conformidad con acta firmada"
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
                 />
               </div>
 
-              {!isPastParticiple(endForm.name) && (
-                <div className="bg-amber-50 border border-amber-300 p-2.5 rounded text-[11px] text-amber-900 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong>Recomendación BPMN 2.0:</strong> Se sugiere expresar los eventos de término en <em>participio pasivo</em> (algo ya finalizado), por ejemplo: <strong>"Orden entregada"</strong>, <strong>"Atención completada"</strong>.
-                  </div>
-                </div>
-              )}
-
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Subproceso de Origen Vinculado</label>
-                <select
-                  value={endForm.fromSubprocess}
-                  onChange={(e) => setEndForm({ ...endForm, fromSubprocess: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900 font-medium"
-                >
-                  {process.subprocesses.map((sub) => (
-                    <option key={sub.index} value={sub.name}>
-                      {sub.name} (Subproceso {sub.index})
-                    </option>
-                  ))}
-                </select>
+                <label className="block font-bold text-slate-700 mb-1">Estados Finales Alternativos / Excepciones (Separados por coma)</label>
+                <input
+                  type="text"
+                  value={endForm.alternateStates}
+                  onChange={(e) => setEndForm({ ...endForm, alternateStates: e.target.value })}
+                  placeholder="Ej. Rechazado, Cancelado, Devuelto a Proveedor"
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+                <p className="mt-1 text-[10px] text-slate-400">
+                  * Estos estados se registrarán en la máquina de estados del proceso como finales anómalos o de rechazo.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

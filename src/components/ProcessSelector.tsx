@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ProcessDefinition } from "../types";
 import { PRESETS, BLANK_PROCESS_PRESET } from "../presets";
-import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff } from "lucide-react";
+import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff, Zap } from "lucide-react";
 import { subscribeToCloudProcesses, saveProcessToCloud, deleteProcessFromCloud, bulkSyncProcessesToCloud, SavedProcessEntry } from "../firebaseSync";
+import { generateFallbackProcess } from "../lib/processTemplateGenerator";
 
 
 interface ProcessSelectorProps {
@@ -449,11 +450,31 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
       sessionStorage.removeItem("upe_custom_context_draft");
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "No se pudo conectar con el servidor de IA.");
+      const errMsg = err.message || "No se pudo conectar con el servidor de IA.";
+      setError(
+        errMsg.includes("GEMINI_API_KEY") || errMsg.includes("Inteligencia Artificial") || errMsg.includes("HTML") || errMsg.includes("404")
+          ? `${errMsg} (Sugerencia: Si está desplegado en Vercel, recuerde añadir la variable GEMINI_API_KEY en Vercel Project Settings > Environment Variables. Puede utilizar el botón de abajo para generar una plantilla estructurada inmediatamente).`
+          : errMsg
+      );
     } finally {
       clearInterval(interval);
       setLoading(false);
     }
+  };
+
+  const handleExecuteFallback = () => {
+    const pName = customName.trim() || "Nuevo Proceso Operativo";
+    const pCtx = customContext.trim() || "Atención y procesamiento estándar.";
+    const fallback = generateFallbackProcess(pName, pCtx);
+
+    onProcessSelect(fallback);
+    setSaveSuccessMsg(`¡Proceso "${fallback.name}" generado exitosamente con la plantilla estructurada TO-BE!`);
+    setTimeout(() => setSaveSuccessMsg(null), 5000);
+    setError(null);
+    setCustomName("");
+    setCustomContext("");
+    sessionStorage.removeItem("upe_custom_name_draft");
+    sessionStorage.removeItem("upe_custom_context_draft");
   };
 
   // Searchable Combobox State
@@ -779,8 +800,28 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 p-4 text-xs text-red-700 font-medium">
-            {error}
+          <div className="bg-rose-50 border border-rose-200 p-4 rounded-sm space-y-3 animate-fadeIn">
+            <div className="flex items-start gap-2.5 text-xs text-rose-800 font-medium">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <p className="font-bold text-rose-950">Atención durante la generación con Inteligencia Artificial:</p>
+                <p className="leading-relaxed">{error}</p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-rose-200/60 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] text-rose-700 font-medium">
+                ¿Desea generar la estructura base sin esperar a la IA?
+              </span>
+              <button
+                type="button"
+                onClick={handleExecuteFallback}
+                className="px-3.5 py-1.5 bg-rose-900 hover:bg-rose-950 text-white font-bold text-xs rounded flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                Generar Estructura TO-BE Base (Modo Plantilla)
+              </button>
+            </div>
           </div>
         )}
       </form>
