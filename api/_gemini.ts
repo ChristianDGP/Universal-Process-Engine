@@ -91,7 +91,7 @@ export function getGeminiClient(): GoogleGenAI | null {
 export async function generateContentWithRetryAndFallback(promptContent: string, temperature = 0.2) {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("No se encontró la clave GEMINI_API_KEY en las variables de entorno del servidor. Por favor configure GEMINI_API_KEY en los Environment Variables de Vercel.");
+    throw new Error("No se encontró la clave GEMINI_API_KEY ni GEMINI_API_KEY2 en las variables de entorno del servidor de Vercel.");
   }
 
   const candidateModels = ["gemini-3.6-flash", "gemini-flash-latest"];
@@ -127,8 +127,8 @@ export async function generateContentWithRetryAndFallback(promptContent: string,
 
 export function formatGeminiUserError(error: any): string {
   const errStr = String(error?.message || error || "");
-  if (errStr.includes("GEMINI_API_KEY")) {
-    return "Falta configurar la clave GEMINI_API_KEY en las variables de entorno de Vercel (Settings > Environment Variables).";
+  if (errStr.includes("GEMINI_API_KEY") || errStr.includes("GEMINI_API_KEY2")) {
+    return "Falta configurar la clave GEMINI_API_KEY / GEMINI_API_KEY2 en las variables de entorno de Vercel y hacer un Re-deploy.";
   }
   if (errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("demand")) {
     return "El modelo de Inteligencia Artificial está experimentando una alta demanda temporal en los servidores de Google. Por favor, reintente en unos segundos.";

@@ -453,7 +453,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect }: Pro
       const errMsg = err.message || "No se pudo conectar con el servidor de IA.";
       setError(
         errMsg.includes("GEMINI_API_KEY") || errMsg.includes("Inteligencia Artificial") || errMsg.includes("HTML") || errMsg.includes("404")
-          ? `${errMsg} (Sugerencia: Si está desplegado en Vercel, recuerde añadir la variable GEMINI_API_KEY en Vercel Project Settings > Environment Variables. Puede utilizar el botón de abajo para generar una plantilla estructurada inmediatamente).`
+          ? `${errMsg} (Nota: Recuerde presionar "Redeploy" en Vercel para aplicar los cambios en las variables de entorno. También puede usar el botón de abajo para generar la plantilla sin esperar a la IA).`
           : errMsg
       );
     } finally {
