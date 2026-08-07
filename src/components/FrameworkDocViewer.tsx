@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ProcessDefinition, SubprocessDefinition, ActivityFicha, BpmnGateway, StateTransition } from "../types";
+import { ProcessDefinition, SubprocessDefinition, ActivityFicha, BpmnGateway, StateTransition, KPIDefinition } from "../types";
 import {
   FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
@@ -179,6 +179,193 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
 
   const hasTechForbidden = forbiddenTechRegex.test(actForm.supportTech);
   const hasInputsForbidden = forbiddenInputsRegex.test(actForm.infoInputs);
+
+  // General Info Modal State
+  const [generalModalOpen, setGeneralModalOpen] = useState(false);
+  const [generalForm, setGeneralForm] = useState({
+    name: "",
+    description: "",
+    responsibleRole: "",
+    processOwner: "",
+    scopeStart: "",
+    scopeEnd: "",
+    suppliers: "",
+    customers: "",
+    processInputs: "",
+    processOutputs: ""
+  });
+
+  // Glossary Modal State
+  const [glossaryModalOpen, setGlossaryModalOpen] = useState(false);
+  const [editingGlossaryIndex, setEditingGlossaryIndex] = useState<number | null>(null);
+  const [glossaryForm, setGlossaryForm] = useState<{ term: string; definition: string }>({ term: "", definition: "" });
+
+  // Risk Modal State
+  const [riskModalOpen, setRiskModalOpen] = useState(false);
+  const [editingRiskIndex, setEditingRiskIndex] = useState<number | null>(null);
+  const [riskForm, setRiskForm] = useState<string>("");
+
+  // SIPOC Modal State
+  const [sipocModalOpen, setSipocModalOpen] = useState(false);
+  const [editingSipocSubIndex, setEditingSipocSubIndex] = useState<string | null>(null);
+  const [sipocForm, setSipocForm] = useState({ supplier: "", inputs: "", outputs: "", customer: "" });
+
+  // KPI Modal State
+  const [kpiModalOpen, setKpiModalOpen] = useState(false);
+  const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
+  const [kpiForm, setKpiForm] = useState<KPIDefinition>({
+    id: "",
+    name: "",
+    description: "",
+    formula: "",
+    periodicity: "Monthly",
+    targetRange: "",
+    otherRanges: ""
+  });
+
+  // Handler: Move Activity Up/Down
+  const handleMoveActivity = (subIndex: string, actIndex: string, direction: "up" | "down") => {
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    const targetSub = updated.subprocesses.find((s) => s.index === subIndex);
+    if (!targetSub) return;
+
+    const aIdx = targetSub.activities.findIndex((a) => a.index === actIndex);
+    if (aIdx === -1) return;
+
+    const targetIdx = direction === "up" ? aIdx - 1 : aIdx + 1;
+    if (targetIdx < 0 || targetIdx >= targetSub.activities.length) return;
+
+    const temp = targetSub.activities[aIdx];
+    targetSub.activities[aIdx] = targetSub.activities[targetIdx];
+    targetSub.activities[targetIdx] = temp;
+
+    const synced = syncProcessModel(updated);
+    if (onProcessChange) onProcessChange(synced);
+  };
+
+  // Handler: Save General Info
+  const handleSaveGeneralInfo = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    updated.name = generalForm.name;
+    updated.description = generalForm.description;
+    updated.responsibleRole = generalForm.responsibleRole;
+    updated.processOwner = generalForm.processOwner;
+    updated.scopeStart = generalForm.scopeStart;
+    updated.scopeEnd = generalForm.scopeEnd;
+    updated.suppliers = generalForm.suppliers;
+    updated.customers = generalForm.customers;
+    updated.processInputs = generalForm.processInputs;
+    updated.processOutputs = generalForm.processOutputs;
+
+    const synced = syncProcessModel(updated);
+    if (onProcessChange) onProcessChange(synced);
+    setGeneralModalOpen(false);
+  };
+
+  // Handler: Save Glossary Item
+  const handleSaveGlossary = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!glossaryForm.term.trim()) return;
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    if (!updated.glossary) updated.glossary = [];
+
+    if (editingGlossaryIndex !== null && editingGlossaryIndex >= 0) {
+      updated.glossary[editingGlossaryIndex] = { ...glossaryForm };
+    } else {
+      updated.glossary.push({ ...glossaryForm });
+    }
+
+    if (onProcessChange) onProcessChange(updated);
+    setGlossaryModalOpen(false);
+  };
+
+  // Handler: Delete Glossary Item
+  const handleDeleteGlossary = (index: number) => {
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    if (updated.glossary) {
+      updated.glossary.splice(index, 1);
+      if (onProcessChange) onProcessChange(updated);
+    }
+  };
+
+  // Handler: Save Risk Item
+  const handleSaveRisk = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!riskForm.trim()) return;
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    if (!updated.risks) updated.risks = [];
+
+    if (editingRiskIndex !== null && editingRiskIndex >= 0) {
+      updated.risks[editingRiskIndex] = riskForm.trim();
+    } else {
+      updated.risks.push(riskForm.trim());
+    }
+
+    if (onProcessChange) onProcessChange(updated);
+    setRiskModalOpen(false);
+  };
+
+  // Handler: Delete Risk Item
+  const handleDeleteRisk = (index: number) => {
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    if (updated.risks) {
+      updated.risks.splice(index, 1);
+      if (onProcessChange) onProcessChange(updated);
+    }
+  };
+
+  // Handler: Save SIPOC Row
+  const handleSaveSipoc = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSipocSubIndex) return;
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    const targetSub = updated.subprocesses.find((s) => s.index === editingSipocSubIndex);
+    if (targetSub) {
+      targetSub.sipoc = [
+        {
+          supplier: sipocForm.supplier,
+          inputs: sipocForm.inputs,
+          subprocess: targetSub.name,
+          outputs: sipocForm.outputs,
+          customer: sipocForm.customer
+        }
+      ];
+      const synced = syncProcessModel(updated);
+      if (onProcessChange) onProcessChange(synced);
+    }
+    setSipocModalOpen(false);
+  };
+
+  // Handler: Save KPI Item
+  const handleSaveKpi = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!kpiForm.name.trim()) return;
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    if (!updated.kpis) updated.kpis = [];
+
+    if (editingKpiId) {
+      const idx = updated.kpis.findIndex((k) => k.id === editingKpiId);
+      if (idx !== -1) {
+        updated.kpis[idx] = { ...kpiForm, id: editingKpiId };
+      }
+    } else {
+      const newId = `KPI-${updated.kpis.length + 1}`;
+      updated.kpis.push({ ...kpiForm, id: newId });
+    }
+
+    if (onProcessChange) onProcessChange(updated);
+    setKpiModalOpen(false);
+  };
+
+  // Handler: Delete KPI Item
+  const handleDeleteKpi = (kpiId: string) => {
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    if (updated.kpis) {
+      updated.kpis = updated.kpis.filter((k) => k.id !== kpiId);
+      if (onProcessChange) onProcessChange(updated);
+    }
+  };
 
   // Core Function: Unified Syncing of Process Model across 3.4, 3.5, 4, StateMachine, Simulator & CodeGen
   const syncProcessModel = (proc: ProcessDefinition): ProcessDefinition => {
@@ -653,24 +840,68 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
         {activeTab === "fce" ? (
           /* FRAMEWORK 1: FACTORES CRÍTICOS DE ÉXITO (FCE) */
           <div className="space-y-8 animate-fadeIn">
-            <div>
-              <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-slate-500" />
-                Matriz de Factores Críticos de Éxito y KPIs Operativos
-              </h4>
-              <p className="text-xs text-slate-500 mt-1">
-                Indicadores clave formulados matemáticamente para el control continuo de la eficiencia y calidad del proceso TO-BE.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-slate-500" />
+                  Matriz de Factores Críticos de Éxito y KPIs Operativos
+                </h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Indicadores clave formulados matemáticamente para el control continuo de la eficiencia y calidad del proceso TO-BE.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingKpiId(null);
+                  setKpiForm({
+                    id: "",
+                    name: "",
+                    description: "",
+                    formula: "(EntregablesConformes / TotalProcesados) * 100",
+                    periodicity: "Monthly",
+                    targetRange: ">= 95%",
+                    otherRanges: "< 90%"
+                  });
+                  setKpiModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Agregar Indicador KPI</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {process.kpis.map((kpi) => (
-                <div key={kpi.id} className="border border-slate-200 p-5 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                <div key={kpi.id} className="border border-slate-200 p-5 bg-slate-50/50 hover:bg-slate-50 transition-colors relative group">
                   <div className="flex justify-between items-start">
                     <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold bg-slate-900 text-white uppercase tracking-wider">
                       {kpi.periodicity}
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">#{kpi.id}</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingKpiId(kpi.id);
+                          setKpiForm(kpi);
+                          setKpiModalOpen(true);
+                        }}
+                        className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                        title="Editar KPI"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteKpi(kpi.id)}
+                        className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                        title="Eliminar KPI"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      <span className="text-xs text-slate-400 font-mono ml-1">#{kpi.id}</span>
+                    </div>
                   </div>
                   <h5 className="font-bold text-slate-900 text-sm mt-3">{kpi.name}</h5>
                   <p className="text-xs text-slate-600 mt-2 leading-relaxed h-12 overflow-y-auto">
@@ -704,14 +935,52 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
           <div className="space-y-12 animate-fadeIn max-w-none">
             {/* 1. Definiciones */}
             <section className="space-y-4">
-              <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-slate-500" />
-                1. Definiciones (Glosario Técnico)
-              </h4>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4 text-slate-500" />
+                  1. Definiciones (Glosario Técnico)
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingGlossaryIndex(null);
+                    setGlossaryForm({ term: "", definition: "" });
+                    setGlossaryModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Agregar Término</span>
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {process.glossary.map((g, i) => (
-                  <div key={i} className="bg-slate-50 border border-slate-100 p-4">
-                    <strong className="text-xs font-bold text-slate-900 block">{g.term}</strong>
+                  <div key={i} className="bg-slate-50 border border-slate-200 p-4 relative group">
+                    <div className="flex justify-between items-start">
+                      <strong className="text-xs font-bold text-slate-900 block">{g.term}</strong>
+                      <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingGlossaryIndex(i);
+                            setGlossaryForm({ term: g.term, definition: g.definition });
+                            setGlossaryModalOpen(true);
+                          }}
+                          className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                          title="Editar Término"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGlossary(i)}
+                          className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                          title="Eliminar Término"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
                     <span className="text-xs text-slate-600 mt-1 block leading-relaxed">{g.definition}</span>
                   </div>
                 ))}
@@ -720,9 +989,33 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
 
             {/* 2. PROCESO */}
             <section className="space-y-4">
-              <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">
-                2. PROCESO: {process.name.toUpperCase()}
-              </h4>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                <h4 className="text-base font-bold text-slate-900">
+                  2. PROCESO: {process.name.toUpperCase()}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGeneralForm({
+                      name: process.name || "",
+                      description: process.description || "",
+                      responsibleRole: process.responsibleRole || "",
+                      processOwner: process.processOwner || "",
+                      scopeStart: process.scopeStart || "",
+                      scopeEnd: process.scopeEnd || "",
+                      suppliers: process.suppliers || "",
+                      customers: process.customers || "",
+                      processInputs: process.processInputs || "",
+                      processOutputs: process.processOutputs || ""
+                    });
+                    setGeneralModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Editar Información General y Alcance (2.1 - 2.2)</span>
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">2.1. Alcance del Proceso</h5>
@@ -746,10 +1039,48 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
 
             {/* 3. Ficha del Proceso */}
             <section className="space-y-4">
-              <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-slate-500" />
-                3. Ficha Descriptiva del Proceso
-              </h4>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-slate-500" />
+                  3. Ficha Descriptiva del Proceso
+                </h4>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingRiskIndex(null);
+                      setRiskForm("");
+                      setRiskModalOpen(true);
+                    }}
+                    className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1 shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Agregar Riesgo</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGeneralForm({
+                        name: process.name || "",
+                        description: process.description || "",
+                        responsibleRole: process.responsibleRole || "",
+                        processOwner: process.processOwner || "",
+                        scopeStart: process.scopeStart || "",
+                        scopeEnd: process.scopeEnd || "",
+                        suppliers: process.suppliers || "",
+                        customers: process.customers || "",
+                        processInputs: process.processInputs || "",
+                        processOutputs: process.processOutputs || ""
+                      });
+                      setGeneralModalOpen(true);
+                    }}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Editar Ficha Descriptiva</span>
+                  </button>
+                </div>
+              </div>
               <div className="border border-slate-200 overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <tbody>
@@ -784,9 +1115,33 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                     <tr>
                       <td className="p-3 bg-slate-50 font-bold text-slate-700">Riesgos Identificados</td>
                       <td className="p-3 text-slate-600">
-                        <ul className="list-disc pl-4 space-y-1">
+                        <ul className="space-y-1.5">
                           {process.risks.map((risk, i) => (
-                            <li key={i}>{risk}</li>
+                            <li key={i} className="flex items-center justify-between group bg-slate-50/60 p-1.5 border border-slate-100 rounded">
+                              <span className="text-xs text-slate-800 font-medium">&bull; {risk}</span>
+                              <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingRiskIndex(i);
+                                    setRiskForm(risk);
+                                    setRiskModalOpen(true);
+                                  }}
+                                  className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                                  title="Editar Riesgo"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRisk(i)}
+                                  className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                  title="Eliminar Riesgo"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </li>
                           ))}
                         </ul>
                       </td>
@@ -1498,6 +1853,7 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                       <th className="p-3">P (Subproceso)</th>
                       <th className="p-3">O (Entregable)</th>
                       <th className="p-3">C (Usuario Final)</th>
+                      <th className="p-3 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1511,6 +1867,26 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                           </td>
                           <td className="p-3 text-slate-600">{s.outputs}</td>
                           <td className="p-3 text-slate-700 font-medium">{s.customer}</td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingSipocSubIndex(sub.index);
+                                setSipocForm({
+                                  supplier: s.supplier,
+                                  inputs: s.inputs,
+                                  outputs: s.outputs,
+                                  customer: s.customer
+                                });
+                                setSipocModalOpen(true);
+                              }}
+                              className="px-2 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded inline-flex items-center gap-1 shadow-2xs"
+                              title="Editar Ficha SIPOC de este Subproceso"
+                            >
+                              <Edit2 className="w-3 h-3 text-slate-500" />
+                              <span>Editar SIPOC</span>
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -1589,7 +1965,7 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                     </button>
                   </div>
                 ) : (
-                  process.subprocesses.map((sub) => {
+                  process.subprocesses.map((sub, sIdx) => {
                     const isCollapsed = collapsedSubs[sub.index] !== undefined ? collapsedSubs[sub.index] : true;
 
                   return (
@@ -1616,6 +1992,27 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                         </button>
 
                         <div className="flex items-center gap-2 self-end sm:self-auto">
+                          {/* Reorder Subprocess */}
+                          {sIdx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSubprocess(sub.index, "up")}
+                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                              title="Mover Subproceso Arriba"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {sIdx < process.subprocesses.length - 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSubprocess(sub.index, "down")}
+                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                              title="Mover Subproceso Abajo"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => toggleSubCollapse(sub.index)}
                             className="px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 flex items-center gap-1"
@@ -1687,6 +2084,27 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                                   </span>
                                   
                                   <div className="flex items-center gap-1">
+                                    {/* Reorder Activity Up / Down */}
+                                    {sub.activities.findIndex((a) => a.index === act.index) > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveActivity(sub.index, act.index, "up")}
+                                        className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-sm"
+                                        title="Mover Actividad Arriba"
+                                      >
+                                        <ChevronUp className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    {sub.activities.findIndex((a) => a.index === act.index) < sub.activities.length - 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveActivity(sub.index, act.index, "down")}
+                                        className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-sm"
+                                        title="Mover Actividad Abajo"
+                                      >
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => {
                                         setEditingAct({ subIndex: sub.index, actIndex: act.index });
@@ -2278,6 +2696,414 @@ export default function FrameworkDocViewer({ process, onProcessChange }: Framewo
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold"
                 >
                   Guardar Evento de Término
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: GENERAL PROCESS INFO & SCOPE (2.1, 2.2, Section 3) */}
+      {generalModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 max-w-2xl w-full shadow-2xl my-8 animate-scaleUp">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-blue-400" />
+                Editar Información General y Alcance (Puntos 2 y 3)
+              </h3>
+              <button onClick={() => setGeneralModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveGeneralInfo} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Nombre del Proceso</label>
+                  <input
+                    type="text"
+                    required
+                    value={generalForm.name}
+                    onChange={(e) => setGeneralForm({ ...generalForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Rol Responsable</label>
+                  <input
+                    type="text"
+                    required
+                    value={generalForm.responsibleRole}
+                    onChange={(e) => setGeneralForm({ ...generalForm, responsibleRole: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">Dueño del Proceso (Unidad Responsable)</label>
+                <input
+                  type="text"
+                  required
+                  value={generalForm.processOwner}
+                  onChange={(e) => setGeneralForm({ ...generalForm, processOwner: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">Descripción General del Proceso (Punto 2.2)</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={generalForm.description}
+                  onChange={(e) => setGeneralForm({ ...generalForm, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Evento de Inicio / Gatillo (Scope Start)</label>
+                  <input
+                    type="text"
+                    required
+                    value={generalForm.scopeStart}
+                    onChange={(e) => setGeneralForm({ ...generalForm, scopeStart: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Entregable Final / Resultado (Scope End)</label>
+                  <input
+                    type="text"
+                    required
+                    value={generalForm.scopeEnd}
+                    onChange={(e) => setGeneralForm({ ...generalForm, scopeEnd: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Proveedores / Relaciones (Section 3)</label>
+                  <input
+                    type="text"
+                    value={generalForm.suppliers}
+                    onChange={(e) => setGeneralForm({ ...generalForm, suppliers: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Usuarios / Destinatarios (Section 3)</label>
+                  <input
+                    type="text"
+                    value={generalForm.customers}
+                    onChange={(e) => setGeneralForm({ ...generalForm, customers: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setGeneralModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-slate-900 text-white font-bold hover:bg-slate-800"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: GLOSSARY ITEM (POINT 1) */}
+      {glossaryModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 max-w-md w-full shadow-2xl animate-scaleUp">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-blue-400" />
+                {editingGlossaryIndex !== null ? "Editar Término del Glosario" : "Agregar Término al Glosario"}
+              </h3>
+              <button onClick={() => setGlossaryModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveGlossary} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">Término / Concepto</label>
+                <input
+                  type="text"
+                  required
+                  value={glossaryForm.term}
+                  onChange={(e) => setGlossaryForm({ ...glossaryForm, term: e.target.value })}
+                  placeholder="Ej. SLA, Guía de Despacho, ERP, Orden de Compra"
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">Definición Técnica</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={glossaryForm.definition}
+                  onChange={(e) => setGlossaryForm({ ...glossaryForm, definition: e.target.value })}
+                  placeholder="Descripción concisa y técnica del concepto en el contexto del proceso..."
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setGlossaryModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-slate-900 text-white font-bold hover:bg-slate-800"
+                >
+                  Guardar Término
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RISK ITEM (POINT 3.3) */}
+      {riskModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 max-w-md w-full shadow-2xl animate-scaleUp">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400" />
+                {editingRiskIndex !== null ? "Editar Riesgo Identificado" : "Agregar Riesgo Identificado"}
+              </h3>
+              <button onClick={() => setRiskModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveRisk} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">Descripción del Riesgo</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={riskForm}
+                  onChange={(e) => setRiskForm(e.target.value)}
+                  placeholder="Ej. Incumplimiento de SLA por caídas temporales en la conectividad del sistema ERP..."
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setRiskModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-slate-900 text-white font-bold hover:bg-slate-800"
+                >
+                  Guardar Riesgo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SIPOC ROW (POINT 3.5) */}
+      {sipocModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 max-w-lg w-full shadow-2xl animate-scaleUp">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Table className="w-4 h-4 text-blue-400" />
+                Editar Ficha SIPOC (Subproceso {editingSipocSubIndex})
+              </h3>
+              <button onClick={() => setSipocModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveSipoc} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">S - Proveedor (Supplier)</label>
+                <input
+                  type="text"
+                  required
+                  value={sipocForm.supplier}
+                  onChange={(e) => setSipocForm({ ...sipocForm, supplier: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">I - Insumos de Entrada (Inputs)</label>
+                <input
+                  type="text"
+                  required
+                  value={sipocForm.inputs}
+                  onChange={(e) => setSipocForm({ ...sipocForm, inputs: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">O - Entregable / Resultado (Outputs)</label>
+                <input
+                  type="text"
+                  required
+                  value={sipocForm.outputs}
+                  onChange={(e) => setSipocForm({ ...sipocForm, outputs: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">C - Usuario / Cliente (Customer)</label>
+                <input
+                  type="text"
+                  required
+                  value={sipocForm.customer}
+                  onChange={(e) => setSipocForm({ ...sipocForm, customer: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSipocModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-slate-900 text-white font-bold hover:bg-slate-800"
+                >
+                  Guardar Ficha SIPOC
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: KPI ITEM (FRAMEWORK 1) */}
+      {kpiModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 max-w-lg w-full shadow-2xl animate-scaleUp">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Activity className="w-4 h-4 text-blue-400" />
+                {editingKpiId ? `Editar Indicador KPI (${editingKpiId})` : "Agregar Indicador KPI Operativo"}
+              </h3>
+              <button onClick={() => setKpiModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveKpi} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Nombre del KPI</label>
+                  <input
+                    type="text"
+                    required
+                    value={kpiForm.name}
+                    onChange={(e) => setKpiForm({ ...kpiForm, name: e.target.value })}
+                    placeholder="Ej. Tasa de Cumplimiento de SLA"
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Periodicidad</label>
+                  <select
+                    value={kpiForm.periodicity}
+                    onChange={(e) => setKpiForm({ ...kpiForm, periodicity: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900 font-medium"
+                  >
+                    <option value="Daily">Diario</option>
+                    <option value="Weekly">Semanal</option>
+                    <option value="Monthly">Mensual</option>
+                    <option value="Annual">Anual</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">Descripción / Propósito</label>
+                <textarea
+                  rows={2}
+                  required
+                  value={kpiForm.description}
+                  onChange={(e) => setKpiForm({ ...kpiForm, description: e.target.value })}
+                  placeholder="Mide el porcentaje de trámites cerrados dentro del margen de SLA definido..."
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">Fórmula Matemática de Cálculo</label>
+                <input
+                  type="text"
+                  required
+                  value={kpiForm.formula}
+                  onChange={(e) => setKpiForm({ ...kpiForm, formula: e.target.value })}
+                  placeholder="Ej. (TrámitesConformes / TotalTrámites) * 100"
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 font-mono text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-emerald-700 mb-1">Rango Meta / Deseado</label>
+                  <input
+                    type="text"
+                    required
+                    value={kpiForm.targetRange}
+                    onChange={(e) => setKpiForm({ ...kpiForm, targetRange: e.target.value })}
+                    placeholder="Ej. >= 95%"
+                    className="w-full px-3 py-2 border border-slate-200 bg-emerald-50/40 text-slate-800 focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-rose-700 mb-1">Rango Insatisfactorio</label>
+                  <input
+                    type="text"
+                    required
+                    value={kpiForm.otherRanges}
+                    onChange={(e) => setKpiForm({ ...kpiForm, otherRanges: e.target.value })}
+                    placeholder="Ej. < 90%"
+                    className="w-full px-3 py-2 border border-slate-200 bg-rose-50/40 text-slate-800 focus:outline-none focus:border-rose-600"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setKpiModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-slate-900 text-white font-bold hover:bg-slate-800"
+                >
+                  Guardar KPI
                 </button>
               </div>
             </form>
