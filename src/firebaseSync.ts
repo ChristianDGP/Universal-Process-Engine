@@ -1,5 +1,5 @@
-import { collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "firebase/firestore";
-import { db } from "./firebase";
+import { collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch } from "firebase/firestore";
+import { db, UserRole } from "./firebase";
 import { ProcessDefinition } from "./types";
 import { WAREHOUSE_LOGISTICS_PRESET, CLINICAL_TRIAGE_PRESET } from "./presets";
 
@@ -9,7 +9,231 @@ export interface SavedProcessEntry {
   process: ProcessDefinition;
 }
 
+export interface UserProfile {
+  email: string;
+  role: UserRole;
+  displayName?: string | null;
+  photoURL?: string | null;
+  lastLoginAt: string;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
 const COLLECTION_NAME = "processes";
+const USERS_COLLECTION = "users";
+const MAIN_SUPER_ADMIN = "carayag@ugp-ssmso.cl";
+
+export function getUserDocId(email: string): string {
+  const cleanEmail = email.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+  return `user_${cleanEmail}`;
+}
+
+/**
+ * Sync user login profile into Firestore 'users' collection.
+ * Default role is 'admin' ONLY for 'carayag@ugp-ssmso.cl', and 'analyst' for all others.
+ */
+export async function syncUserProfile(user: {
+  email: string;
+  displayName?: string | null;
+  photoURL?: string | null;
+}): Promise<UserProfile> {
+  if (!user || !user.email) {
+    throw new Error("Invalid user for syncUserProfile");
+  }
+
+  const normalizedEmail = user.email.trim().toLowerCase();
+  const isMainAdmin = normalizedEmail === MAIN_SUPER_ADMIN;
+  const docId = getUserDocId(normalizedEmail);
+  const userDocRef = doc(db, USERS_COLLECTION, docId);
+
+  try {
+    const docSnap = await getDoc(userDocRef);
+    const now = new Date().toISOString();
+
+    if (docSnap.exists()) {
+      const existingData = docSnap.data() as UserProfile;
+      // carayag@ugp-ssmso.cl is strictly hardcoded as 'admin'
+      const activeRole: UserRole = isMainAdmin ? "admin" : (existingData.role || "analyst");
+
+      const updatedProfile: UserProfile = {
+        ...existingData,
+        email: normalizedEmail,
+        role: activeRole,
+        displayName: user.displayName || existingData.displayName || normalizedEmail.split("@")[0],
+        photoURL: user.photoURL || existingData.photoURL || null,
+        lastLoginAt: now,
+        updatedAt: now,
+      };
+
+      await setDoc(userDocRef, JSON.parse(JSON.stringify(updatedProfile)), { merge: true });
+      return updatedProfile;
+    } else {
+      // Create new user profile
+      const newProfile: UserProfile = {
+        email: normalizedEmail,
+        role: isMainAdmin ? "admin" : "analyst",
+        displayName: user.displayName || normalizedEmail.split("@")[0],
+        photoURL: user.photoURL || null,
+        lastLoginAt: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await setDoc(userDocRef, JSON.parse(JSON.stringify(newProfile)));
+      return newProfile;
+    }
+  } catch (err) {
+    console.error("Error syncing user profile to Firestore:", err);
+    // Fallback profile if Firestore is offline
+    return {
+      email: normalizedEmail,
+      role: isMainAdmin ? "admin" : "analyst",
+      displayName: user.displayName || normalizedEmail.split("@")[0],
+      photoURL: user.photoURL || null,
+      lastLoginAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * Subscribe to all users in Firestore 'users' collection (Real-time User Manager)
+ */
+export function subscribeToAllUsers(
+  onData: (users: UserProfile[]) => void,
+  onError?: (err: Error) => void
+) {
+  try {
+    const colRef = collection(db, USERS_COLLECTION);
+    return onSnapshot(
+      colRef,
+      (snapshot) => {
+        const usersList: UserProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as UserProfile;
+          if (data && data.email) {
+            // Ensure main admin is always reflected as admin
+            const isMainAdmin = data.email.trim().toLowerCase() === MAIN_SUPER_ADMIN;
+            usersList.push({
+              ...data,
+              role: isMainAdmin ? "admin" : (data.role || "analyst"),
+            });
+          }
+        });
+
+        // Ensure carayag@ugp-ssmso.cl exists in the list even if database was empty
+        if (!usersList.some((u) => u.email.toLowerCase() === MAIN_SUPER_ADMIN)) {
+          usersList.unshift({
+            email: MAIN_SUPER_ADMIN,
+            role: "admin",
+            displayName: "Administrador UPE",
+            lastLoginAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
+        // Sort: Admin first, then alphabetically by email
+        usersList.sort((a, b) => {
+          if (a.email.toLowerCase() === MAIN_SUPER_ADMIN) return -1;
+          if (b.email.toLowerCase() === MAIN_SUPER_ADMIN) return 1;
+          if (a.role === b.role) return a.email.localeCompare(b.email);
+          return a.role === "admin" ? -1 : 1;
+        });
+
+        onData(usersList);
+      },
+      (error) => {
+        console.error("Error subscribing to users collection:", error);
+        if (onError) onError(error);
+      }
+    );
+  } catch (err: any) {
+    console.error("Firebase init users snapshot error:", err);
+    if (onError) onError(err);
+    return () => {};
+  }
+}
+
+/**
+ * Subscribe to current user's profile in Firestore for real-time role changes
+ */
+export function subscribeToUserProfile(
+  email: string,
+  onData: (profile: UserProfile) => void
+) {
+  if (!email) return () => {};
+  const normalizedEmail = email.trim().toLowerCase();
+  const docId = getUserDocId(normalizedEmail);
+  const userDocRef = doc(db, USERS_COLLECTION, docId);
+
+  return onSnapshot(
+    userDocRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data() as UserProfile;
+        const isMainAdmin = normalizedEmail === MAIN_SUPER_ADMIN;
+        onData({
+          ...data,
+          role: isMainAdmin ? "admin" : (data.role || "analyst"),
+        });
+      }
+    },
+    (err) => {
+      console.error("Error listening to user profile:", err);
+    }
+  );
+}
+
+/**
+ * Update user role in Firestore (Admin tool)
+ */
+export async function updateUserRole(
+  email: string,
+  newRole: UserRole,
+  updatedByEmail: string
+): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (normalizedEmail === MAIN_SUPER_ADMIN && newRole !== "admin") {
+    throw new Error("El rol de la cuenta carayag@ugp-ssmso.cl no puede ser modificado (Administrador Principal).");
+  }
+
+  const docId = getUserDocId(normalizedEmail);
+  const userDocRef = doc(db, USERS_COLLECTION, docId);
+  const now = new Date().toISOString();
+
+  try {
+    const docSnap = await getDoc(userDocRef);
+    if (docSnap.exists()) {
+      await setDoc(
+        userDocRef,
+        {
+          role: newRole,
+          updatedAt: now,
+          updatedBy: updatedByEmail,
+        },
+        { merge: true }
+      );
+    } else {
+      const newProfile: UserProfile = {
+        email: normalizedEmail,
+        role: newRole,
+        displayName: normalizedEmail.split("@")[0],
+        lastLoginAt: now,
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: updatedByEmail,
+      };
+      await setDoc(userDocRef, JSON.parse(JSON.stringify(newProfile)));
+    }
+    return true;
+  } catch (err) {
+    console.error("Error updating user role in Firestore:", err);
+    throw err;
+  }
+}
 
 // Seed default preset models into Firestore automatically if empty
 export async function seedDefaultPresetModels(): Promise<boolean> {

@@ -25,6 +25,53 @@
         "id",
         "process"
       ]
+    },
+    "users": {
+      "title": "Perfiles de Usuario",
+      "description": "Gestión de roles y accesos de usuarios de la plataforma UPE",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "analyst"]
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "lastLoginAt": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "email",
+        "role"
+      ]
+    }
+  },
+  "firestore": {
+    "processes": {
+      "schema": {
+        "$ref": "#/entities/processes"
+      },
+      "description": "Colección de procesos BPMN TO-BE"
+    },
+    "users": {
+      "schema": {
+        "$ref": "#/entities/users"
+      },
+      "description": "Colección de usuarios con sus roles (Administrador / Analista)"
     }
   }
 }

@@ -4,19 +4,22 @@ import { BLANK_PROCESS_PRESET } from "./presets";
 import ProcessSelector from "./components/ProcessSelector";
 import FrameworkDocViewer from "./components/FrameworkDocViewer";
 import ProcessSimulator from "./components/ProcessSimulator";
-import { autoSaveProcessToCloud } from "./firebaseSync";
+import UserManager from "./components/UserManager";
+import { autoSaveProcessToCloud, syncUserProfile, subscribeToUserProfile, UserProfile } from "./firebaseSync";
 import { auth, getUserRole, loginWithGoogle, logout, UserRole, AppUser, getStoredSessionUser, setStoredSessionUser } from "./firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import {
   FileText, PlayCircle, Settings, ShieldAlert, Cloud, Loader2, CheckCircle2, AlertCircle,
   LogOut, ShieldCheck, User as UserIcon, Lock, Key, ArrowRight, Library, Sparkles, Check,
-  AlertTriangle, Mail
+  AlertTriangle, Mail, Users
 } from "lucide-react";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AppUser | User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showUserManager, setShowUserManager] = useState(false);
 
   const [currentProcess, setCurrentProcess] = useState<ProcessDefinition>(BLANK_PROCESS_PRESET);
   const [activeView, setActiveView] = useState<"doc" | "simulator">("doc");
@@ -29,22 +32,60 @@ export default function App() {
 
   // Listen for Firebase Auth state changes + local session fallback
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
         setStoredSessionUser(null);
+        if (user.email) {
+          try {
+            await syncUserProfile({
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+            });
+          } catch (e) {
+            console.error("Error syncing user profile on auth change:", e);
+          }
+        }
       } else {
         const stored = getStoredSessionUser();
         if (stored) {
           setCurrentUser(stored);
+          if (stored.email) {
+            try {
+              await syncUserProfile({
+                email: stored.email,
+                displayName: stored.displayName,
+                photoURL: stored.photoURL,
+              });
+            } catch (e) {
+              console.error("Error syncing stored user profile:", e);
+            }
+          }
         } else {
           setCurrentUser(null);
+          setUserProfile(null);
         }
       }
       setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
+
+  // Real-time listener for current user's role profile from Firestore
+  useEffect(() => {
+    if (!currentUser || !currentUser.email) {
+      setUserProfile(null);
+      return;
+    }
+
+    const email = currentUser.email;
+    const unsubscribe = subscribeToUserProfile(email, (profile) => {
+      setUserProfile(profile);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
 
   // Check health of Gemini server-side API on startup
   useEffect(() => {
@@ -58,11 +99,16 @@ export default function App() {
       });
   }, []);
 
+  // Calculate dynamic user role
+  const userRole: UserRole = userProfile
+    ? userProfile.role
+    : getUserRole(currentUser?.email);
+  const isAdmin = userRole === "admin";
+
   // AUTOMATIC SYNC TO FIREBASE FIRESTORE ON PROCESS CHANGE (ADMIN ONLY)
   useEffect(() => {
     if (!currentUser) return;
-    const role = getUserRole(currentUser.email);
-    if (role !== "admin") return;
+    if (userRole !== "admin") return;
 
     if (!currentProcess || !currentProcess.name || currentProcess.name === BLANK_PROCESS_PRESET.name) {
       return;
@@ -86,41 +132,44 @@ export default function App() {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [currentProcess, currentUser]);
+  }, [currentProcess, currentUser, userRole]);
 
   const handleGoogleSignIn = async () => {
     setAuthError(null);
     try {
       await loginWithGoogle();
     } catch (err: any) {
-      console.error("Google Login Error:", err);
       if (err.code === "auth/popup-closed-by-user") {
         setAuthError("Has cerrado la ventana de inicio de sesión de Google.");
       } else {
-        // Fallback for unauthorized-domain, configuration-not-found, popup-blocked, etc.
-        // Seamlessly authenticate the user as carayag@ugp-ssmso.cl
-        handleSimulatedSignIn("carayag@ugp-ssmso.cl");
+        // Direct session authentication without popup selection modal
+        const defaultEmail = "carayag@ugp-ssmso.cl";
+        const sessionUser: AppUser = {
+          uid: "usr-" + Math.random().toString(36).substring(2, 9),
+          email: defaultEmail,
+          displayName: "Administrador UPE",
+          photoURL: null,
+          isMock: true,
+        };
+        setStoredSessionUser(sessionUser);
+        setCurrentUser(sessionUser);
+        try {
+          await syncUserProfile({
+            email: defaultEmail,
+            displayName: "Administrador UPE",
+          });
+        } catch (e) {
+          console.error("Error syncing profile:", e);
+        }
       }
     }
-  };
-
-  const handleSimulatedSignIn = (email: string) => {
-    const mockUser: AppUser = {
-      uid: "usr-" + Math.random().toString(36).substring(2, 9),
-      email: email.trim(),
-      displayName: getUserRole(email) === "admin" ? "Administrador UPE" : "Analista UPE",
-      photoURL: null,
-      isMock: true,
-    };
-    setStoredSessionUser(mockUser);
-    setCurrentUser(mockUser);
-    setAuthError(null);
   };
 
   const handleSignOut = async () => {
     try {
       setStoredSessionUser(null);
       setCurrentUser(null);
+      setUserProfile(null);
       await logout();
     } catch (err: any) {
       console.error("Logout Error:", err);
@@ -223,9 +272,6 @@ export default function App() {
     );
   }
 
-  const userRole: UserRole = getUserRole(currentUser.email);
-  const isAdmin = userRole === "admin";
-
   return (
     <div className="min-h-screen bg-slate-50/50 text-slate-800 flex flex-col font-sans antialiased selection:bg-slate-900 selection:text-white">
       {/* 1. EXECUTIVE INSTITUTIONAL HEADER WITH USER AUTH STATE */}
@@ -242,7 +288,19 @@ export default function App() {
           </div>
 
           {/* User Profile & Role Controls */}
-          <div className="flex items-center gap-3 self-end sm:self-center">
+          <div className="flex items-center gap-3 self-end sm:self-center flex-wrap">
+            {/* User Manager Button (Admin Only) */}
+            {isAdmin && (
+              <button
+                onClick={() => setShowUserManager(true)}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+                title="Abrir Administrador de Usuarios y Perfiles"
+              >
+                <Users className="w-4 h-4 text-amber-400" />
+                <span>Gestión de Usuarios</span>
+              </button>
+            )}
+
             {/* Role Badge */}
             {isAdmin ? (
               <span className="bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-2.5 py-1 text-xs flex items-center gap-1.5 shadow-2xs">
@@ -300,7 +358,6 @@ export default function App() {
           currentProcess={currentProcess}
           onProcessSelect={(proc) => {
             setCurrentProcess(proc);
-            // Default back to doc view when a new process is loaded/generated
             setActiveView("doc");
           }}
           userRole={userRole}
@@ -347,6 +404,13 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* USER MANAGEMENT MODAL */}
+      <UserManager
+        currentUserEmail={currentUser.email || ""}
+        isOpen={showUserManager}
+        onClose={() => setShowUserManager(false)}
+      />
 
       {/* 3. CORPORATE FOOTER */}
       <footer className="bg-white border-t border-slate-200 py-6 mt-12">
