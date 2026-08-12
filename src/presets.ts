@@ -119,11 +119,11 @@ export const WAREHOUSE_LOGISTICS_PRESET: ProcessDefinition = {
       narrative: "Consiste en la recepción del transporte en andén, la validación de la documentación fiscal (guía de despacho vs. orden de compra) y la inspección visual exterior.",
       sipoc: [
         {
-          supplier: "Transportista / Proveedor",
-          inputs: "Camión con carga, Guía de despacho fiscal",
-          subprocess: "Recepción e Inspección de Insumos",
-          outputs: "Pre-recepción conforme o Rechazo en andén",
-          customer: "Bodegueros de turno"
+          supplier: "Recepción e Inspección de Insumos",
+          inputs: "Arribo de transporte con guía de despacho",
+          subprocess: "Recepción del transporte en andén, validación de la documentación fiscal e inspección visual exterior.",
+          outputs: "Alerta de inspección técnica enviada a Calidad",
+          customer: "Bodegueros de turno, Jefe de Bodega, Inspector de Calidad"
         }
       ],
       activities: [
@@ -175,11 +175,11 @@ export const WAREHOUSE_LOGISTICS_PRESET: ProcessDefinition = {
       narrative: "Validación técnica detallada de las especificaciones de los insumos, lotes, fechas de vencimiento y cadena de frío si aplica, previo a su liberación para almacenamiento.",
       sipoc: [
         {
-          supplier: "Bodeguero / Operador de Recepción",
-          inputs: "Pallets en tránsito temporal",
-          subprocess: "Control de Calidad y Muestreo",
-          outputs: "Lote Liberado o Lote Rechazado por Calidad",
-          customer: "Jefe de Bodega / WMS"
+          supplier: "Control de Calidad y Muestreo",
+          inputs: "Pallets etiquetados temporalmente en zona de tránsito",
+          subprocess: "Validación técnica detallada de especificaciones, fechas de vencimiento y cadena de frío previo a liberación.",
+          outputs: "Insumos liberados en inventario disponible",
+          customer: "Inspector de Calidad, Jefe de Bodega, WMS"
         }
       ],
       activities: [
@@ -221,11 +221,11 @@ export const WAREHOUSE_LOGISTICS_PRESET: ProcessDefinition = {
       narrative: "Proceso de traslado físico y almacenamiento de los insumos en las estanterías o racks de la bodega siguiendo la estrategia de optimización asignada por el WMS.",
       sipoc: [
         {
-          supplier: "WMS / Inspector de Calidad",
-          inputs: "Insumos liberados con código SKU definitivo",
-          subprocess: "Almacenamiento y Ubicación Definitiva",
-          outputs: "Ubicación en rack confirmada y stock disponible",
-          customer: "Área de Despacho / Solicitantes internos"
+          supplier: "Almacenamiento y Ubicación Definitiva",
+          inputs: "Insumos liberados en inventario disponible",
+          subprocess: "Traslado físico y almacenamiento de insumos en estanterías o racks según optimización asignada por el WMS.",
+          outputs: "Almacenamiento definitivo confirmado en estantería",
+          customer: "Área de Despacho, Solicitantes Internos"
         }
       ],
       activities: [

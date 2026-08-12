@@ -14,11 +14,11 @@ export interface ProcessGlossaryItem {
 }
 
 export interface SIPOCRow {
-  supplier: string;
-  inputs: string;
-  subprocess: string;
-  outputs: string;
-  customer: string;
+  supplier: string;   // S (SUBPROCESO): El nombre del subproceso en la secuencia 4.x (tantas filas como la secuencia de x tenga)
+  inputs: string;     // I (Entrada): Insumo de información proveniente de la primera Ficha de Actividad (4.X.1)
+  subprocess: string; // P (Procesamiento o función de transformación): Texto resumen de la narrativa de transformación realizada durante la ejecución de las fichas del subproceso
+  outputs: string;    // O (Resultado): Resultado registrado en la última Ficha de Actividad del subproceso (4.X.N)
+  customer: string;   // C (Usuarios o destinatarios): Actores participantes descritos en las fichas del subproceso
 }
 
 export interface ActivityFicha {
@@ -30,12 +30,14 @@ export interface ActivityFicha {
   result: string; // Output state / docs
   rules: string; // Business rules
   variants: string; // Edge cases, exception paths
+  responsibleRole?: string; // Participant actor / role
 }
 
 export interface SubprocessDefinition {
   index: string; // e.g. "4.1"
   name: string;
   narrative: string;
+  responsibleRole?: string;
   activities: ActivityFicha[];
   sipoc: SIPOCRow[];
 }

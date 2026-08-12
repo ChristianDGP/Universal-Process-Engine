@@ -16,6 +16,12 @@ CRITICAL TO-BE & BPMN 2.0 SPECIFICATION RULES:
 9. Cross-references ("Referencias cruzadas"): If an activity references or repeats another activity, use cross-references (e.g. "Ver Actividad 4.1.1"). Do not duplicate identical fichas.
 10. COMPLETE SEQUENCE: Each subprocess MUST contain detailed sequential activities (4.X.1, 4.X.2, 4.X.3, 4.X.4, etc., typically 3 to 6 per subprocess or more if needed) to fully model the complete operational workflow without skipping steps or clumping tasks.
 11. ESTADOS OFICIALES Y ALINEACIÓN CON SUBPROCESOS BPMN 2.0 (Ref. 3.4 y 3.5): El arreglo "stateMachine.states" debe corresponder exactamente 1 a 1 en orden secuencial con la lista de subprocesos definidos en "subprocesses" (Ref. 3.5), de modo que cada estado oficial coincida directamente con su etapa/subproceso correspondiente desde el Evento de Inicio (Gatillo) hasta el Evento de Término.
+12. MATRIZ SIPOC (Ref. 3.5): Para cada subproceso en "subprocesses.sipoc", los campos deben estructurarse como:
+    - supplier: S (SUBPROCESO) -> El nombre debe ser el mismo nombre de la secuencia 4.x (ej: "(4.1) Nombre del Subproceso") y contendrá tantas filas como subprocesos tenga la secuencia 4.x.
+    - inputs: I (Entrada) -> Extrae automáticamente el insumo de información proveniente de la primera Ficha de Actividad (4.X.1).
+    - subprocess: P (Procesamiento o función de transformación) -> Muestra el texto resumen de la narrativa de transformación realizada durante la ejecución de todas las fichas del subproceso.
+    - outputs: O (Resultado) -> Extrae automáticamente el resultado registrado en la última Ficha de Actividad del subproceso (4.X.N).
+    - customer: C (Usuarios o destinatarios) -> Detalla los actores participantes descritos en las fichas del subproceso.
 
 The JSON object MUST match the following TypeScript interface exactly:
 

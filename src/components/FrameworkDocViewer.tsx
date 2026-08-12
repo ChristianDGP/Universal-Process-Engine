@@ -211,7 +211,7 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
   // SIPOC Modal State
   const [sipocModalOpen, setSipocModalOpen] = useState(false);
   const [editingSipocSubIndex, setEditingSipocSubIndex] = useState<string | null>(null);
-  const [sipocForm, setSipocForm] = useState({ supplier: "", inputs: "", outputs: "", customer: "" });
+  const [sipocForm, setSipocForm] = useState({ supplier: "", inputs: "", subprocess: "", outputs: "", customer: "" });
 
   // KPI Modal State
   const [kpiModalOpen, setKpiModalOpen] = useState(false);
@@ -327,9 +327,9 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
     if (targetSub) {
       targetSub.sipoc = [
         {
-          supplier: sipocForm.supplier,
+          supplier: sipocForm.supplier || targetSub.name,
           inputs: sipocForm.inputs,
-          subprocess: targetSub.name,
+          subprocess: sipocForm.subprocess || targetSub.narrative || `Transformación de ${targetSub.name}`,
           outputs: sipocForm.outputs,
           customer: sipocForm.customer
         }
@@ -390,22 +390,56 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
       const subIndex = `4.${sIdx + 1}`;
       sub.index = subIndex;
 
-      // Sync SIPOC rows
+      // Sync SIPOC rows (Punto 3.5 Matriz SIPOC):
+      // S (Subproceso): El nombre en secuencia 4.x (mismo nombre del subproceso)
+      // I (Entrada): Extrae automáticamente insumo de información de la primera Ficha de Actividad (4.X.1)
+      // P (Procesamiento): Texto resumen de la narrativa de transformación realizada durante la ejecución de las fichas
+      // O (Resultado): Extrae automáticamente el resultado registrado en la última Ficha de Actividad del subproceso (4.X.N)
+      // C (Usuarios/Destinatarios): Detalla los actores participantes descritos en las fichas del subproceso
+      const firstActInput = (sub.activities && sub.activities.length > 0 && sub.activities[0].infoInputs) ? sub.activities[0].infoInputs : (updated.processInputs || "Insumo inicial del subproceso");
+      const lastActResult = (sub.activities && sub.activities.length > 0 && sub.activities[sub.activities.length - 1].result) ? sub.activities[sub.activities.length - 1].result : (updated.processOutputs || "Resultado final del subproceso");
+      
+      const subNarrative = sub.narrative || (sub.activities && sub.activities.length > 0
+        ? sub.activities.map(a => a.description).filter(Boolean).join(" ")
+        : `Transformación y ejecución de ${sub.name}`);
+
+      const actActorsList = Array.from(
+        new Set(
+          (sub.activities || [])
+            .map(a => a.responsibleRole)
+            .filter(Boolean)
+            .flatMap(r => r.split(",").map(s => s.trim()))
+        )
+      );
+      const subActors = actActorsList.length > 0
+        ? actActorsList.join(", ")
+        : (sub.responsibleRole || updated.responsibleRole || updated.customers || "Actores participantes descritos en las fichas");
+
+      const cleanSubName = sub.name.replace(/^(\(?4\.\d+\)?\.?\s*)+/i, "").trim();
+      const subprocessFullName = `${subIndex} ${cleanSubName || sub.name}`;
+
       if (!sub.sipoc || sub.sipoc.length === 0) {
         sub.sipoc = [
           {
-            supplier: updated.suppliers || "Proveedor Externo / Interno",
-            inputs: updated.processInputs || "Insumo o Solicitud de Proceso",
-            subprocess: sub.name,
-            outputs: updated.processOutputs || "Entregable Registrado",
-            customer: updated.customers || "Unidad Destinataria"
+            supplier: subprocessFullName,
+            inputs: firstActInput,
+            subprocess: subNarrative,
+            outputs: lastActResult,
+            customer: subActors
           }
         ];
       } else {
-        sub.sipoc = sub.sipoc.map((s) => ({
-          ...s,
-          subprocess: sub.name
-        }));
+        sub.sipoc = sub.sipoc.map((s) => {
+          const cleanP = (s.subprocess && s.subprocess.trim() !== sub.name.trim() && s.subprocess.trim() !== cleanSubName) ? s.subprocess : subNarrative;
+          return {
+            ...s,
+            supplier: subprocessFullName,
+            inputs: firstActInput,
+            subprocess: cleanP,
+            outputs: lastActResult,
+            customer: subActors || s.customer
+          };
+        });
       }
 
       // Sync activities indices
@@ -1851,48 +1885,79 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                 <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                   <thead>
                     <tr className="bg-slate-900 text-white uppercase tracking-wider font-bold text-[10px]">
-                      <th className="p-3">S (Proveedor)</th>
-                      <th className="p-3">I (Insumo)</th>
-                      <th className="p-3">P (Subproceso)</th>
-                      <th className="p-3">O (Entregable)</th>
-                      <th className="p-3">C (Usuario Final)</th>
+                      <th className="p-3 min-w-[150px]">S (Subproceso)</th>
+                      <th className="p-3 min-w-[160px]">I (Entrada)</th>
+                      <th className="p-3 min-w-[200px]">P (Procesamiento)</th>
+                      <th className="p-3 min-w-[160px]">O (Resultado)</th>
+                      <th className="p-3 min-w-[150px]">C (Usuarios o Destinatarios)</th>
                       <th className="p-3 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {process.subprocesses.flatMap((sub) =>
-                      sub.sipoc.map((s, idx) => (
-                        <tr key={`${sub.index}-${idx}`} id={`sipoc-sub-${sub.index}`} className="border-b border-slate-200 hover:bg-slate-50/50 transition-colors">
-                          <td className="p-3 text-slate-700 font-medium">{s.supplier}</td>
-                          <td className="p-3 text-slate-600">{s.inputs}</td>
-                          <td className="p-3 font-bold text-slate-900">
-                            ({sub.index}) {sub.name}
-                          </td>
-                          <td className="p-3 text-slate-600">{s.outputs}</td>
-                          <td className="p-3 text-slate-700 font-medium">{s.customer}</td>
-                          <td className="p-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingSipocSubIndex(sub.index);
-                                setSipocForm({
-                                  supplier: s.supplier,
-                                  inputs: s.inputs,
-                                  outputs: s.outputs,
-                                  customer: s.customer
-                                });
-                                setSipocModalOpen(true);
-                              }}
-                              className="px-2 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded inline-flex items-center gap-1 shadow-2xs"
-                              title="Editar Ficha SIPOC de este Subproceso"
-                            >
-                              <Edit2 className="w-3 h-3 text-slate-500" />
-                              <span>Editar SIPOC</span>
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                    {process.subprocesses.flatMap((sub) => {
+                      const firstActInput = sub.activities && sub.activities.length > 0 && sub.activities[0].infoInputs ? sub.activities[0].infoInputs : "";
+                      const lastActResult = sub.activities && sub.activities.length > 0 && sub.activities[sub.activities.length - 1].result ? sub.activities[sub.activities.length - 1].result : "";
+                      const subNarrative = sub.narrative || (sub.activities && sub.activities.length > 0 ? sub.activities.map(a => a.description).filter(Boolean).join(" ") : `Resumen de transformación de ${sub.name}`);
+                      const actActors = Array.from(
+                        new Set(
+                          (sub.activities || [])
+                            .map(a => a.responsibleRole)
+                            .filter(Boolean)
+                            .flatMap(r => r.split(",").map(st => st.trim()))
+                        )
+                      ).join(", ");
+                      const subActors = actActors || sub.responsibleRole || process.responsibleRole || "Actores participantes descritos en las fichas";
+
+                      return sub.sipoc.map((s, idx) => {
+                        const cleanSubName = sub.name.replace(/^(\(?4\.\d+\)?\.?\s*)+/i, "").trim();
+                        const displayS = `${sub.index} ${cleanSubName || sub.name}`;
+                        const displayP = (s.subprocess && s.subprocess.trim() !== sub.name.trim() && s.subprocess.trim() !== cleanSubName) ? s.subprocess : subNarrative;
+                        const displayI = firstActInput || s.inputs || "Insumo inicial del subproceso";
+                        const displayO = lastActResult || s.outputs || "Resultado final del subproceso";
+                        const displayC = subActors || s.customer;
+
+                        return (
+                          <tr key={`${sub.index}-${idx}`} id={`sipoc-sub-${sub.index}`} className="border-b border-slate-200 hover:bg-slate-50/50 transition-colors">
+                            <td className="p-3 font-bold text-slate-900">
+                              {displayS}
+                            </td>
+                            <td className="p-3 text-slate-600">
+                              {displayI}
+                            </td>
+                            <td className="p-3 text-slate-700">
+                              {displayP}
+                            </td>
+                            <td className="p-3 text-slate-600">
+                              {displayO}
+                            </td>
+                            <td className="p-3 text-slate-700 font-medium">
+                              {displayC}
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingSipocSubIndex(sub.index);
+                                  setSipocForm({
+                                    supplier: displayS,
+                                    inputs: displayI,
+                                    subprocess: displayP,
+                                    outputs: displayO,
+                                    customer: displayC
+                                  });
+                                  setSipocModalOpen(true);
+                                }}
+                                className="px-2 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded inline-flex items-center gap-1 shadow-2xs"
+                                title="Editar Ficha SIPOC de este Subproceso"
+                              >
+                                <Edit2 className="w-3 h-3 text-slate-500" />
+                                <span>Editar SIPOC</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -2945,17 +3010,19 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
             </div>
             <form onSubmit={handleSaveSipoc} className="p-6 space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-800 mb-1">S - Proveedor (Supplier)</label>
+                <label className="block font-bold text-slate-800 mb-0.5">S (SUBPROCESO)</label>
+                <p className="text-[10px] text-slate-500 mb-1">Nombre del subproceso perteneciente a la secuencia 4.X (ej. 4.1 Nombre del Subproceso)</p>
                 <input
                   type="text"
                   required
                   value={sipocForm.supplier}
                   onChange={(e) => setSipocForm({ ...sipocForm, supplier: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900 font-bold"
                 />
               </div>
               <div>
-                <label className="block font-bold text-slate-800 mb-1">I - Insumos de Entrada (Inputs)</label>
+                <label className="block font-bold text-slate-800 mb-0.5">I (Entrada)</label>
+                <p className="text-[10px] text-slate-500 mb-1">Evento de inicio del subproceso (mismos que el insumo de información de la primera ficha del subproceso)</p>
                 <input
                   type="text"
                   required
@@ -2965,7 +3032,19 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                 />
               </div>
               <div>
-                <label className="block font-bold text-slate-800 mb-1">O - Entregable / Resultado (Outputs)</label>
+                <label className="block font-bold text-slate-800 mb-0.5">P (Procesamiento o función de transformación)</label>
+                <p className="text-[10px] text-slate-500 mb-1">Texto resumen de lo que se transforma en la ejecución del subproceso o lo que hace el subproceso</p>
+                <textarea
+                  rows={2}
+                  required
+                  value={sipocForm.subprocess}
+                  onChange={(e) => setSipocForm({ ...sipocForm, subprocess: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-800 mb-0.5">O (Resultado)</label>
+                <p className="text-[10px] text-slate-500 mb-1">Evento(s) del fin del subproceso (mismos que el resultado de la última ficha del subproceso)</p>
                 <input
                   type="text"
                   required
@@ -2975,7 +3054,8 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                 />
               </div>
               <div>
-                <label className="block font-bold text-slate-800 mb-1">C - Usuario / Cliente (Customer)</label>
+                <label className="block font-bold text-slate-800 mb-0.5">C (Usuarios o destinatarios)</label>
+                <p className="text-[10px] text-slate-500 mb-1">Actores participantes del subproceso</p>
                 <input
                   type="text"
                   required
