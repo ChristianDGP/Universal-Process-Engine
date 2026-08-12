@@ -21,7 +21,7 @@ CRITICAL TO-BE & BPMN 2.0 SPECIFICATION RULES:
     - inputs: I (Entrada) -> Extrae automáticamente el insumo de información proveniente de la primera Ficha de Actividad (4.X.1).
     - subprocess: P (Procesamiento o función de transformación) -> Muestra el texto resumen de la narrativa de transformación realizada durante la ejecución de todas las fichas del subproceso.
     - outputs: O (Resultado) -> Extrae automáticamente el resultado registrado en la última Ficha de Actividad del subproceso (4.X.N).
-    - customer: C (Usuarios o destinatarios) -> Detalla los actores participantes descritos en las fichas del subproceso.
+    - customer: C (Usuarios o destinatarios) -> Lista los cargos o responsables (roles o actores humanos) participantes descritos en las fichas del subproceso, separados por comas "," sin repetir ninguno. REGLA ESTRICTA: NUNCA indicar el sistema, software o módulo (ej: NO colocar WMS, ERP, Sistema, Módulo). Solo cargos o responsables humanos.
 
 The JSON object MUST match the following TypeScript interface exactly:
 
@@ -55,6 +55,7 @@ interface ProcessDefinition {
       index: string;
       name: string;
       description: string;
+      responsibleRole?: string;
       supportTech: string;
       infoInputs: string;
       result: string;

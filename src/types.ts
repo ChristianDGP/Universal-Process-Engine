@@ -38,6 +38,7 @@ export interface SubprocessDefinition {
   name: string;
   narrative: string;
   responsibleRole?: string;
+  startEventId?: string; // ID of the start event flow line this subprocess belongs to
   activities: ActivityFicha[];
   sipoc: SIPOCRow[];
 }
@@ -47,6 +48,14 @@ export interface StateTransition {
   to: string;
   action: string;
   role: string;
+}
+
+export interface BpmnStartEvent {
+  id: string;
+  name: string; // e.g. "EVENTO DE INICIO" or "EVENTO DE INICIO 2"
+  trigger: string; // e.g. "Recepción de solicitud de compra aprobada..."
+  targetSubprocessIndex?: string; // e.g. "4.1" or "4.4"
+  endTrigger?: string; // Outcome for end event of this flow
 }
 
 export interface BpmnGateway {
@@ -63,6 +72,7 @@ export interface ProcessStateMachine {
   states: string[]; // e.g., ["Draft", "Pending", "Approved", "Executed", "Rejected", "Quarantined"]
   initialState: string;
   transitions: StateTransition[];
+  startEvents?: BpmnStartEvent[];
   gateways?: BpmnGateway[];
   endEvents?: string[];
   custodyTransfers: {
@@ -86,6 +96,9 @@ export interface ProcessStateMachine {
 export interface ProcessDefinition {
   name: string;
   description: string;
+  macroproceso?: string;
+  proceso?: string;
+  microproceso?: string;
   scopeStart: string;
   scopeEnd: string;
   responsibleRole: string;

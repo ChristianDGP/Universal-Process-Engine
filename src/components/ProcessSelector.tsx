@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ProcessDefinition } from "../types";
 import { PRESETS, BLANK_PROCESS_PRESET } from "../presets";
-import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff, Zap, ShieldAlert, Lock } from "lucide-react";
+import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff, Zap, ShieldAlert, Lock, FolderTree, Layers, Tag, Filter } from "lucide-react";
 import { subscribeToCloudProcesses, saveProcessToCloud, deleteProcessFromCloud, bulkSyncProcessesToCloud, SavedProcessEntry } from "../firebaseSync";
 import { generateFallbackProcess } from "../lib/processTemplateGenerator";
 import { UserRole } from "../firebase";
+import {
+  TaxonomyItem,
+  getStoredTaxonomy,
+  saveStoredTaxonomy,
+  resetTaxonomyToDefault,
+  matchProcessToTaxonomy,
+  parseTaxonomyCSV,
+  taxonomyToCSV
+} from "../taxonomy";
 
 interface ProcessSelectorProps {
   currentProcess: ProcessDefinition;
@@ -59,6 +68,190 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [restoreMode, setRestoreMode] = useState<"merge" | "replace">("merge");
   const [adminMsg, setAdminMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Taxonomy & Structure State
+  const [taxonomy, setTaxonomy] = useState<TaxonomyItem[]>(() => getStoredTaxonomy());
+  const [libraryTab, setLibraryTab] = useState<"processes" | "taxonomy">("processes");
+  const [filterMatchTab, setFilterMatchTab] = useState<"all" | "matched" | "others">("all");
+  const [searchTaxonomyQuery, setSearchTaxonomyQuery] = useState("");
+
+  // Active Process Taxonomy Filter & Selector State
+  const [filterMacro, setFilterMacro] = useState<string>("");
+  const [filterProc, setFilterProc] = useState<string>("");
+  const [filterMicro, setFilterMicro] = useState<string>("");
+  const [isMicroDropdownOpen, setIsMicroDropdownOpen] = useState<boolean>(false);
+  const microComboRef = useRef<HTMLDivElement>(null);
+
+  // New taxonomy node form state
+  const [newMacro, setNewMacro] = useState("");
+  const [newProc, setNewProc] = useState("");
+  const [newMicro, setNewMicro] = useState("");
+  const [taxMsg, setTaxMsg] = useState<string | null>(null);
+
+  // Synchronize state with current active process when it changes
+  useEffect(() => {
+    if (currentProcess) {
+      const match = matchProcessToTaxonomy(currentProcess, taxonomy);
+      if (match.isMatched) {
+        setFilterMacro(match.macroproceso);
+        setFilterProc(match.proceso);
+        setFilterMicro(match.microproceso);
+      } else {
+        setFilterMacro(currentProcess.macroproceso || "");
+        setFilterProc(currentProcess.proceso || "");
+        setFilterMicro(currentProcess.microproceso || "");
+      }
+    }
+  }, [currentProcess, taxonomy]);
+
+  // Click outside to close microproceso dropdown
+  useEffect(() => {
+    const handleClickOutsideMicro = (event: MouseEvent) => {
+      if (microComboRef.current && !microComboRef.current.contains(event.target as Node)) {
+        setIsMicroDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutsideMicro);
+    return () => document.removeEventListener("mousedown", handleClickOutsideMicro);
+  }, []);
+
+  // Function: Assimilate all existing processes to Taxonomy structure
+  const handleAssimilateProcesses = async () => {
+    try {
+      setCloudSyncing(true);
+      let matchedCount = 0;
+      let othersCount = 0;
+
+      const updated = savedProcesses.map((entry) => {
+        const matchRes = matchProcessToTaxonomy(entry.process, taxonomy);
+        const updatedProc: ProcessDefinition = {
+          ...entry.process,
+          macroproceso: matchRes.macroproceso,
+          proceso: matchRes.proceso,
+          microproceso: matchRes.microproceso
+        };
+        if (matchRes.isMatched) {
+          matchedCount++;
+        } else {
+          othersCount++;
+        }
+        return {
+          ...entry,
+          process: updatedProc
+        };
+      });
+
+      setSavedProcesses(updated);
+      localStorage.setItem("upe_saved_processes_v1", JSON.stringify(updated));
+      await bulkSyncProcessesToCloud(updated);
+
+      // Also assimilate current active process
+      const activeMatch = matchProcessToTaxonomy(currentProcess, taxonomy);
+      if (activeMatch.isMatched || !currentProcess.macroproceso) {
+        onProcessSelect({
+          ...currentProcess,
+          macroproceso: activeMatch.macroproceso,
+          proceso: activeMatch.proceso,
+          microproceso: activeMatch.microproceso
+        });
+      }
+
+      setCloudSyncing(false);
+      setSaveSuccessMsg(
+        `¡Proceso de asimilación completado! ${matchedCount} diseño(s) asimilados con éxito a la estructura propuesta y ${othersCount} asignados a "Otros / Sin Clasificar".`
+      );
+      setTimeout(() => setSaveSuccessMsg(null), 6000);
+    } catch (err: any) {
+      console.error(err);
+      setCloudSyncing(false);
+      setError("Error durante la asimilación de documentos.");
+    }
+  };
+
+  // Function: Add node to taxonomy
+  const handleAddTaxonomyNode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMacro.trim() || !newProc.trim() || !newMicro.trim()) {
+      setTaxMsg("Por favor complete los 3 campos: Macroproceso, Proceso y Microproceso.");
+      return;
+    }
+    const newNode: TaxonomyItem = {
+      id: `tax_custom_${Date.now()}`,
+      macroproceso: newMacro.trim(),
+      proceso: newProc.trim(),
+      microproceso: newMicro.trim()
+    };
+    const updated = [newNode, ...taxonomy];
+    setTaxonomy(updated);
+    saveStoredTaxonomy(updated);
+    setNewMacro("");
+    setNewProc("");
+    setNewMicro("");
+    setTaxMsg("Nivel de estructura añadido exitosamente a la taxonomía.");
+    setTimeout(() => setTaxMsg(null), 3000);
+  };
+
+  // Function: Delete taxonomy node
+  const handleDeleteTaxonomyNode = (id: string) => {
+    const updated = taxonomy.filter((t) => t.id !== id);
+    setTaxonomy(updated);
+    saveStoredTaxonomy(updated);
+  };
+
+  // Function: Reset taxonomy to official 92 default items
+  const handleResetTaxonomyToDefault = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Reestablecer Estructura Oficial",
+      message: "¿Deseas reestablecer la estructura taxonómica oficial de 92 microprocesos? Se restaurarán los elementos originales.",
+      confirmText: "Reestablecer",
+      confirmVariant: "danger",
+      onConfirm: () => {
+        const def = resetTaxonomyToDefault();
+        setTaxonomy(def);
+        setTaxMsg("Estructura taxonómica reestablecida a la oficial de 92 microprocesos.");
+        setTimeout(() => setTaxMsg(null), 3000);
+      }
+    });
+  };
+
+  // Function: Export taxonomy as CSV
+  const handleExportTaxonomyCSV = () => {
+    const csvContent = taxonomyToCSV(taxonomy);
+    const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `Estructura_Taxonomica_Procesos_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  // Function: Import taxonomy from CSV file
+  const handleImportTaxonomyCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.readAsText(file, "UTF-8");
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = parseTaxonomyCSV(content);
+        if (parsed.length > 0) {
+          setTaxonomy(parsed);
+          saveStoredTaxonomy(parsed);
+          setTaxMsg(`¡Estructura importada exitosamente con ${parsed.length} microprocesos!`);
+          setTimeout(() => setTaxMsg(null), 4000);
+        } else {
+          setTaxMsg("El archivo CSV no contiene registros válidos (Formato requerido: MACROPROCESO;PROCESO;MICROPROCESO).");
+        }
+      } catch (err) {
+        setTaxMsg("Error al procesar el archivo CSV.");
+      } finally {
+        e.target.value = "";
+      }
+    };
+  };
 
   // Subscribe to Firebase Cloud Firestore for real-time process synchronization
   useEffect(() => {
@@ -536,12 +729,133 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
     setIsComboboxOpen(false);
   };
 
-  // Filter options based on user typing
+  // Derived Taxonomy lists for Macroproceso, Proceso, Microproceso filters
+  const macroList = Array.from(new Set(taxonomy.map((t) => t.macroproceso))).sort();
+
+  const procList = Array.from(
+    new Set(
+      taxonomy
+        .filter((t) => !filterMacro || t.macroproceso === filterMacro)
+        .map((t) => t.proceso)
+    )
+  ).sort();
+
+  const microListFiltered = taxonomy.filter((t) => {
+    if (filterMacro && t.macroproceso !== filterMacro) return false;
+    if (filterProc && t.proceso !== filterProc) return false;
+    if (filterMicro && !t.microproceso.toLowerCase().includes(filterMicro.toLowerCase())) return false;
+    return true;
+  });
+
+  const handleSelectFilterMacro = (macro: string) => {
+    setFilterMacro(macro);
+    if (macro) {
+      const validProcs = taxonomy.filter((t) => t.macroproceso === macro).map((t) => t.proceso);
+      if (filterProc && !validProcs.includes(filterProc)) {
+        setFilterProc("");
+      }
+    }
+  };
+
+  const handleSelectFilterProc = (proc: string) => {
+    setFilterProc(proc);
+    if (proc && !filterMacro) {
+      const found = taxonomy.find((t) => t.proceso === proc);
+      if (found) {
+        setFilterMacro(found.macroproceso);
+      }
+    }
+  };
+
+  const handleSelectMicroItem = (item: TaxonomyItem) => {
+    setFilterMacro(item.macroproceso);
+    setFilterProc(item.proceso);
+    setFilterMicro(item.microproceso);
+    setIsMicroDropdownOpen(false);
+
+    // Update active process taxonomy classification directly
+    onProcessSelect({
+      ...currentProcess,
+      macroproceso: item.macroproceso,
+      proceso: item.proceso,
+      microproceso: item.microproceso
+    });
+
+    // Check if a saved process matches this microproceso
+    const matchProc = savedProcesses.find(
+      (p) =>
+        p.process.name.toLowerCase() === item.microproceso.toLowerCase() ||
+        p.process.microproceso?.toLowerCase() === item.microproceso.toLowerCase()
+    );
+    if (matchProc) {
+      onProcessSelect(matchProc.process);
+      setSaveSuccessMsg(`¡Proceso cargado desde librería: "${matchProc.process.name}"!`);
+      setTimeout(() => setSaveSuccessMsg(null), 4000);
+    }
+  };
+
+  const handleApplyToActiveProcess = () => {
+    onProcessSelect({
+      ...currentProcess,
+      macroproceso: filterMacro || undefined,
+      proceso: filterProc || undefined,
+      microproceso: filterMicro || undefined
+    });
+    setSaveSuccessMsg("Clasificación taxonómica aplicada exitosamente al proceso activo.");
+    setTimeout(() => setSaveSuccessMsg(null), 3000);
+  };
+
+  const handleClearTaxonomyFilters = () => {
+    setFilterMacro("");
+    setFilterProc("");
+    setFilterMicro("");
+  };
+
+  // Match evaluation for saved processes against Taxonomy structure
   const cleanQuery = comboboxQuery.toLowerCase().trim();
 
-  const filteredSaved = savedProcesses.filter((entry) =>
-    entry.process.name.toLowerCase().includes(cleanQuery)
-  );
+  const savedProcessesWithMatch = savedProcesses.map((entry) => {
+    const matchRes = matchProcessToTaxonomy(entry.process, taxonomy);
+    return { entry, matchRes };
+  });
+
+  const matchedSaved = savedProcessesWithMatch.filter(({ entry, matchRes }) => {
+    const textMatch =
+      entry.process.name.toLowerCase().includes(cleanQuery) ||
+      (matchRes.microproceso && matchRes.microproceso.toLowerCase().includes(cleanQuery));
+    if (!textMatch) return false;
+
+    if (filterMacro && matchRes.macroproceso !== filterMacro && entry.process.macroproceso !== filterMacro) {
+      return false;
+    }
+    if (filterProc && matchRes.proceso !== filterProc && entry.process.proceso !== filterProc) {
+      return false;
+    }
+    if (filterMicro) {
+      const targetMicro = filterMicro.toLowerCase();
+      const matchMicro = matchRes.microproceso ? matchRes.microproceso.toLowerCase() : "";
+      const procMicro = entry.process.microproceso ? entry.process.microproceso.toLowerCase() : "";
+      const procName = entry.process.name.toLowerCase();
+      if (!matchMicro.includes(targetMicro) && !procMicro.includes(targetMicro) && !procName.includes(targetMicro)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const othersSaved = savedProcessesWithMatch.filter(({ entry, matchRes }) => {
+    if (matchRes.isMatched) return false;
+    const textMatch = entry.process.name.toLowerCase().includes(cleanQuery);
+    if (!textMatch) return false;
+
+    if (filterMacro && entry.process.macroproceso !== filterMacro) return false;
+    if (filterProc && entry.process.proceso !== filterProc) return false;
+    if (filterMicro && !entry.process.name.toLowerCase().includes(filterMicro.toLowerCase())) return false;
+    return true;
+  });
+
+  const totalMatchedCount = savedProcessesWithMatch.filter((x) => x.matchRes.isMatched).length;
+  const totalOthersCount = savedProcessesWithMatch.filter((x) => !x.matchRes.isMatched).length;
 
   const isCustomCurrent =
     !isBlankProcess(currentProcess.name) &&
@@ -565,6 +879,29 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
                 Diseño de Proceso Activo
               </label>
             </div>
+            {/* Classification Badge for Active Process */}
+            {(() => {
+              const curMatch = matchProcessToTaxonomy(currentProcess, taxonomy);
+              if (curMatch.isMatched) {
+                return (
+                  <span
+                    className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded flex items-center gap-1"
+                    title={`Estructura Oficial: ${curMatch.macroproceso} > ${curMatch.proceso} > ${curMatch.microproceso}`}
+                  >
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span>Match: {curMatch.microproceso}</span>
+                  </span>
+                );
+              } else if (!isBlankProcess(currentProcess.name)) {
+                return (
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-amber-600" />
+                    <span>Otros / Sin Clasificar</span>
+                  </span>
+                );
+              }
+              return null;
+            })()}
           </div>
 
           {/* Searchable Combobox Input & Dropdown */}
@@ -580,7 +917,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
                   setComboboxQuery(e.target.value);
                   setIsComboboxOpen(true);
                 }}
-                placeholder="Escriba para buscar o seleccione un proceso..."
+                placeholder="Escriba para buscar por nombre o microproceso..."
                 className="w-full bg-slate-50 border-2 border-slate-900 text-slate-900 font-bold text-sm pl-9 pr-16 py-2.5 focus:outline-none focus:bg-white shadow-sm transition-all"
               />
 
@@ -607,9 +944,42 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
 
             {/* Floating Dropdown List */}
             {isComboboxOpen && (
-              <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-slate-900 shadow-xl max-h-72 overflow-y-auto divide-y divide-slate-100 font-sans">
+              <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-slate-900 shadow-xl max-h-80 overflow-y-auto divide-y divide-slate-100 font-sans">
+                {/* Filter Tabs Header */}
+                <div className="p-1.5 bg-slate-100 border-b border-slate-200 flex items-center gap-1 text-[11px] font-bold sticky top-0 z-10">
+                  <span className="text-slate-500 px-1 text-[10px] uppercase tracking-wider">Filtro:</span>
+                  <button
+                    type="button"
+                    onClick={() => setFilterMatchTab("all")}
+                    className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                      filterMatchTab === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    Todos ({savedProcesses.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterMatchTab("matched")}
+                    className={`px-2 py-0.5 rounded cursor-pointer transition-colors flex items-center gap-1 ${
+                      filterMatchTab === "matched" ? "bg-emerald-800 text-white" : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                    }`}
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>Con Match ({totalMatchedCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterMatchTab("others")}
+                    className={`px-2 py-0.5 rounded cursor-pointer transition-colors flex items-center gap-1 ${
+                      filterMatchTab === "others" ? "bg-amber-800 text-white" : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
+                    }`}
+                  >
+                    <span>Otros ({totalOthersCount})</span>
+                  </button>
+                </div>
+
                 {/* Option: Blank / Sin Definir */}
-                {showBlankOption && (
+                {showBlankOption && filterMatchTab !== "matched" && (
                   <button
                     type="button"
                     onClick={() => handleSelectOption(BLANK_PROCESS_PRESET)}
@@ -629,18 +999,52 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
                   </button>
                 )}
 
-                {/* Option Group: Librería de Procesos Guardados */}
-                {filteredSaved.length > 0 && (
+                {/* Group 1: Matches with Taxonomy */}
+                {(filterMatchTab === "all" || filterMatchTab === "matched") && matchedSaved.length > 0 && (
                   <div>
-                    <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-100/80 border-y border-slate-100">
-                      📦 Librería de Procesos Guardados
+                    <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-900 bg-emerald-100/90 border-y border-emerald-200 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>🟢 Diseños con Match en Estructura Taxonómica ({matchedSaved.length})</span>
                     </div>
-                    {filteredSaved.map((entry) => (
+                    {matchedSaved.map(({ entry, matchRes }) => (
                       <button
                         key={entry.id}
                         type="button"
                         onClick={() => handleSelectOption(entry.process)}
-                        className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                        className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex flex-col gap-0.5 cursor-pointer border-b border-slate-50 last:border-b-0 ${
+                          currentProcess.name === entry.process.name
+                            ? "bg-slate-100 text-slate-900"
+                            : "text-slate-800 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="truncate text-slate-900">{entry.process.name}</span>
+                          {currentProcess.name === entry.process.name && (
+                            <Check className="w-3.5 h-3.5 text-slate-900 shrink-0 ml-2" />
+                          )}
+                        </div>
+                        <div className="text-[10px] text-emerald-800 font-medium flex items-center gap-1 truncate">
+                          <FolderTree className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>{matchRes.macroproceso} &gt; {matchRes.proceso} &gt; <strong className="font-extrabold text-emerald-950">{matchRes.microproceso}</strong></span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Group 2: Others / Without Taxonomy Match */}
+                {(filterMatchTab === "all" || filterMatchTab === "others") && othersSaved.length > 0 && (
+                  <div>
+                    <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-900 bg-amber-100/90 border-y border-amber-200 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-amber-700" />
+                      <span>⚪ Otros / Sin Clasificar ({othersSaved.length})</span>
+                    </div>
+                    {othersSaved.map(({ entry }) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        onClick={() => handleSelectOption(entry.process)}
+                        className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between cursor-pointer border-b border-slate-50 last:border-b-0 ${
                           currentProcess.name === entry.process.name
                             ? "bg-slate-100 text-slate-900"
                             : "text-slate-800 hover:bg-slate-50"
@@ -655,11 +1059,11 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
                   </div>
                 )}
 
-                {/* Option Group: Custom / Current Process */}
+                {/* Group 3: Active Custom Process if not in library */}
                 {isCustomCurrent && (
                   <div>
                     <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-100/80 border-y border-slate-100">
-                      ✨ Proceso Activo
+                      ✨ Proceso Activo Actual
                     </div>
                     <button
                       type="button"
@@ -673,13 +1077,13 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
                 )}
 
                 {/* No results state */}
-                {!showBlankOption && filteredSaved.length === 0 && !isCustomCurrent && (
+                {matchedSaved.length === 0 && othersSaved.length === 0 && !showBlankOption && !isCustomCurrent && (
                   <div className="p-4 text-center text-xs text-slate-500 font-medium">
                     No se encontraron coincidencias para &quot;{comboboxQuery}&quot;.
                     <button
                       type="button"
                       onClick={handleClearToBlank}
-                      className="block mx-auto mt-2 text-slate-900 font-bold underline hover:text-slate-700"
+                      className="block mx-auto mt-2 text-slate-900 font-bold underline hover:text-slate-700 cursor-pointer"
                     >
                       Volver a Proceso en Blanco
                     </button>
@@ -739,6 +1143,141 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
               </label>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Filtros de Clasificación Taxonómica (Macroproceso, Proceso, Microproceso por escritura o selección) */}
+      <div className="bg-slate-50/80 border border-slate-200 p-4 rounded-sm mt-5 space-y-3.5 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+          <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wider">
+            <FolderTree className="w-4 h-4 text-emerald-700" />
+            <span>Filtros de Estructura Taxonómica (Proceso Activo)</span>
+          </div>
+          {(filterMacro || filterProc || filterMicro) && (
+            <button
+              type="button"
+              onClick={handleClearTaxonomyFilters}
+              className="text-[11px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Limpiar Filtros</span>
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* 1. Macroproceso Filter */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+              1. Seleccionar Macroproceso
+            </label>
+            <select
+              value={filterMacro}
+              onChange={(e) => handleSelectFilterMacro(e.target.value)}
+              className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs cursor-pointer"
+            >
+              <option value="">-- Todos los Macroprocesos --</option>
+              {macroList.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Proceso Filter */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+              2. Seleccionar Proceso
+            </label>
+            <select
+              value={filterProc}
+              onChange={(e) => handleSelectFilterProc(e.target.value)}
+              className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs cursor-pointer"
+            >
+              <option value="">-- Todos los Procesos --</option>
+              {procList.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Microproceso Filter (Escritura o Selección) */}
+          <div className="relative" ref={microComboRef}>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+              3. Microproceso (Escritura / Selección)
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                value={filterMicro}
+                onChange={(e) => {
+                  setFilterMicro(e.target.value);
+                  setIsMicroDropdownOpen(true);
+                }}
+                onFocus={() => setIsMicroDropdownOpen(true)}
+                placeholder="Escriba o seleccione un microproceso..."
+                className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs pl-2.5 pr-8 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs"
+              />
+              <button
+                type="button"
+                onClick={() => setIsMicroDropdownOpen(!isMicroDropdownOpen)}
+                className="absolute right-2 text-slate-500 hover:text-slate-900 p-1 cursor-pointer"
+                title="Desplegar lista de microprocesos"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transform transition-transform ${isMicroDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+
+            {/* Floating Dropdown for Microprocesos */}
+            {isMicroDropdownOpen && (
+              <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-300 shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 rounded text-xs font-sans">
+                {microListFiltered.length === 0 ? (
+                  <div className="p-3 text-center text-slate-500 font-medium text-[11px]">
+                    No se encontraron microprocesos en el filtro. Puede usar la palabra escrita como microproceso personalizado.
+                  </div>
+                ) : (
+                  microListFiltered.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSelectMicroItem(item)}
+                      className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors flex flex-col gap-0.5 cursor-pointer ${
+                        filterMicro === item.microproceso ? "bg-slate-900 text-white" : "hover:bg-slate-100 text-slate-800"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{item.microproceso}</span>
+                        {filterMicro === item.microproceso && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                      </div>
+                      <span className={`text-[10px] font-mono opacity-75 ${filterMicro === item.microproceso ? "text-slate-300" : "text-slate-500"}`}>
+                        {item.macroproceso} &gt; {item.proceso}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Association Actions & Status Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-[11px]">
+          <div className="flex items-center gap-1.5 text-slate-600">
+            <Tag className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+            <span>Clasificación asignada:</span>
+            <strong className="text-slate-900 font-mono">
+              {filterMacro || "Sin especificar"} &gt; {filterProc || "Sin especificar"} &gt; {filterMicro || "Sin especificar"}
+            </strong>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleApplyToActiveProcess}
+            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            title="Asignar esta estructura al Proceso Activo actual"
+          >
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Asignar al Proceso Activo</span>
+          </button>
         </div>
       </div>
 
@@ -861,118 +1400,331 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
       {/* LIBRARY MODAL */}
       {showLibrary && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-scaleUp">
+          <div className="bg-white border border-slate-200 max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-scaleUp">
+            {/* Modal Header */}
             <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <div>
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Library className="w-5 h-5 text-slate-700" />
-                  Librería de Diseños de Procesos Guardados
+                  <Library className="w-5 h-5 text-slate-800" />
+                  Librería y Gestión de Estructura Taxonómica
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Selecciona y carga cualquier diseño de proceso previamente guardado en este equipo.
+                  Gestione la estructura oficial de 92 microprocesos, asimile diseños existentes y consulte la librería.
                 </p>
               </div>
               <button
                 onClick={() => setShowLibrary(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-sm"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-sm cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              {savedProcesses.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                  <BookmarkPlus className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                  <p className="text-sm font-medium text-slate-600">No hay procesos guardados en tu librería aún.</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Puedes diseñar o modelar un proceso y hacer clic en el botón <strong className="text-slate-600">"Guardar Diseño"</strong> para almacenarlo aquí.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-3">
-                  {savedProcesses.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => {
-                        onProcessSelect(item.process);
-                        setShowLibrary(false);
-                      }}
-                      className={`p-4 border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                        currentProcess.name === item.process.name
-                          ? "bg-slate-900 text-white border-slate-900"
-                          : "bg-slate-50/60 border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-800"
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-sm">{item.process.name}</h4>
-                          {currentProcess.name === item.process.name && (
-                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 bg-emerald-500 text-white">
-                              Activo
-                            </span>
-                          )}
-                        </div>
-                        <p className={`text-xs mt-1 line-clamp-1 ${currentProcess.name === item.process.name ? "text-slate-300" : "text-slate-500"}`}>
-                          {item.process.description}
-                        </p>
-                        <div className="flex items-center gap-3 text-[11px] mt-2 opacity-75 font-mono">
-                          <span>Subprocesos: {item.process.subprocesses.length}</span>
-                          <span>&bull;</span>
-                          <span>Guardado: {item.savedAt}</span>
-                        </div>
-                      </div>
-
-                      {isAdmin && (
-                        <div className="flex items-center gap-2 self-end sm:self-center">
-                          <button
-                            onClick={(e) => handleExportJSON(item.process, e)}
-                            className={`p-2 text-xs font-medium border transition-colors flex items-center gap-1 ${
-                              currentProcess.name === item.process.name
-                                ? "bg-slate-800 text-white border-slate-700 hover:bg-slate-700"
-                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                            }`}
-                            title="Descargar JSON"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteFromLibrary(item.id, e)}
-                            className="p-2 text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
-                            title="Eliminar de librería"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+            {/* Modal Navigation Tabs */}
+            <div className="flex border-b border-slate-200 bg-slate-100/70 px-4 pt-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setLibraryTab("processes")}
+                className={`px-4 py-2 text-xs font-bold transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
+                  libraryTab === "processes"
+                    ? "border-slate-900 text-slate-900 bg-white shadow-2xs"
+                    : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                }`}
+              >
+                <BookOpen className="w-4 h-4 text-slate-700" />
+                <span>1. Diseños Guardados y Asimilación ({savedProcesses.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLibraryTab("taxonomy")}
+                className={`px-4 py-2 text-xs font-bold transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
+                  libraryTab === "taxonomy"
+                    ? "border-slate-900 text-slate-900 bg-white shadow-2xs"
+                    : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                }`}
+              >
+                <FolderTree className="w-4 h-4 text-emerald-700" />
+                <span>2. Estructura Taxonómica ({taxonomy.length} Microprocesos)</span>
+              </button>
             </div>
 
+            {/* TAB 1: DISEÑOS GUARDADOS & ASIMILACIÓN */}
+            {libraryTab === "processes" && (
+              <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                {/* Action Bar: Assimilate Documents */}
+                <div className="bg-slate-900 text-white p-4 rounded flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                      Asimilación de Documentos Existentes a la Estructura
+                    </h4>
+                    <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                      Evalúa todos los diseños guardados contra la estructura de {taxonomy.length} microprocesos. Los que hagan match se vincularán automáticamente a su Macroproceso y Proceso. Los que no coincidan quedarán clasificados en &quot;Otros / Sin Clasificar&quot;.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAssimilateProcesses}
+                    disabled={cloudSyncing || savedProcesses.length === 0}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded transition-colors shadow-sm flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    {cloudSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    <span>⚡ Asimilar Documentos Existentes</span>
+                  </button>
+                </div>
+
+                {savedProcesses.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 p-8">
+                    <BookmarkPlus className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-600">No hay procesos guardados en tu librería aún.</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Puedes diseñar o modelar un proceso y hacer clic en el botón <strong className="text-slate-600">&quot;Guardar Diseño&quot;</strong> para almacenarlo aquí.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 pt-2">
+                    {savedProcesses.map((item) => {
+                      const matchRes = matchProcessToTaxonomy(item.process, taxonomy);
+                      const isCurrent = currentProcess.name === item.process.name;
+
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            onProcessSelect(item.process);
+                            setShowLibrary(false);
+                          }}
+                          className={`p-4 border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                            isCurrent
+                              ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                              : "bg-slate-50/70 border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-800"
+                          }`}
+                        >
+                          <div className="space-y-1.5 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="font-bold text-sm">{item.process.name}</h4>
+                              {isCurrent && (
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 bg-emerald-500 text-white rounded shadow-2xs">
+                                  Activo
+                                </span>
+                              )}
+                              {matchRes.isMatched ? (
+                                <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded flex items-center gap-1">
+                                  <Check className="w-3 h-3 text-emerald-700" />
+                                  <span>Match Oficial</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                                  <Tag className="w-3 h-3 text-amber-700" />
+                                  <span>Otros / Sin Clasificar</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Taxonomy Breadcrumb Badge */}
+                            {matchRes.isMatched && (
+                              <div className={`text-[11px] font-mono flex items-center gap-1 ${isCurrent ? "text-emerald-300" : "text-emerald-800"}`}>
+                                <FolderTree className="w-3.5 h-3.5 shrink-0" />
+                                <span>{matchRes.macroproceso} &gt; {matchRes.proceso} &gt; <strong className="font-black">{matchRes.microproceso}</strong></span>
+                              </div>
+                            )}
+
+                            <p className={`text-xs line-clamp-1 ${isCurrent ? "text-slate-300" : "text-slate-500"}`}>
+                              {item.process.description}
+                            </p>
+                            <div className="flex items-center gap-3 text-[11px] opacity-75 font-mono pt-0.5">
+                              <span>Subprocesos: {item.process.subprocesses?.length || 0}</span>
+                              <span>&bull;</span>
+                              <span>Guardado: {item.savedAt}</span>
+                            </div>
+                          </div>
+
+                          {isAdmin && (
+                            <div className="flex items-center gap-2 self-end sm:self-center">
+                              <button
+                                type="button"
+                                onClick={(e) => handleExportJSON(item.process, e)}
+                                className={`p-2 text-xs font-medium border transition-colors flex items-center gap-1 cursor-pointer ${
+                                  isCurrent
+                                    ? "bg-slate-800 text-white border-slate-700 hover:bg-slate-700"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                                title="Descargar JSON"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteFromLibrary(item.id, e)}
+                                className="p-2 text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                                title="Eliminar de librería"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: GESTIONAR ESTRUCTURA TAXONÓMICA */}
+            {libraryTab === "taxonomy" && (
+              <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                {/* Control bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-4 border border-slate-200 rounded">
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                      Estructura Oficial de Procesos ({taxonomy.length} Microprocesos)
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Soporta importación/exportación CSV y adición manual de niveles.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleExportTaxonomyCSV}
+                      className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Exportar archivo CSV con los 92 microprocesos"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Exportar CSV</span>
+                    </button>
+
+                    <label className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Importar CSV</span>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleImportTaxonomyCSV}
+                        className="hidden"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={handleResetTaxonomyToDefault}
+                      className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Reestablecer la lista oficial original de 92 microprocesos"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reestablecer Oficial (92)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {taxMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold rounded flex items-center gap-2 animate-fadeIn">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{taxMsg}</span>
+                  </div>
+                )}
+
+                {/* Form to add a new taxonomy node */}
+                <form onSubmit={handleAddTaxonomyNode} className="bg-slate-100/80 p-4 border border-slate-200 rounded space-y-3">
+                  <h5 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                    <FolderTree className="w-4 h-4 text-emerald-700" />
+                    <span>Añadir Nuevo Nivel de Microproceso</span>
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Macroproceso *</label>
+                      <input
+                        type="text"
+                        value={newMacro}
+                        onChange={(e) => setNewMacro(e.target.value)}
+                        placeholder="Ej. ESTRATÉGICO"
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded font-semibold focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Proceso *</label>
+                      <input
+                        type="text"
+                        value={newProc}
+                        onChange={(e) => setNewProc(e.target.value)}
+                        placeholder="Ej. Planificación Institucional"
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded font-semibold focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Microproceso *</label>
+                      <input
+                        type="text"
+                        value={newMicro}
+                        onChange={(e) => setNewMicro(e.target.value)}
+                        placeholder="Ej. Control de Metas Operativas"
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded font-semibold focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Guardar Nodo en Estructura Taxonómica</span>
+                  </button>
+                </form>
+
+                {/* Search Taxonomy Bar */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={searchTaxonomyQuery}
+                    onChange={(e) => setSearchTaxonomyQuery(e.target.value)}
+                    placeholder="Filtrar por Macroproceso, Proceso o Microproceso..."
+                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-white border border-slate-300 rounded focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+
+                {/* Taxonomy Items Tree List */}
+                <div className="border border-slate-200 rounded divide-y divide-slate-100 max-h-96 overflow-y-auto bg-white">
+                  {taxonomy
+                    .filter(
+                      (item) =>
+                        item.macroproceso.toLowerCase().includes(searchTaxonomyQuery.toLowerCase()) ||
+                        item.proceso.toLowerCase().includes(searchTaxonomyQuery.toLowerCase()) ||
+                        item.microproceso.toLowerCase().includes(searchTaxonomyQuery.toLowerCase())
+                    )
+                    .map((item) => (
+                      <div key={item.id} className="p-3 hover:bg-slate-50 flex items-center justify-between text-xs transition-colors">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">
+                            {item.macroproceso} &bull; {item.proceso}
+                          </span>
+                          <span className="font-bold text-slate-900 text-sm">{item.microproceso}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTaxonomyNode(item.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                          title="Eliminar este microproceso de la estructura"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modal Footer */}
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-xs text-slate-500">
               <span className="flex items-center gap-2">
-                <span>{savedProcesses.length} procesos guardados en la librería</span>
-                {isAdmin && (
-                  <>
-                    <span>&bull;</span>
-                    <button
-                      onClick={() => {
-                        setShowLibrary(false);
-                        setShowAdminModal(true);
-                      }}
-                      className="text-indigo-700 font-bold hover:underline flex items-center gap-1"
-                    >
-                      <HardDrive className="w-3 h-3" />
-                      Gestión de Respaldos
-                    </button>
-                  </>
-                )}
+                <span>{savedProcesses.length} procesos guardados</span>
+                <span>&bull;</span>
+                <span>{taxonomy.length} microprocesos en estructura</span>
               </span>
               <button
                 onClick={() => setShowLibrary(false)}
-                className="px-4 py-2 bg-slate-900 text-white font-semibold hover:bg-slate-800"
+                className="px-4 py-2 bg-slate-900 text-white font-semibold hover:bg-slate-800 cursor-pointer rounded"
               >
                 Cerrar
               </button>
