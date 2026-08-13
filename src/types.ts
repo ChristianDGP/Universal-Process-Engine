@@ -60,11 +60,11 @@ export interface BpmnStartEvent {
 
 export interface BpmnGateway {
   id: string;
-  name: string; // e.g., "¿Documentación y Atributos Conformes?"
-  type: "EXCLUSIVE_XOR" | "PARALLEL_AND" | "INCLUSIVE_OR";
-  afterState: string; // State or subprocess after which gateway is evaluated
-  conditionTrueTarget: string; // e.g., Next Subprocess / State
-  conditionFalseTarget: string; // e.g., Exception State / Rechazo
+  name: string; // e.g., "¿Documentación Conforme?" o "Unificación de Solicitudes"
+  type: "EXCLUSIVE_XOR" | "PARALLEL_AND" | "INCLUSIVE_OR" | "COMPLEX_JOIN";
+  afterState: string; // State, Gateway, or Subprocess after which gateway is evaluated
+  conditionTrueTarget: string; // Target Subprocess or State (or single destination for JOINT)
+  conditionFalseTarget: string; // Exception State / Rechazo (empty for JOINT)
   role: string;
 }
 

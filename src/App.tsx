@@ -15,9 +15,9 @@ import {
 } from "lucide-react";
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<AppUser | User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppUser | User | null>(() => getStoredSessionUser());
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(() => !getStoredSessionUser());
   const [authError, setAuthError] = useState<string | null>(null);
   const [showUserManager, setShowUserManager] = useState(false);
 
@@ -35,7 +35,12 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
-        setStoredSessionUser(null);
+        setStoredSessionUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+        });
         if (user.email) {
           try {
             await syncUserProfile({

@@ -5,7 +5,7 @@ import {
   FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
   MoveLeft, MoveRight, Sliders, PlusCircle, Play, StopCircle, RefreshCw, Save, GripVertical,
-  Minus, Maximize2, Minimize2, Grid, ZoomIn, ZoomOut
+  Minus, Maximize2, Minimize2, Grid, ZoomIn, ZoomOut, Hand, MousePointer, ShieldCheck, Lock, ShieldAlert, Search
 } from "lucide-react";
 
 interface FrameworkDocViewerProps {
@@ -248,9 +248,16 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
 
   // End Event Editing Modal State
   const [endModalOpen, setEndModalOpen] = useState(false);
-  const [endForm, setEndForm] = useState<{ scopeEnd: string; alternateStates: string }>({
+  const [endForm, setEndForm] = useState<{
+    scopeEnd: string;
+    alternateStates: string;
+    associatedStartEventId: string;
+    associatedSubprocessIndex: string;
+  }>({
     scopeEnd: process?.scopeEnd || "",
-    alternateStates: process?.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined"
+    alternateStates: process?.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined",
+    associatedStartEventId: "",
+    associatedSubprocessIndex: ""
   });
 
   // Gateway BPMN 2.0 Modal State
@@ -258,7 +265,7 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
   const [editingGatewayId, setEditingGatewayId] = useState<string | null>(null);
   const [gatewayForm, setGatewayForm] = useState<{
     name: string;
-    type: "EXCLUSIVE_XOR" | "PARALLEL_AND" | "INCLUSIVE_OR";
+    type: "EXCLUSIVE_XOR" | "PARALLEL_AND" | "INCLUSIVE_OR" | "COMPLEX_JOIN";
     afterState: string;
     conditionTrueTarget: string;
     conditionFalseTarget: string;
@@ -272,6 +279,11 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
     role: process?.responsibleRole || "Operador de Proceso"
   });
 
+  // Mantenedor de Artefactos State (Acceso Exclusivo Administrador)
+  const [artifactManagerOpen, setArtifactManagerOpen] = useState(false);
+  const [artifactFilterType, setArtifactFilterType] = useState<string>("ALL");
+  const [artifactSearchQuery, setArtifactSearchQuery] = useState<string>("");
+
   // Drag and Drop State for BPMN 2.0 Subprocesses & Palette
   const [draggedSubIndex, setDraggedSubIndex] = useState<number | null>(null);
   const [dragOverSubIndex, setDragOverSubIndex] = useState<number | null>(null);
@@ -282,6 +294,162 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
   const [canvasHeight, setCanvasHeight] = useState<number>(550); // Default 550px height
   const [zoomScale, setZoomScale] = useState<number>(1.0); // Default 100% zoom
   const [showGrid, setShowGrid] = useState<boolean>(true);
+
+  // Quick Connect Modal State (+) (Punto 3.2)
+  const [connectorModalOpen, setConnectorModalOpen] = useState(false);
+  const [connectorSource, setConnectorSource] = useState<{
+    type: "START_EVENT" | "SUBPROCESS" | "GATEWAY" | "END_EVENT";
+    id?: string;
+    subIndex?: string;
+    subName?: string;
+    flowStartEventId?: string;
+  } | null>(null);
+  const [insertAfterSubIndex, setInsertAfterSubIndex] = useState<string | null>(null);
+
+  // Pan / Hand Tool Navigation State (Punto 3.3)
+  const [isPanMode, setIsPanMode] = useState<boolean>(false);
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number; scrollLeft: number; scrollTop: number }>({
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0
+  });
+
+  const canvasContainerRef = React.useRef<HTMLDivElement>(null);
+  const diagramContentRef = React.useRef<HTMLDivElement>(null);
+
+  // Tracking positions of all BPMN nodes for dynamic vertical connections and precise label overlays
+  const [elementPositions, setElementPositions] = useState<Record<string, { x: number; y: number; w: number; h: number }>>({});
+
+  const findTargetNodeId = React.useCallback((targetStr: string) => {
+    if (!targetStr) return null;
+    const targetClean = targetStr.trim();
+    
+    // 1. Check if it's a gateway ID
+    const gwById = process.stateMachine?.gateways?.find((g) => g.id === targetClean);
+    if (gwById) return `gw-${gwById.id}`;
+    
+    // 2. Check if it's a gateway name
+    const gwByName = process.stateMachine?.gateways?.find((g) => g.name === targetClean);
+    if (gwByName) return `gw-${gwByName.id}`;
+    
+    // 3. Check if it's a subprocess index
+    const subById = process.subprocesses.find((s) => s.index === targetClean);
+    if (subById) return `sub-${subById.index}`;
+    
+    // 4. Check if it's a subprocess name
+    const subByName = process.subprocesses.find((s) => s.name === targetClean);
+    if (subByName) return `sub-${subByName.index}`;
+    
+    return null;
+  }, [process]);
+
+  const measurePositions = React.useCallback(() => {
+    if (!diagramContentRef.current) return;
+    const container = diagramContentRef.current;
+    const contentRect = container.getBoundingClientRect();
+    const elements = container.querySelectorAll("[data-node-id]");
+    const positions: Record<string, { x: number; y: number; w: number; h: number }> = {};
+    elements.forEach((el) => {
+      const id = el.getAttribute("data-node-id");
+      if (!id) return;
+      const rect = el.getBoundingClientRect();
+      positions[id] = {
+        x: (rect.left - contentRect.left) / zoomScale,
+        y: (rect.top - contentRect.top) / zoomScale,
+        w: rect.width / zoomScale,
+        h: rect.height / zoomScale,
+      };
+    });
+    setElementPositions(positions);
+  }, [zoomScale]);
+
+  React.useEffect(() => {
+    measurePositions();
+    const t1 = setTimeout(measurePositions, 100);
+    const t2 = setTimeout(measurePositions, 350);
+    const t3 = setTimeout(measurePositions, 700);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [process, zoomScale, collapsedSubs, measurePositions, activeTab]);
+
+  React.useEffect(() => {
+    window.addEventListener("resize", measurePositions);
+    return () => window.removeEventListener("resize", measurePositions);
+  }, [measurePositions]);
+
+  // Auto-fit function for Diagram View (Punto 3.1)
+  const handleAutoFitDiagram = React.useCallback(() => {
+    if (!canvasContainerRef.current || !diagramContentRef.current) return;
+    const container = canvasContainerRef.current;
+    const content = diagramContentRef.current;
+
+    const currentScale = zoomScale || 1.0;
+    const unscaledWidth = content.scrollWidth / currentScale;
+    const unscaledHeight = content.scrollHeight / currentScale;
+
+    const availableWidth = container.clientWidth - 48; // padding
+    const availableHeight = container.clientHeight - 48;
+
+    if (unscaledWidth > 0 && availableWidth > 0) {
+      const scaleX = availableWidth / unscaledWidth;
+      const scaleY = availableHeight / unscaledHeight;
+      let computedScale = Math.min(scaleX, scaleY);
+      computedScale = Math.max(0.35, Math.min(1.0, Math.floor(computedScale * 100) / 100));
+      setZoomScale(computedScale);
+    }
+  }, [zoomScale]);
+
+  // Auto-fit diagram on load or process change
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (canvasContainerRef.current && diagramContentRef.current) {
+        const container = canvasContainerRef.current;
+        const content = diagramContentRef.current;
+        const naturalWidth = content.scrollWidth;
+        const containerWidth = container.clientWidth - 48;
+        if (naturalWidth > containerWidth && containerWidth > 0) {
+          let computedScale = Math.min(1.0, containerWidth / naturalWidth);
+          computedScale = Math.max(0.4, Math.floor(computedScale * 100) / 100);
+          setZoomScale(computedScale);
+        }
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [process]);
+
+  // Mouse Handlers for Pan Mode / Permanent Hand Navigation
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!canvasContainerRef.current) return;
+    if ((e.target as HTMLElement).closest("button, input, select, textarea, a")) return;
+
+    setIsPanning(true);
+    setPanStart({
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: canvasContainerRef.current.scrollLeft,
+      scrollTop: canvasContainerRef.current.scrollTop
+    });
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPanning || !canvasContainerRef.current) return;
+    e.preventDefault();
+    const dx = e.clientX - panStart.x;
+    const dy = e.clientY - panStart.y;
+    canvasContainerRef.current.scrollLeft = panStart.scrollLeft - dx;
+    canvasContainerRef.current.scrollTop = panStart.scrollTop - dy;
+  };
+
+  const handleCanvasMouseUpOrLeave = () => {
+    if (isPanning) {
+      setIsPanning(false);
+    }
+  };
 
   // Function to validate diagram consistency and save
   const handleSaveModelWithValidation = () => {
@@ -601,11 +769,11 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
           const cleanP = (s.subprocess && s.subprocess.trim() !== sub.name.trim() && s.subprocess.trim() !== cleanSubName) ? s.subprocess : subNarrative;
           return {
             ...s,
-            supplier: subprocessFullName,
-            inputs: firstActInput,
+            supplier: s.supplier && s.supplier.trim() ? s.supplier : subprocessFullName,
+            inputs: s.inputs && s.inputs.trim() ? s.inputs : firstActInput,
             subprocess: cleanP,
-            outputs: lastActResult,
-            customer: subActors || s.customer
+            outputs: s.outputs && s.outputs.trim() ? s.outputs : lastActResult,
+            customer: s.customer && s.customer.trim() ? s.customer : subActors
           };
         });
       }
@@ -789,13 +957,30 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
     e.preventDefault();
     const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
     updated.scopeEnd = endForm.scopeEnd;
-    
+
+    if (!updated.stateMachine) {
+      updated.stateMachine = { states: [], initialState: "", transitions: [], custodyTransfers: [], exceptions: [], slaRules: [] };
+    }
+
+    const currentStartEvents = getStartEvents(updated);
+    currentStartEvents.forEach((st) => {
+      if (!endForm.associatedStartEventId || st.id === endForm.associatedStartEventId) {
+        st.endTrigger = endForm.scopeEnd;
+      }
+    });
+    updated.stateMachine.startEvents = currentStartEvents;
+
+    // Link associated subprocess if selected
+    if (endForm.associatedSubprocessIndex) {
+      const sub = updated.subprocesses.find((s) => s.index === endForm.associatedSubprocessIndex);
+      if (sub && sub.sipoc && sub.sipoc.length > 0) {
+        sub.sipoc[0].outputs = endForm.scopeEnd;
+      }
+    }
+
     // Parse alternate terminal states (e.g. "Rechazado, Quarantined")
     if (endForm.alternateStates) {
       const altStates = endForm.alternateStates.split(",").map((s) => s.trim()).filter(Boolean);
-      if (!updated.stateMachine) {
-        updated.stateMachine = { states: [], initialState: "", transitions: [], custodyTransfers: [], exceptions: [], slaRules: [] };
-      }
       updated.stateMachine.exceptions = altStates.map((st) => ({
         triggerState: "Cualquier Estado",
         targetState: st,
@@ -817,17 +1002,22 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
       updated.stateMachine.gateways = [];
     }
 
+    const cleanForm = {
+      ...gatewayForm,
+      conditionFalseTarget: gatewayForm.type === "COMPLEX_JOIN" ? "" : gatewayForm.conditionFalseTarget
+    };
+
     if (editingGatewayId) {
       const idx = updated.stateMachine.gateways.findIndex((g) => g.id === editingGatewayId);
       if (idx !== -1) {
         updated.stateMachine.gateways[idx] = {
-          ...gatewayForm,
+          ...cleanForm,
           id: editingGatewayId
         };
       }
     } else {
       const newGateway: BpmnGateway = {
-        ...gatewayForm,
+        ...cleanForm,
         id: `gw_${Date.now()}`
       };
       updated.stateMachine.gateways.push(newGateway);
@@ -847,6 +1037,36 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
     }
     const synced = syncProcessModel(updated);
     if (onProcessChange) onProcessChange(synced);
+  };
+
+  const handleDeleteArtifactFromManager = (type: string, id: string, name: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Eliminar Artefacto: ${name}`,
+      message: `¿Está seguro de que desea eliminar este artefacto del proceso? Esta acción puede alterar los flujos y transiciones del diagrama. No se puede deshacer.`,
+      confirmText: "Eliminar definitivamente",
+      onConfirm: () => {
+        const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+        if (type === "START_EVENT") {
+          if (updated.stateMachine?.startEvents) {
+            updated.stateMachine.startEvents = updated.stateMachine.startEvents.filter((s) => s.id !== id);
+          }
+          updated.subprocesses.forEach((s) => {
+            if (s.startEventId === id) {
+              delete s.startEventId;
+            }
+          });
+        } else if (type === "SUBPROCESS") {
+          updated.subprocesses = updated.subprocesses.filter((s) => s.index !== id);
+        } else if (type === "GATEWAY") {
+          if (updated.stateMachine?.gateways) {
+            updated.stateMachine.gateways = updated.stateMachine.gateways.filter((g) => g.id !== id);
+          }
+        }
+        const synced = syncProcessModel(updated);
+        if (onProcessChange) onProcessChange(synced);
+      }
+    });
   };
 
   // Handler: Reorder Subprocesses (Move Up / Down or Left / Right in sequence)
@@ -922,7 +1142,17 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
           }
         ]
       };
-      updated.subprocesses.push(newSub);
+      if (insertAfterSubIndex) {
+        const pos = updated.subprocesses.findIndex((s) => s.index === insertAfterSubIndex);
+        if (pos !== -1) {
+          updated.subprocesses.splice(pos + 1, 0, newSub);
+        } else {
+          updated.subprocesses.push(newSub);
+        }
+        setInsertAfterSubIndex(null);
+      } else {
+        updated.subprocesses.push(newSub);
+      }
     }
 
     const synced = syncProcessModel(updated);
@@ -1052,6 +1282,148 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
 
     return result;
   })();
+
+  // Recursive renderer for BPMN Gateways (including chained gateways and JOINT gateways)
+  const renderGatewayNode = (gw: BpmnGateway, stEventId?: string, visitedIds = new Set<string>()) => {
+    if (visitedIds.has(gw.id)) return null;
+    const nextVisited = new Set(visitedIds);
+    nextVisited.add(gw.id);
+
+    const childGateways = process.stateMachine?.gateways?.filter(
+      (child) =>
+        !nextVisited.has(child.id) &&
+        child.id !== gw.id &&
+        ((gw.name && gw.name.trim() !== "" && child.afterState === gw.name) || child.afterState === gw.id)
+    ) || [];
+
+    return (
+      <React.Fragment key={gw.id}>
+        {/* Rombo / Nodo Compuerta BPMN 2.0 */}
+        <div className="flex flex-col items-center group relative" data-node-id={`gw-${gw.id}`}>
+          {/* Nombre de la compuerta por encima del rombo */}
+          <div className="text-[10px] font-bold text-amber-950 text-center max-w-[120px] mb-1 leading-tight flex items-center gap-1 justify-center">
+            <span>{gw.name}</span>
+            {gw.type === "COMPLEX_JOIN" && (
+              <span className="bg-amber-200 text-amber-950 font-bold text-[8px] px-1 py-0.2 rounded border border-amber-300 shrink-0">
+                JOINT
+              </span>
+            )}
+          </div>
+
+          <div className="w-14 h-14 bg-amber-50 border-2 border-amber-600 rotate-45 flex items-center justify-center shadow-sm relative group hover:bg-amber-100 transition-colors">
+            <div className="-rotate-45 flex items-center justify-center text-amber-950 font-black select-none">
+              {gw.type === "EXCLUSIVE_XOR" && (
+                <span className="sr-only">XOR</span>
+              )}
+              {gw.type === "PARALLEL_AND" && (
+                <svg className="w-8 h-8 text-amber-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="4" x2="12" y2="20" />
+                  <line x1="4" y1="12" x2="20" y2="12" />
+                </svg>
+              )}
+              {gw.type === "INCLUSIVE_OR" && (
+                <svg className="w-8 h-8 text-amber-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5">
+                  <circle cx="12" cy="12" r="8" />
+                </svg>
+              )}
+              {gw.type === "COMPLEX_JOIN" && (
+                /* Símbolo de Unión JOINT (Convergencia) */
+                <svg className="w-8 h-8 text-amber-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" title="Compuerta JOINT (Unión / Convergente)">
+                  <path d="M 4 6 L 11 12 L 18 12" />
+                  <path d="M 4 18 L 11 12" />
+                  <path d="M 15 9 L 18 12 L 15 15" fill="currentColor" />
+                </svg>
+              )}
+            </div>
+
+            {/* Botones de Acción en Compuerta */}
+            <div className="-rotate-45 absolute -top-3 -right-3 flex items-center gap-0.5 bg-slate-900 text-white p-1 shadow">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingGatewayId(gw.id);
+                  setGatewayForm({
+                    name: gw.name,
+                    type: gw.type,
+                    afterState: gw.afterState,
+                    conditionTrueTarget: gw.conditionTrueTarget,
+                    conditionFalseTarget: gw.conditionFalseTarget || "",
+                    role: gw.role
+                  });
+                  setGatewayModalOpen(true);
+                }}
+                className="hover:text-blue-400 p-0.5"
+                title="Editar Compuerta"
+              >
+                <Edit2 className="w-2.5 h-2.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteGateway(gw.id)}
+                className="hover:text-rose-400 p-0.5"
+                title="Eliminar Compuerta"
+              >
+                <Trash2 className="w-2.5 h-2.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Descripción Ramas Decisión / Destino de Unión (Hided if target is a measured node on canvas) */}
+          <div className="mt-3 text-center space-y-0.5">
+            {gw.type === "COMPLEX_JOIN" ? (
+              !findTargetNodeId(gw.conditionTrueTarget) && (
+                <div className="text-[9px] font-bold text-amber-950 flex items-center justify-center gap-1 bg-amber-100/90 px-1.5 py-0.5 rounded border border-amber-300">
+                  <span>Unión ➔</span>
+                  <span className="underline">{gw.conditionTrueTarget || "Siguiente Estado"}</span>
+                </div>
+              )
+            ) : (
+              <>
+                {!findTargetNodeId(gw.conditionTrueTarget) && (
+                  <div className="text-[9px] font-bold text-emerald-700 flex items-center justify-center gap-1">
+                    <span>Sí ➔</span>
+                    <span className="underline">{gw.conditionTrueTarget || "Siguiente Estado"}</span>
+                  </div>
+                )}
+                {gw.conditionFalseTarget && !findTargetNodeId(gw.conditionFalseTarget) && (
+                  <div className="text-[9px] font-bold text-rose-700 flex items-center justify-center gap-1">
+                    <span>No ➔</span>
+                    <span className="underline">{gw.conditionFalseTarget}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Flecha Conectora de Salida con Icono + en lado Derecho */}
+        <div className="flex items-center text-slate-400 font-bold text-xs px-1 relative group/conn">
+          <div className="w-3 h-0.5 bg-slate-300"></div>
+          <button
+            type="button"
+            onClick={() => {
+              setConnectorSource({
+                type: "GATEWAY",
+                id: gw.id,
+                subName: gw.name,
+                flowStartEventId: stEventId
+              });
+              setConnectorModalOpen(true);
+            }}
+            className="w-6 h-6 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center justify-center shadow-md transition-transform hover:scale-125 z-10 cursor-pointer"
+            title="Conectar nuevo artefacto después de esta Compuerta"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+          </button>
+          <div className="w-3 h-0.5 bg-slate-300"></div>
+          <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
+        </div>
+
+        {/* Chained Gateways connected from this Gateway */}
+        {childGateways.map((cg) => renderGatewayNode(cg, stEventId, nextVisited))}
+      </React.Fragment>
+    );
+  };
 
   return (
     <div className="bg-white border border-slate-200 shadow-sm overflow-hidden">
@@ -1516,6 +1888,17 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                     <Save className="w-3.5 h-3.5" />
                     <span>💾 Guardar Cambios BPMN 2.0</span>
                   </button>
+
+                  {/* Botón: MANTENEDOR DE ARTEFACTOS (ACCESO EXCLUSIVO ADMINISTRADOR) */}
+                  <button
+                    type="button"
+                    onClick={() => setArtifactManagerOpen(true)}
+                    className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-[11px] transition-colors flex items-center gap-1.5 shadow-md border border-purple-500 cursor-pointer"
+                    title="Mantenedor de Artefactos del Diagrama (Acceso Exclusivo Administrador)"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-purple-200" />
+                    <span>🛡️ Mantenedor Artefactos {isAdmin ? "[ADMIN]" : ""}</span>
+                  </button>
                 </div>
               </div>
 
@@ -1619,85 +2002,22 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
 
               {/* Diagrama BPMN 2.0 Interactivo de Subprocesos, Estados y Compuertas */}
               <div className="border border-slate-300 bg-slate-50 p-3 space-y-3 shadow-sm rounded-sm">
-                {/* Header de Controles de Canvas y Altura */}
+                {/* Header de Controles de Canvas */}
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-800 border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span className="text-slate-900 font-extrabold text-sm">
                       Canvas Interactivo BPMN 2.0 (Bizagi Modeler)
                     </span>
-                    <span className="text-[10px] font-mono bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-bold border border-blue-200">
-                      Altura: {canvasHeight}px
-                    </span>
                   </div>
 
-                  {/* Botones de Control de Altura y Red / Grid */}
+                  {/* Controles de Red / Grid y Zoom */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Presets Rápido de Altura */}
-                    <span className="text-[11px] text-slate-500 font-normal mr-1 hidden sm:inline">Presets de Altura:</span>
-                    <button
-                      type="button"
-                      onClick={() => setCanvasHeight(400)}
-                      className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
-                        canvasHeight === 400 ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      400px (Compacto)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCanvasHeight(550)}
-                      className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
-                        canvasHeight === 550 ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      550px (Estándar)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCanvasHeight(800)}
-                      className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
-                        canvasHeight === 800 ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      800px (Amplio)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCanvasHeight(1100)}
-                      className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
-                        canvasHeight === 1100 ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      1100px (Extendido)
-                    </button>
-
-                    <div className="h-4 w-px bg-slate-300 mx-1"></div>
-
-                    {/* Ajuste Dinámico +/- */}
-                    <button
-                      type="button"
-                      onClick={() => setCanvasHeight(prev => Math.max(350, prev - 150))}
-                      className="p-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded shadow-2xs"
-                      title="Reducir Altura del Canvas (-150px)"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCanvasHeight(prev => Math.min(1800, prev + 200))}
-                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] rounded flex items-center gap-1 shadow-2xs"
-                      title="Aumentar Altura del Canvas (+200px)"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+200px</span>
-                    </button>
-
                     {/* Toggle Grid */}
                     <button
                       type="button"
                       onClick={() => setShowGrid(!showGrid)}
-                      className={`p-1 border rounded transition-colors ${
+                      className={`p-1 border rounded transition-colors cursor-pointer ${
                         showGrid ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-white text-slate-600 border-slate-300"
                       }`}
                       title="Alternar Malla de Fondo / Grid"
@@ -1705,9 +2025,9 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                       <Grid className="w-3.5 h-3.5" />
                     </button>
 
-                    <div className="h-4 w-px bg-slate-300 mx-1"></div>
+                    <div className="h-4 w-px bg-slate-300 mx-0.5"></div>
 
-                    {/* Control de Zoom Scale (Zoom Out / In) */}
+                    {/* Control de Zoom Scale y Fit (3.1) */}
                     <div className="flex items-center gap-1 bg-slate-100 p-1 rounded border border-slate-300">
                       <span className="text-[10px] font-bold text-slate-700 px-1 flex items-center gap-1">
                         <ZoomIn className="w-3 h-3 text-slate-800" />
@@ -1732,16 +2052,23 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                       >
                         <ZoomIn className="w-3.5 h-3.5 text-slate-900" />
                       </button>
-                      {zoomScale !== 1.0 && (
-                        <button
-                          type="button"
-                          onClick={() => setZoomScale(1.0)}
-                          className="px-1.5 py-0.5 bg-slate-800 text-white hover:bg-slate-900 text-[9px] font-bold rounded shadow-2xs cursor-pointer"
-                          title="Restablecer Zoom al 100%"
-                        >
-                          100%
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={handleAutoFitDiagram}
+                        className="px-2 py-0.5 bg-blue-700 text-white hover:bg-blue-800 text-[10px] font-bold rounded shadow-2xs cursor-pointer ml-1 flex items-center gap-1"
+                        title="Ajustar y ver 100% de los componentes en pantalla"
+                      >
+                        <Maximize2 className="w-3 h-3" />
+                        <span>Ajustar Pantalla</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setZoomScale(1.0)}
+                        className="px-2 py-0.5 bg-slate-800 text-white hover:bg-slate-900 text-[10px] font-bold rounded shadow-2xs cursor-pointer"
+                        title="Zoom Real 100%"
+                      >
+                        100% Real
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1755,6 +2082,11 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
 
                   {/* Area de Lienzo / Canvas con Altura Configurable */}
                   <div
+                    ref={canvasContainerRef}
+                    onMouseDown={handleCanvasMouseDown}
+                    onMouseMove={handleCanvasMouseMove}
+                    onMouseUp={handleCanvasMouseUpOrLeave}
+                    onMouseLeave={handleCanvasMouseUpOrLeave}
                     style={{ height: `${canvasHeight}px`, minHeight: `${canvasHeight}px` }}
                     onDragOver={(e) => {
                       e.preventDefault();
@@ -1792,28 +2124,33 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                       } else if (bpmnType === "END_EVENT") {
                         setEndForm({
                           scopeEnd: process.scopeEnd || "",
-                          alternateStates: process.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined"
+                          alternateStates: process.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined",
+                          associatedStartEventId: "",
+                          associatedSubprocessIndex: ""
                         });
                         setEndModalOpen(true);
                       }
                     }}
-                    className={`flex-1 overflow-x-auto overflow-y-auto p-6 transition-all relative ${
+                    className={`flex-1 overflow-x-auto overflow-y-auto p-6 transition-all relative flex items-center justify-center select-none ${
+                      isPanning ? "cursor-grabbing" : "cursor-grab"
+                    } ${
                       showGrid ? "bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px]" : "bg-white"
                     }`}
                   >
+
                     <div
+                      ref={diagramContentRef}
                       style={{
                         transform: `scale(${zoomScale})`,
-                        transformOrigin: "top left",
-                        width: zoomScale < 1.0 ? `${100 / zoomScale}%` : "100%"
+                        transformOrigin: "center center"
                       }}
-                      className="flex flex-col gap-6 min-w-max min-h-full py-4 px-2 divide-y divide-dashed divide-slate-200 transition-transform duration-200"
+                      className="relative flex flex-col items-center justify-center gap-6 min-w-max py-4 px-4 divide-y divide-dashed divide-slate-200 transition-transform duration-200"
                     >
                       {getStartEvents(process).map((stEvent, stIdx, allStartEvents) => {
                         const flowSubs = getSubprocessesForStartEvent(process, stEvent, stIdx, allStartEvents);
 
                         return (
-                          <div key={stEvent.id} className="flex items-center gap-3 pt-4 first:pt-0 relative">
+                          <div key={stEvent.id} className="flex items-center gap-10 pt-4 first:pt-0 relative">
                             {/* Flag / Tag de Flujo Secundario si hay más de 1 evento de inicio */}
                             {allStartEvents.length > 1 && (
                               <div className="absolute -top-1.5 left-0 bg-slate-800 text-white font-mono text-[9px] font-bold px-2 py-0.5 rounded-b-xs shadow-2xs z-10 flex items-center gap-1.5">
@@ -1832,7 +2169,7 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                             )}
 
                             {/* Evento de Inicio (Círculo Verde BPMN 2.0) */}
-                            <div className="flex flex-col items-center group relative mt-2">
+                            <div className="flex flex-col items-center group relative mt-2" data-node-id={`start-${stEvent.id}`}>
                               <button
                                 type="button"
                                 onClick={() => openStartEventModal(stEvent)}
@@ -1852,17 +2189,38 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                               </span>
                             </div>
 
-                            {/* Conector Flecha */}
-                            <div className="flex items-center text-slate-400 font-bold text-xs px-1">
-                              <div className="w-8 h-0.5 bg-slate-300"></div>
+                            {/* Conector Flecha con Icono + (3.2) */}
+                            <div className="flex items-center text-slate-400 font-bold text-xs px-1 relative group/conn">
+                              <div className="w-4 h-0.5 bg-slate-300"></div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConnectorSource({
+                                    type: "START_EVENT",
+                                    id: stEvent.id,
+                                    flowStartEventId: stEvent.id
+                                  });
+                                  setConnectorModalOpen(true);
+                                }}
+                                className="w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center shadow-md transition-transform hover:scale-125 z-10 cursor-pointer"
+                                title="Conectar nuevo artefacto después de este Evento de Inicio"
+                              >
+                                <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                              </button>
+                              <div className="w-4 h-0.5 bg-slate-300"></div>
                               <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
                             </div>
+
+                            {/* Renderizar compuertas conectadas directamente al Evento de Inicio si existen */}
+                            {process.stateMachine?.gateways
+                              ?.filter((g) => g.afterState === stEvent.id || g.afterState === stEvent.name)
+                              .map((gw) => renderGatewayNode(gw, stEvent.id))}
 
                             {/* Subprocesos y Compuertas BPMN 2.0 en este flujo */}
                             {flowSubs.map((sub) => {
                               const sIdx = process.subprocesses.findIndex((s) => s.index === sub.index);
                               const slaRule = process.stateMachine?.slaRules?.find((s) => s.state === sub.name);
-                              const matchingGateways = process.stateMachine?.gateways?.filter((g) => g.afterState === sub.name) || [];
+                              const matchingGateways = process.stateMachine?.gateways?.filter((g) => g.afterState === sub.name || g.afterState === sub.index) || [];
                               const isDragging = draggedSubIndex === sIdx;
                               const isDragOver = dragOverSubIndex === sIdx;
 
@@ -1901,6 +2259,7 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                                     className={`flex flex-col items-center group relative cursor-grab active:cursor-grabbing transition-all ${
                                       isDragging ? "opacity-40 scale-95" : ""
                                     }`}
+                                    data-node-id={`sub-${sub.index}`}
                                   >
                                     <div className={`px-4 pt-3 pb-4 bg-white border-2 rounded-lg shadow-md transition-all min-w-[200px] max-w-[230px] relative ${
                                       isDragOver ? "border-blue-600 ring-2 ring-blue-300 bg-blue-50/40" : "border-blue-700 hover:border-blue-900 hover:shadow-lg"
@@ -1983,28 +2342,82 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                                     </div>
                                   </div>
 
+                                  {/* Conector Flecha entre Estados con Icono + (3.2) */}
+                                  <div className="flex items-center text-slate-400 font-bold text-xs px-1 relative group/conn">
+                                    <div className="w-4 h-0.5 bg-slate-300"></div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setConnectorSource({
+                                          type: "SUBPROCESS",
+                                          subIndex: sub.index,
+                                          subName: sub.name,
+                                          flowStartEventId: stEvent.id
+                                        });
+                                        setConnectorModalOpen(true);
+                                      }}
+                                      className="w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center shadow-md transition-transform hover:scale-125 z-10 cursor-pointer"
+                                      title={`Conectar nuevo artefacto después de Subproceso ${sub.index}`}
+                                    >
+                                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                                    </button>
+                                    <div className="w-4 h-0.5 bg-slate-300"></div>
+                                    <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
+                                  </div>
+
                                   {/* Renderizar Compuertas BPMN si existen después de este estado */}
-                                  {matchingGateways.map((gw) => (
+                                  {matchingGateways.map((gw) => renderGatewayNode(gw, stEvent.id))}
+                                  {false && matchingGateways.map((gw) => (
                                     <React.Fragment key={gw.id}>
-                                      {/* Flecha Conectora a Compuerta */}
-                                      <div className="flex items-center text-slate-400 font-bold text-xs px-1">
-                                        <div className="w-6 h-0.5 bg-slate-300"></div>
+                                      {/* Flecha Conectora a Compuerta con Icono + (3.2) */}
+                                      <div className="flex items-center text-slate-400 font-bold text-xs px-1 relative group/conn">
+                                        <div className="w-3 h-0.5 bg-slate-300"></div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setConnectorSource({
+                                              type: "GATEWAY",
+                                              id: gw.id,
+                                              subName: gw.afterState,
+                                              flowStartEventId: stEvent.id
+                                            });
+                                            setConnectorModalOpen(true);
+                                          }}
+                                          className="w-6 h-6 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center justify-center shadow-md transition-transform hover:scale-125 z-10 cursor-pointer"
+                                          title="Conectar nuevo artefacto después de esta Compuerta"
+                                        >
+                                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                                        </button>
+                                        <div className="w-3 h-0.5 bg-slate-300"></div>
                                         <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
                                       </div>
 
                                       {/* Rombo / Nodo Compuerta BPMN 2.0 */}
                                       <div className="flex flex-col items-center group relative">
-                                        <div className="w-28 h-28 bg-amber-50 border-2 border-amber-600 rotate-45 flex items-center justify-center shadow-md relative group hover:bg-amber-100/80 transition-colors">
-                                          <div className="-rotate-45 text-center px-1">
-                                            <div className="flex items-center justify-center text-amber-800 mb-0.5">
-                                              <GitFork className="w-4 h-4" />
-                                            </div>
-                                            <div className="text-[9px] font-bold text-amber-950 leading-tight max-w-[80px]">
-                                              {gw.name}
-                                            </div>
-                                            <div className="text-[8px] font-mono text-amber-700 mt-0.5">
-                                              [{gw.type.replace("EXCLUSIVE_", "")}]
-                                            </div>
+                                        {/* Nombre de la compuerta por encima del rombo */}
+                                        <div className="text-[10px] font-bold text-amber-950 text-center max-w-[110px] mb-1 leading-tight">
+                                          {gw.name}
+                                        </div>
+
+                                        <div className="w-14 h-14 bg-amber-50 border-2 border-amber-600 rotate-45 flex items-center justify-center shadow-sm relative group hover:bg-amber-100 transition-colors">
+                                          <div className="-rotate-45 flex items-center justify-center text-amber-950 font-black select-none">
+                                            {gw.type === "EXCLUSIVE_XOR" && (
+                                              /* b. Tipo XOR (Compuerta simple, sin elementos en su interior) */
+                                              <span className="sr-only">XOR</span>
+                                            )}
+                                            {gw.type === "PARALLEL_AND" && (
+                                              /* c. Tipo AND (Compuerta con símbolo + en su interior occupying >=50% of diamond) */
+                                              <svg className="w-8 h-8 text-amber-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="12" y1="4" x2="12" y2="20" />
+                                                <line x1="4" y1="12" x2="20" y2="12" />
+                                              </svg>
+                                            )}
+                                            {gw.type === "INCLUSIVE_OR" && (
+                                              /* d. Tipo OR (Compuerta con círculo O en su interior occupying >=50% of diamond) */
+                                              <svg className="w-8 h-8 text-amber-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5">
+                                                <circle cx="12" cy="12" r="8" />
+                                              </svg>
+                                            )}
                                           </div>
 
                                           {/* Botones de Acción en Compuerta */}
@@ -2055,12 +2468,6 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                                       </div>
                                     </React.Fragment>
                                   ))}
-
-                                  {/* Conector Flecha entre Estados */}
-                                  <div className="flex items-center text-slate-400 font-bold text-xs px-1">
-                                    <div className="w-8 h-0.5 bg-slate-300"></div>
-                                    <ArrowRight className="w-4 h-4 -ml-1 text-slate-400" />
-                                  </div>
                                 </React.Fragment>
                               );
                             })}
@@ -2091,25 +2498,46 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                               </div>
                             )}
 
-                            {/* Evento de Término (Círculo Rojo BPMN 2.0) */}
-                            <div className="flex flex-col items-center group relative mt-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEndForm({
-                                    scopeEnd: stEvent.endTrigger || process.scopeEnd || "",
-                                    alternateStates: process.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined"
-                                  });
-                                  setEndModalOpen(true);
-                                }}
-                                className="w-13 h-13 rounded-full bg-rose-100 border-4 border-rose-600 flex items-center justify-center text-rose-700 shadow-md transition-transform hover:scale-110 relative"
-                                title="Editar Evento de Término para este flujo"
-                              >
-                                <span className="w-4 h-4 bg-rose-600 rounded-full"></span>
-                                <div className="absolute -top-1 -right-1 bg-slate-900 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Edit2 className="w-2.5 h-2.5" />
-                                </div>
-                              </button>
+                            {/* Evento de Término (Círculo Rojo BPMN 2.0) con Icono + (3.2) */}
+                            <div className="flex flex-col items-center group relative mt-2" data-node-id={`end-${stEvent.id}`}>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const flowSubs = getSubprocessesForStartEvent(process, stEvent, stIdx, getStartEvents(process));
+                                    const lastSubInFlow = flowSubs[flowSubs.length - 1];
+                                    setEndForm({
+                                      scopeEnd: stEvent.endTrigger || process.scopeEnd || "",
+                                      alternateStates: process.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined",
+                                      associatedStartEventId: stEvent.id,
+                                      associatedSubprocessIndex: lastSubInFlow?.index || process.subprocesses[process.subprocesses.length - 1]?.index || ""
+                                    });
+                                    setEndModalOpen(true);
+                                  }}
+                                  className="w-13 h-13 rounded-full bg-rose-100 border-4 border-rose-600 flex items-center justify-center text-rose-700 shadow-md transition-transform hover:scale-110 relative"
+                                  title="Editar Evento de Término para este flujo"
+                                >
+                                  <span className="w-4 h-4 bg-rose-600 rounded-full"></span>
+                                  <div className="absolute -top-1 -right-1 bg-slate-900 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Edit2 className="w-2.5 h-2.5" />
+                                  </div>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConnectorSource({
+                                      type: "END_EVENT",
+                                      id: stEvent.id,
+                                      flowStartEventId: stEvent.id
+                                    });
+                                    setConnectorModalOpen(true);
+                                  }}
+                                  className="w-6 h-6 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs flex items-center justify-center shadow-md transition-transform hover:scale-125 z-10 cursor-pointer"
+                                  title="Conectar o agregar nuevo Flujo / Evento"
+                                >
+                                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                                </button>
+                              </div>
                               <span className="text-[11px] font-bold text-rose-800 mt-2 text-center max-w-[120px] uppercase">
                                 EVENTO DE TÉRMINO
                               </span>
@@ -2120,6 +2548,254 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                           </div>
                         );
                       })}
+
+                      {/* Dynamic BPMN Connections Overlay for Vertical and Advanced Divergent Flows */}
+                      <svg className="absolute inset-0 pointer-events-none w-full h-full z-10 overflow-visible">
+                        <defs>
+                          <marker
+                            id="arrow-head-blue"
+                            markerWidth="10"
+                            markerHeight="10"
+                            refX="6"
+                            refY="3"
+                            orient="auto"
+                            markerUnits="strokeWidth"
+                          >
+                            <path d="M0,0 L0,6 L6,3 Z" fill="#2563eb" />
+                          </marker>
+                        </defs>
+                        
+                        {(() => {
+                          const lines: React.ReactNode[] = [];
+                          if (!process.stateMachine?.gateways) return null;
+                          
+                          process.stateMachine.gateways.forEach((gw) => {
+                            // Affirmative Path (Yes / True)
+                            const trueTargetId = findTargetNodeId(gw.conditionTrueTarget);
+                            if (trueTargetId) {
+                              const posA = elementPositions[`gw-${gw.id}`];
+                              const posB = elementPositions[trueTargetId];
+                              if (posA && posB && Math.abs(posA.y - posB.y) >= 50) {
+                                const x1 = posA.x + posA.w / 2;
+                                const y1 = posA.y + posA.h;
+                                const x2 = posB.x + posB.w / 2;
+                                const y2 = posB.y;
+                                const yM = (y1 + y2) / 2;
+                                
+                                let d = "";
+                                if (Math.abs(x1 - x2) < 20) {
+                                  d = `M ${x1} ${y1} L ${x1} ${y2}`;
+                                } else {
+                                  d = `M ${x1} ${y1} L ${x1} ${yM} L ${x2} ${yM} L ${x2} ${y2}`;
+                                }
+                                
+                                lines.push(
+                                  <path
+                                    key={`line-true-${gw.id}`}
+                                    d={d}
+                                    fill="none"
+                                    stroke="#2563eb"
+                                    strokeWidth="2"
+                                    markerEnd="url(#arrow-head-blue)"
+                                  />
+                                );
+                              }
+                            }
+                            
+                            // Negative Path (No / False)
+                            const falseTargetId = findTargetNodeId(gw.conditionFalseTarget);
+                            if (falseTargetId) {
+                              const posA = elementPositions[`gw-${gw.id}`];
+                              const posB = elementPositions[falseTargetId];
+                              if (posA && posB && Math.abs(posA.y - posB.y) >= 50) {
+                                const x1 = posA.x + posA.w / 2;
+                                const y1 = posA.y + posA.h;
+                                const x2 = posB.x + posB.w / 2;
+                                const y2 = posB.y;
+                                const yM = (y1 + y2) / 2;
+                                
+                                let d = "";
+                                if (Math.abs(x1 - x2) < 20) {
+                                  d = `M ${x1} ${y1} L ${x1} ${y2}`;
+                                } else {
+                                  d = `M ${x1} ${y1} L ${x1} ${yM} L ${x2} ${yM} L ${x2} ${y2}`;
+                                }
+                                
+                                lines.push(
+                                  <path
+                                    key={`line-false-${gw.id}`}
+                                    d={d}
+                                    fill="none"
+                                    stroke="#2563eb"
+                                    strokeWidth="2"
+                                    markerEnd="url(#arrow-head-blue)"
+                                  />
+                                );
+                              }
+                            }
+                          });
+                          return lines;
+                        })()}
+                      </svg>
+
+                      {/* Dynamic HTML Labels and Plus Buttons Overlay Layer */}
+                      <div className="absolute inset-0 pointer-events-none z-20">
+                        {(() => {
+                          const overlays: React.ReactNode[] = [];
+                          if (!process.stateMachine?.gateways) return null;
+                          
+                          process.stateMachine.gateways.forEach((gw) => {
+                            const gwNodeId = `gw-${gw.id}`;
+                            const posA = elementPositions[gwNodeId];
+                            if (!posA) return;
+                            
+                            const flowStartEventId = (gw.afterState && getStartEvents(process).find(st => st.id === gw.afterState || st.name === gw.afterState)?.id) || "start-1";
+                            
+                            // Affirmative Path Labels (skip if COMPLEX_JOIN / JOINT)
+                            if (gw.type !== "COMPLEX_JOIN") {
+                              const trueTargetId = findTargetNodeId(gw.conditionTrueTarget);
+                              if (trueTargetId) {
+                                const posB = elementPositions[trueTargetId];
+                                if (posB) {
+                                  const isVertical = Math.abs(posA.y - posB.y) >= 50;
+                                  if (isVertical) {
+                                    const x1 = posA.x + posA.w / 2;
+                                    const y1 = posA.y + posA.h;
+                                    const x2 = posB.x + posB.w / 2;
+                                    const y2 = posB.y;
+                                    const xm = (x1 + x2) / 2;
+                                    const ym = (y1 + y2) / 2;
+                                    
+                                    overlays.push(
+                                      <React.Fragment key={`overlay-true-v-${gw.id}`}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setConnectorSource({
+                                              type: "GATEWAY",
+                                              id: gw.id,
+                                              subName: gw.name,
+                                              flowStartEventId: flowStartEventId
+                                            });
+                                            setConnectorModalOpen(true);
+                                          }}
+                                          className="absolute pointer-events-auto w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center shadow-md transition-transform hover:scale-125 cursor-pointer"
+                                          style={{
+                                            left: `${xm}px`,
+                                            top: `${ym}px`,
+                                            transform: "translate(-50%, -50%)"
+                                          }}
+                                          title="Conectar nuevo artefacto en flujo vertical"
+                                        >
+                                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                                        </button>
+                                        <div
+                                          className="absolute text-[10px] font-bold text-emerald-700 bg-white/95 px-2 py-0.5 rounded shadow-sm border border-emerald-100 whitespace-nowrap"
+                                          style={{
+                                            left: `${xm + 16}px`,
+                                            top: `${ym}px`,
+                                            transform: "translate(0, -50%)"
+                                          }}
+                                        >
+                                          Sí
+                                        </div>
+                                      </React.Fragment>
+                                    );
+                                  } else {
+                                    const xm = (posA.x + posA.w + posB.x) / 2;
+                                    const ym = posA.y + posA.h / 2 - 20;
+                                    overlays.push(
+                                      <div
+                                        key={`overlay-true-h-${gw.id}`}
+                                        className="absolute text-[10px] font-bold text-emerald-700 bg-white/80 px-1.5 py-0.5 rounded whitespace-nowrap shadow-2xs"
+                                        style={{
+                                          left: `${xm}px`,
+                                          top: `${ym}px`,
+                                          transform: "translate(-50%, -50%)"
+                                        }}
+                                      >
+                                        Sí
+                                      </div>
+                                    );
+                                  }
+                                }
+                              }
+                            }
+                            
+                            // Negative Path Labels
+                            const falseTargetId = findTargetNodeId(gw.conditionFalseTarget);
+                            if (falseTargetId) {
+                              const posB = elementPositions[falseTargetId];
+                              if (posB) {
+                                const isVertical = Math.abs(posA.y - posB.y) >= 50;
+                                if (isVertical) {
+                                  const x1 = posA.x + posA.w / 2;
+                                  const y1 = posA.y + posA.h;
+                                  const x2 = posB.x + posB.w / 2;
+                                  const y2 = posB.y;
+                                  const xm = (x1 + x2) / 2;
+                                  const ym = (y1 + y2) / 2;
+                                  
+                                  overlays.push(
+                                    <React.Fragment key={`overlay-false-v-${gw.id}`}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setConnectorSource({
+                                            type: "GATEWAY",
+                                            id: gw.id,
+                                            subName: gw.name,
+                                            flowStartEventId: flowStartEventId
+                                          });
+                                          setConnectorModalOpen(true);
+                                        }}
+                                        className="absolute pointer-events-auto w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center shadow-md transition-transform hover:scale-125 cursor-pointer"
+                                        style={{
+                                          left: `${xm}px`,
+                                          top: `${ym}px`,
+                                          transform: "translate(-50%, -50%)"
+                                        }}
+                                        title="Conectar nuevo artefacto en flujo vertical"
+                                      >
+                                        <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                                      </button>
+                                      <div
+                                        className="absolute text-[10px] font-bold text-rose-700 bg-white/95 px-2 py-0.5 rounded shadow-sm border border-rose-100 whitespace-nowrap"
+                                        style={{
+                                          left: `${xm + 16}px`,
+                                          top: `${ym}px`,
+                                          transform: "translate(0, -50%)"
+                                        }}
+                                      >
+                                        No
+                                      </div>
+                                    </React.Fragment>
+                                  );
+                                } else {
+                                  const xm = (posA.x + posA.w + posB.x) / 2;
+                                  const ym = posA.y + posA.h / 2 + 20;
+                                  overlays.push(
+                                    <div
+                                      key={`overlay-false-h-${gw.id}`}
+                                      className="absolute text-[10px] font-bold text-rose-700 bg-white/80 px-1.5 py-0.5 rounded whitespace-nowrap shadow-2xs"
+                                      style={{
+                                        left: `${xm}px`,
+                                        top: `${ym}px`,
+                                        transform: "translate(-50%, -50%)"
+                                      }}
+                                    >
+                                      No
+                                    </div>
+                                  );
+                                }
+                              }
+                            }
+                            
+
+                          });
+                          return overlays;
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2849,47 +3525,189 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                     <option value="EXCLUSIVE_XOR">Exclusiva (XOR - Una sola rama)</option>
                     <option value="PARALLEL_AND">Paralela (AND - Todas las ramas)</option>
                     <option value="INCLUSIVE_OR">Inclusiva (OR - Una o más ramas)</option>
+                    <option value="COMPLEX_JOIN">Unión / Convergente (JOINT - Conecta, no bifurca)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Ubicación (Después del Estado)</label>
+                  <label className="block font-bold text-slate-700 mb-1">Ubicación (Origen de la conexión)</label>
                   <select
                     value={gatewayForm.afterState}
                     onChange={(e) => setGatewayForm({ ...gatewayForm, afterState: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
                   >
-                    {process.subprocesses.map((sub) => (
-                      <option key={sub.index} value={sub.name}>
-                        {sub.name} (Subp {sub.index})
-                      </option>
-                    ))}
+                    <optgroup label="Subprocesos / Estados">
+                      {process.subprocesses.map((sub) => (
+                        <option key={`sub_${sub.index}`} value={sub.name}>
+                          Subp {sub.index}: {sub.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {process.stateMachine?.gateways && process.stateMachine.gateways.length > 0 && (
+                      <optgroup label="Compuertas Existentes (Conectar desde Compuerta)">
+                        {process.stateMachine.gateways
+                          .filter((g) => g.id !== editingGatewayId)
+                          .map((gw) => (
+                            <option key={`gw_${gw.id}`} value={gw.id}>
+                              Compuerta: {gw.name} ({gw.type})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {getStartEvents(process).length > 0 && (
+                      <optgroup label="Eventos de Inicio">
+                        {getStartEvents(process).map((st) => (
+                          <option key={`st_${st.id}`} value={st.id}>
+                            Evento de Inicio: {st.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
 
+              {gatewayForm.type === "COMPLEX_JOIN" && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-950 rounded text-[11px] leading-relaxed flex items-start gap-2">
+                  <div className="w-5 h-5 rounded bg-amber-600 text-white font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    ➜
+                  </div>
+                  <div>
+                    <strong>Compuerta JOINT (Unión / Convergencia):</strong>
+                    <p className="text-[10px] text-amber-900 mt-0.5">
+                      Esta compuerta unifica múltiples flujos o conexiones (desde subprocesos u otras compuertas) en un único camino de salida. No bifurca en ramas afirmativas/negativas.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Rama Afirmativa (Sí / Conforme)</label>
-                  <input
-                    type="text"
-                    value={gatewayForm.conditionTrueTarget}
-                    onChange={(e) => setGatewayForm({ ...gatewayForm, conditionTrueTarget: e.target.value })}
-                    placeholder="Dejar vacío para siguiente estado"
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
-                  />
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {gatewayForm.type === "COMPLEX_JOIN" ? "Destino de Unión / Continuación" : "Rama Afirmativa (Sí / Conforme)"}
+                  </label>
+                  {(() => {
+                    const existingGatewaysForTarget = process.stateMachine?.gateways?.filter((g) => g.id !== editingGatewayId) || [];
+                    const isTrueTargetSubprocess = process.subprocesses.some((s) => s.name === gatewayForm.conditionTrueTarget);
+                    const isTrueTargetGateway = existingGatewaysForTarget.some((gw) => gw.name === gatewayForm.conditionTrueTarget || gw.id === gatewayForm.conditionTrueTarget);
+                    const isTrueTargetTerminal = gatewayForm.conditionTrueTarget === "EVENTO DE TÉRMINO";
+                    const selectValue = isTrueTargetSubprocess
+                      ? gatewayForm.conditionTrueTarget
+                      : isTrueTargetGateway
+                      ? (existingGatewaysForTarget.find((gw) => gw.name === gatewayForm.conditionTrueTarget || gw.id === gatewayForm.conditionTrueTarget)?.name || gatewayForm.conditionTrueTarget)
+                      : isTrueTargetTerminal
+                      ? "EVENTO DE TÉRMINO"
+                      : gatewayForm.conditionTrueTarget
+                      ? "__CUSTOM__"
+                      : "";
+
+                    return (
+                      <>
+                        <select
+                          value={selectValue}
+                          onChange={(e) => {
+                            if (e.target.value !== "__CUSTOM__") {
+                              setGatewayForm({ ...gatewayForm, conditionTrueTarget: e.target.value });
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900 mb-1"
+                        >
+                          <option value="">(Siguiente Subproceso en secuencia)</option>
+                          <optgroup label="Subprocesos / Estados">
+                            {process.subprocesses.map((sub) => (
+                              <option key={sub.index} value={sub.name}>
+                                Subp {sub.index}: {sub.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                          {existingGatewaysForTarget.length > 0 && (
+                            <optgroup label="Compuertas Existentes">
+                              {existingGatewaysForTarget.map((gw) => (
+                                <option key={`true_gw_${gw.id}`} value={gw.name}>
+                                  Compuerta: {gw.name} ({gw.type === "COMPLEX_JOIN" ? "JOINT" : gw.type})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <option value="EVENTO DE TÉRMINO">EVENTO DE TÉRMINO</option>
+                          <option value="__CUSTOM__">Otro destino personalizado...</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={gatewayForm.conditionTrueTarget}
+                          onChange={(e) => setGatewayForm({ ...gatewayForm, conditionTrueTarget: e.target.value })}
+                          placeholder="Escriba destino o deje vacío para siguiente estado"
+                          className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
+                        />
+                      </>
+                    );
+                  })()}
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Rama Negativa (No / Excepción)</label>
-                  <input
-                    type="text"
-                    value={gatewayForm.conditionFalseTarget}
-                    onChange={(e) => setGatewayForm({ ...gatewayForm, conditionFalseTarget: e.target.value })}
-                    placeholder="Ej. Rechazado, Quarantined"
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
-                  />
-                </div>
+                {gatewayForm.type !== "COMPLEX_JOIN" && (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Rama Negativa (No / Excepción)</label>
+                    {(() => {
+                      const existingGatewaysForTarget = process.stateMachine?.gateways?.filter((g) => g.id !== editingGatewayId) || [];
+                      const isFalseTargetSubprocess = process.subprocesses.some((s) => s.name === gatewayForm.conditionFalseTarget);
+                      const isFalseTargetGateway = existingGatewaysForTarget.some((gw) => gw.name === gatewayForm.conditionFalseTarget || gw.id === gatewayForm.conditionFalseTarget);
+                      const isFalseTargetTerminal = ["Rechazado", "Cancelado", "Quarantined", "Devuelto a Proveedor", "EVENTO DE TÉRMINO"].includes(gatewayForm.conditionFalseTarget);
+                      const selectValue = isFalseTargetTerminal
+                        ? gatewayForm.conditionFalseTarget
+                        : isFalseTargetSubprocess
+                        ? gatewayForm.conditionFalseTarget
+                        : isFalseTargetGateway
+                        ? (existingGatewaysForTarget.find((gw) => gw.name === gatewayForm.conditionFalseTarget || gw.id === gatewayForm.conditionFalseTarget)?.name || gatewayForm.conditionFalseTarget)
+                        : gatewayForm.conditionFalseTarget
+                        ? "__CUSTOM__"
+                        : "";
+
+                      return (
+                        <>
+                          <select
+                            value={selectValue}
+                            onChange={(e) => {
+                              if (e.target.value !== "__CUSTOM__") {
+                                setGatewayForm({ ...gatewayForm, conditionFalseTarget: e.target.value });
+                              }
+                            }}
+                            className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900 mb-1"
+                          >
+                            <option value="Rechazado">Rechazado (Estado Terminal)</option>
+                            <option value="Cancelado">Cancelado (Estado Terminal)</option>
+                            <option value="Devuelto a Proveedor">Devuelto a Proveedor</option>
+                            <option value="Quarantined">En Cuarentena / Retenido</option>
+                            <option value="EVENTO DE TÉRMINO">EVENTO DE TÉRMINO</option>
+                            <optgroup label="Subprocesos / Estados">
+                              {process.subprocesses.map((sub) => (
+                                <option key={sub.index} value={sub.name}>
+                                  Subp {sub.index}: {sub.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                            {existingGatewaysForTarget.length > 0 && (
+                              <optgroup label="Compuertas Existentes">
+                                {existingGatewaysForTarget.map((gw) => (
+                                  <option key={`false_gw_${gw.id}`} value={gw.name}>
+                                    Compuerta: {gw.name} ({gw.type === "COMPLEX_JOIN" ? "JOINT" : gw.type})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <option value="__CUSTOM__">Otro destino personalizado...</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={gatewayForm.conditionFalseTarget}
+                            onChange={(e) => setGatewayForm({ ...gatewayForm, conditionFalseTarget: e.target.value })}
+                            placeholder="Ej. Rechazado, Quarantined"
+                            className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
+                          />
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -3108,6 +3926,43 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
                   className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
                 />
               </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Subproceso Precedente / Asociado (3.2.b)</label>
+                <select
+                  value={endForm.associatedSubprocessIndex || ""}
+                  onChange={(e) => setEndForm({ ...endForm, associatedSubprocessIndex: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
+                >
+                  <option value="">(Cualquiera / Último Subproceso del Flujo)</option>
+                  {process.subprocesses.map((sub) => (
+                    <option key={sub.index} value={sub.index}>
+                      Subproceso {sub.index}: {sub.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  * Asocia este evento de término al resultado u output del subproceso seleccionado.
+                </p>
+              </div>
+
+              {getStartEvents(process).length > 1 && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Flujo / Evento de Inicio Asociado</label>
+                  <select
+                    value={endForm.associatedStartEventId || ""}
+                    onChange={(e) => setEndForm({ ...endForm, associatedStartEventId: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900"
+                  >
+                    <option value="">(Todos los flujos del proceso)</option>
+                    {getStartEvents(process).map((st) => (
+                      <option key={st.id} value={st.id}>
+                        {st.name}: {st.trigger}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Estados Finales Alternativos / Excepciones (Separados por coma)</label>
@@ -3565,6 +4420,396 @@ export default function FrameworkDocViewer({ process, onProcessChange, userRole 
           </div>
         </div>
       )}
+
+      {/* MODAL: CONECTOR RÁPIDO (+) (POINT 3.2) */}
+      {connectorModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 max-w-md w-full shadow-2xl animate-scaleUp">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Plus className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                Conectar Siguiente Artefacto BPMN
+              </h3>
+              <button onClick={() => setConnectorModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-slate-600 font-medium">
+                Seleccione el artefacto BPMN 2.0 que desea agregar a continuación de este elemento:
+              </p>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                {/* Opción 1: Subproceso */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConnectorModalOpen(false);
+                    setEditingSubIndex(null);
+                    if (connectorSource?.type === "SUBPROCESS") {
+                      setInsertAfterSubIndex(connectorSource.subIndex);
+                    }
+                    setSubForm({
+                      index: "",
+                      name: "",
+                      role: process.responsibleRole || "Operador de Proceso",
+                      narrative: "",
+                      slaHours: 12,
+                      slaAction: "Escalamiento preventivo a Jefatura por sobrepaso de SLA",
+                      initialActivityName: "Ejecutar Verificación Inicial"
+                    });
+                    setSubModalOpen(true);
+                  }}
+                  className="p-3 border border-blue-200 bg-blue-50/50 hover:bg-blue-100/80 rounded-lg text-left transition-all flex items-center gap-3 group cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                    +
+                  </div>
+                  <div>
+                    <div className="font-bold text-blue-950 text-sm">Agregar Subproceso</div>
+                    <div className="text-[11px] text-slate-600">Crea una nueva etapa o actividad agrupada en la secuencia del proceso</div>
+                  </div>
+                </button>
+
+                {/* Opción 2a: Compuerta de Decisión */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConnectorModalOpen(false);
+                    setEditingGatewayId(null);
+                    const afterState = connectorSource?.type === "START_EVENT"
+                      ? (connectorSource.id || "start-1")
+                      : connectorSource?.type === "GATEWAY"
+                      ? (connectorSource.id || "gw-1")
+                      : (connectorSource?.subName || connectorSource?.id || process.subprocesses[process.subprocesses.length - 1]?.name || "");
+                    setGatewayForm({
+                      name: "¿Atributos y Documentación Conformes?",
+                      type: "EXCLUSIVE_XOR",
+                      afterState,
+                      conditionTrueTarget: "",
+                      conditionFalseTarget: "Rechazado",
+                      role: process.responsibleRole || "Operador de Proceso"
+                    });
+                    setGatewayModalOpen(true);
+                  }}
+                  className="p-3 border border-amber-200 bg-amber-50/50 hover:bg-amber-100/80 rounded-lg text-left transition-all flex items-center gap-3 group cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded bg-amber-600 text-white flex items-center justify-center font-bold shrink-0 rotate-45 shadow-2xs group-hover:scale-105 transition-transform">
+                    <span className="-rotate-45">◇</span>
+                  </div>
+                  <div>
+                    <div className="font-bold text-amber-950 text-sm">Agregar Compuerta de Decisión</div>
+                    <div className="text-[11px] text-slate-600">Bifurca o evalúa decisiones (XOR Exclusiva, AND Paralela, u OR Inclusiva)</div>
+                  </div>
+                </button>
+
+                {/* Opción 2b: Compuerta JOINT (Unión / Convergencia) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConnectorModalOpen(false);
+                    setEditingGatewayId(null);
+                    const afterState = connectorSource?.type === "START_EVENT"
+                      ? (connectorSource.id || "start-1")
+                      : connectorSource?.type === "GATEWAY"
+                      ? (connectorSource.id || "gw-1")
+                      : (connectorSource?.subName || connectorSource?.id || process.subprocesses[process.subprocesses.length - 1]?.name || "");
+                    setGatewayForm({
+                      name: "Unión de Flujos / Convergencia",
+                      type: "COMPLEX_JOIN",
+                      afterState,
+                      conditionTrueTarget: "",
+                      conditionFalseTarget: "",
+                      role: process.responsibleRole || "Operador de Proceso"
+                    });
+                    setGatewayModalOpen(true);
+                  }}
+                  className="p-3 border border-purple-200 bg-purple-50/50 hover:bg-purple-100/80 rounded-lg text-left transition-all flex items-center gap-3 group cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded bg-purple-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                    <GitFork className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-purple-950 text-sm">Agregar Compuerta JOINT (Unión)</div>
+                    <div className="text-[11px] text-slate-600">Punto de convergencia que solo conecta sin bifurcar (tras Evento de Inicio o entre Subprocesos)</div>
+                  </div>
+                </button>
+
+                {/* Opción 3: Evento de Término */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConnectorModalOpen(false);
+                    setEndForm({
+                      scopeEnd: process.scopeEnd || "",
+                      alternateStates: process.stateMachine?.exceptions?.map((e) => e.targetState).join(", ") || "Rechazado, Quarantined",
+                      associatedStartEventId: connectorSource?.flowStartEventId || "",
+                      associatedSubprocessIndex: connectorSource?.subIndex || ""
+                    });
+                    setEndModalOpen(true);
+                  }}
+                  className="p-3 border border-rose-200 bg-rose-50/50 hover:bg-rose-100/80 rounded-lg text-left transition-all flex items-center gap-3 group cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-full bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                    ●
+                  </div>
+                  <div>
+                    <div className="font-bold text-rose-950 text-sm">Editar Evento de Término</div>
+                    <div className="text-[11px] text-slate-600">Define los entregables finales y salidas de excepción de este flujo</div>
+                  </div>
+                </button>
+
+                {/* Opción 4: Nuevo Evento de Inicio */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConnectorModalOpen(false);
+                    openStartEventModal();
+                  }}
+                  className="p-3 border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/80 rounded-lg text-left transition-all flex items-center gap-3 group cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                    ○
+                  </div>
+                  <div>
+                    <div className="font-bold text-emerald-950 text-sm">Agregar Nuevo Flujo (Evento de Inicio)</div>
+                    <div className="text-[11px] text-slate-600">Crea una nueva ruta de ejecución paralela o alternativa en el proceso</div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setConnectorModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: MANTENEDOR DE ARTEFACTOS (ACCESO EXCLUSIVO ADMINISTRADOR) */}
+      {artifactManagerOpen && (() => {
+        const getAllArtifacts = () => {
+          const list: Array<{
+            id: string;
+            name: string;
+            type: "START_EVENT" | "SUBPROCESS" | "GATEWAY";
+            subType?: string;
+            details: string;
+          }> = [];
+
+          // Add Start Events
+          getStartEvents(process).forEach((st) => {
+            list.push({
+              id: st.id,
+              name: st.name || "Evento de Inicio",
+              type: "START_EVENT",
+              details: `Gatillo: ${st.trigger || "N/A"} ➔ Destino: Subp. ${st.targetSubprocessIndex || "N/A"}`
+            });
+          });
+
+          // Add Subprocesses
+          process.subprocesses.forEach((sub) => {
+            list.push({
+              id: sub.index,
+              name: sub.name,
+              type: "SUBPROCESS",
+              details: `Narrativa: ${sub.narrative || "N/A"} | Actividades: ${sub.activities?.length || 0} | Rol: ${sub.responsibleRole || "N/A"}`
+            });
+          });
+
+          // Add Gateways
+          (process.stateMachine?.gateways || []).forEach((gw) => {
+            const typeLabel = gw.type === "COMPLEX_JOIN" ? "JOINT" : gw.type;
+            list.push({
+              id: gw.id,
+              name: gw.name || "Compuerta sin nombre",
+              type: "GATEWAY",
+              subType: typeLabel,
+              details: `Origen (afterState): ${gw.afterState} | Destino Conforme: ${gw.conditionTrueTarget || "(Secuencial)"}${gw.conditionFalseTarget ? " / No Conforme: " + gw.conditionFalseTarget : ""}`
+            });
+          });
+
+          return list;
+        };
+
+        const filteredArtifacts = getAllArtifacts().filter((art) => {
+          // Type Filter
+          if (artifactFilterType !== "ALL") {
+            if (artifactFilterType === "START_EVENT" && art.type !== "START_EVENT") return false;
+            if (artifactFilterType === "SUBPROCESS" && art.type !== "SUBPROCESS") return false;
+            if (artifactFilterType === "GATEWAY" && art.type !== "GATEWAY") return false;
+          }
+
+          // Search query
+          if (artifactSearchQuery.trim()) {
+            const q = artifactSearchQuery.toLowerCase();
+            return (
+              art.id.toLowerCase().includes(q) ||
+              art.name.toLowerCase().includes(q) ||
+              art.details.toLowerCase().includes(q) ||
+              (art.subType && art.subType.toLowerCase().includes(q))
+            );
+          }
+
+          return true;
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 max-w-4xl w-full p-6 shadow-2xl flex flex-col max-h-[85vh] animate-scaleUp">
+              {/* Header */}
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-purple-700" />
+                  <span>Panel de Control de Artefactos {isAdmin ? "[ACCESO EXCLUSIVO ADMINISTRADOR]" : ""}</span>
+                </h3>
+                <button onClick={() => setArtifactManagerOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Description / Banner */}
+              <div className="bg-purple-50 border border-purple-100 p-3 mt-3 rounded-lg text-xs text-purple-950 flex gap-2.5 items-start shrink-0">
+                <ShieldAlert className="w-4.5 h-4.5 text-purple-700 shrink-0 mt-0.5" />
+                <div>
+                  <strong>Panel de Administración de la Estructura:</strong>
+                  <p className="text-[11px] text-purple-900 mt-0.5">
+                    Este panel le permite listar y eliminar de forma directa todos los componentes del diagrama de procesos (Eventos de Inicio, Subprocesos y Compuertas). La eliminación directa es irreversible y reestructurará la secuencia del diagrama del flujo actual.
+                  </p>
+                </div>
+              </div>
+
+              {/* Controls (Filters and Search) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 shrink-0">
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { value: "ALL", label: "Todos los Artefactos" },
+                    { value: "START_EVENT", label: "Eventos de Inicio 🟢" },
+                    { value: "SUBPROCESS", label: "Subprocesos 🟦" },
+                    { value: "GATEWAY", label: "Compuertas / Joints 🔶" }
+                  ].map((tab) => (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => setArtifactFilterType(tab.value)}
+                      className={`px-3 py-1 rounded text-[11px] font-bold border transition-colors cursor-pointer ${
+                        artifactFilterType === tab.value
+                          ? "bg-purple-700 border-purple-800 text-white"
+                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search input */}
+                <div className="relative w-full sm:w-64">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-slate-400">
+                    <Search className="w-3.5 h-3.5" />
+                  </span>
+                  <input
+                    type="text"
+                    value={artifactSearchQuery}
+                    onChange={(e) => setArtifactSearchQuery(e.target.value)}
+                    placeholder="Buscar artefactos..."
+                    className="w-full pl-8 pr-3 py-1 border border-slate-200 bg-slate-50/50 text-slate-800 text-xs focus:outline-none focus:border-purple-600 rounded"
+                  />
+                </div>
+              </div>
+
+              {/* List Table */}
+              <div className="mt-4 flex-1 overflow-y-auto border border-slate-100 rounded">
+                {!isAdmin ? (
+                  <div className="p-8 text-center text-rose-600 font-bold text-xs flex flex-col items-center justify-center gap-2">
+                    <Lock className="w-8 h-8 text-rose-500" />
+                    <span>Acceso Denegado. Solo los administradores pueden gestionar artefactos desde este listado.</span>
+                  </div>
+                ) : filteredArtifacts.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 italic text-xs">
+                    No se encontraron artefactos con los criterios de filtrado seleccionados.
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700">
+                        <th className="p-3 w-32">Categoría / Tipo</th>
+                        <th className="p-3 w-28">Identificador</th>
+                        <th className="p-3 w-48">Nombre / Etiqueta</th>
+                        <th className="p-3">Detalle Técnico / Conexión</th>
+                        <th className="p-3 w-20 text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {filteredArtifacts.map((art) => {
+                        let typeColor = "bg-slate-100 text-slate-800 border-slate-200";
+                        if (art.type === "START_EVENT") typeColor = "bg-emerald-50 text-emerald-800 border-emerald-200";
+                        else if (art.type === "SUBPROCESS") typeColor = "bg-blue-50 text-blue-800 border-blue-200";
+                        else if (art.type === "GATEWAY") {
+                          typeColor = art.subType === "JOINT"
+                            ? "bg-purple-50 text-purple-800 border-purple-200"
+                            : "bg-amber-50 text-amber-800 border-amber-200";
+                        }
+
+                        return (
+                          <tr key={`${art.type}_${art.id}`} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-3 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${typeColor}`}>
+                                {art.type === "START_EVENT" && "🟢 Inicio"}
+                                {art.type === "SUBPROCESS" && "🟦 Subproceso"}
+                                {art.type === "GATEWAY" && (art.subType === "JOINT" ? "🟣 Joint" : "🔶 " + art.subType)}
+                              </span>
+                            </td>
+                            <td className="p-3 font-mono text-[11px] text-slate-600 font-bold whitespace-nowrap select-all">
+                              {art.id}
+                            </td>
+                            <td className="p-3 font-bold text-slate-900 leading-tight">
+                              {art.name}
+                            </td>
+                            <td className="p-3 text-slate-600 text-[11px] leading-normal font-medium max-w-[280px] truncate animate-fadeIn" title={art.details}>
+                              {art.details}
+                            </td>
+                            <td className="p-3 text-center whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteArtifactFromManager(art.type, art.id, art.name)}
+                                className="text-rose-600 hover:text-rose-800 p-1 hover:bg-rose-50 rounded transition-colors inline-flex items-center justify-center cursor-pointer"
+                                title="Eliminar Artefacto"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-between items-center border-t border-slate-100 pt-3 mt-4 shrink-0">
+                <span className="text-[10px] text-slate-500">
+                  Mostrando <strong>{filteredArtifacts.length}</strong> de <strong>{getAllArtifacts().length}</strong> artefactos
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setArtifactManagerOpen(false)}
+                  className="px-4 py-1.5 border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 text-xs cursor-pointer"
+                >
+                  Cerrar Panel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* NATIVE IN-PAGE CONFIRM MODAL */}
       {confirmModal?.isOpen && (

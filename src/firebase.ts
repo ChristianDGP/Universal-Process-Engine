@@ -37,7 +37,7 @@ export interface AppUser {
 
 export function getStoredSessionUser(): AppUser | null {
   try {
-    const raw = sessionStorage.getItem("upe_session_user");
+    const raw = localStorage.getItem("upe_session_user") || sessionStorage.getItem("upe_session_user");
     if (raw) return JSON.parse(raw);
   } catch (e) {
     console.error("Error reading stored session user", e);
@@ -47,8 +47,10 @@ export function getStoredSessionUser(): AppUser | null {
 
 export function setStoredSessionUser(user: AppUser | null) {
   if (!user) {
+    localStorage.removeItem("upe_session_user");
     sessionStorage.removeItem("upe_session_user");
   } else {
+    localStorage.setItem("upe_session_user", JSON.stringify(user));
     sessionStorage.setItem("upe_session_user", JSON.stringify(user));
   }
 }
