@@ -158,6 +158,41 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
   const process = React.useMemo(() => ensureProcessSubprocessKpis(rawProcess), [rawProcess]);
   const isAdmin = userRole === "admin";
 
+  const docPerms = React.useMemo(() => {
+    const defaultPerms = {
+      generalInfo: { view: true, edit: true },
+      fce: { view: true, edit: true },
+      tobeDiagram: { view: true, edit: true },
+      riskMatrix: { view: true, edit: true },
+      additionalDocs: { view: true, edit: true }
+    };
+    if (!permissions || !permissions.docComponents) {
+      return defaultPerms;
+    }
+    return {
+      generalInfo: {
+        view: permissions.docComponents.generalInfo?.view ?? true,
+        edit: permissions.docComponents.generalInfo?.edit ?? true,
+      },
+      fce: {
+        view: permissions.docComponents.fce?.view ?? true,
+        edit: permissions.docComponents.fce?.edit ?? true,
+      },
+      tobeDiagram: {
+        view: permissions.docComponents.tobeDiagram?.view ?? true,
+        edit: permissions.docComponents.tobeDiagram?.edit ?? true,
+      },
+      riskMatrix: {
+        view: permissions.docComponents.riskMatrix?.view ?? true,
+        edit: permissions.docComponents.riskMatrix?.edit ?? true,
+      },
+      additionalDocs: {
+        view: permissions.docComponents.additionalDocs?.view ?? true,
+        edit: permissions.docComponents.additionalDocs?.edit ?? true,
+      },
+    };
+  }, [permissions]);
+
   if (permissions && permissions.docAccess === false) {
     return (
       <div className="bg-rose-50 border border-rose-200 p-8 text-center space-y-3">
@@ -171,6 +206,14 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
   }
 
   const [activeTab, setActiveTab] = useState<"fce" | "tobe">("tobe");
+
+  // Redirect activeTab if restricted
+  React.useEffect(() => {
+    const canViewFceTab = isAdmin || docPerms.fce.view || docPerms.additionalDocs.view;
+    if (activeTab === "fce" && !canViewFceTab) {
+      setActiveTab("tobe");
+    }
+  }, [docPerms, isAdmin, activeTab]);
 
   // Section 4 Collapse / Expand State
   const [collapsedSubs, setCollapsedSubs] = useState<Record<string, boolean>>({});
@@ -1354,35 +1397,37 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
             </div>
 
             {/* Botones de Acción en Compuerta */}
-            <div className="-rotate-45 absolute -top-3 -right-3 flex items-center gap-0.5 bg-slate-900 text-white p-1 shadow">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingGatewayId(gw.id);
-                  setGatewayForm({
-                    name: gw.name,
-                    type: gw.type,
-                    afterState: gw.afterState,
-                    conditionTrueTarget: gw.conditionTrueTarget,
-                    conditionFalseTarget: gw.conditionFalseTarget || "",
-                    role: gw.role
-                  });
-                  setGatewayModalOpen(true);
-                }}
-                className="hover:text-blue-400 p-0.5"
-                title="Editar Compuerta"
-              >
-                <Edit2 className="w-2.5 h-2.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteGateway(gw.id)}
-                className="hover:text-rose-400 p-0.5"
-                title="Eliminar Compuerta"
-              >
-                <Trash2 className="w-2.5 h-2.5" />
-              </button>
-            </div>
+            {(isAdmin || docPerms.tobeDiagram.edit) && (
+              <div className="-rotate-45 absolute -top-3 -right-3 flex items-center gap-0.5 bg-slate-900 text-white p-1 shadow">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingGatewayId(gw.id);
+                    setGatewayForm({
+                      name: gw.name,
+                      type: gw.type,
+                      afterState: gw.afterState,
+                      conditionTrueTarget: gw.conditionTrueTarget,
+                      conditionFalseTarget: gw.conditionFalseTarget || "",
+                      role: gw.role
+                    });
+                    setGatewayModalOpen(true);
+                  }}
+                  className="hover:text-blue-400 p-0.5"
+                  title="Editar Compuerta"
+                >
+                  <Edit2 className="w-2.5 h-2.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteGateway(gw.id)}
+                  className="hover:text-rose-400 p-0.5"
+                  title="Eliminar Compuerta"
+                >
+                  <Trash2 className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Descripción Ramas Decisión / Destino de Unión (Hided if target is a measured node on canvas) */}
@@ -1461,348 +1506,396 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           >
             Mapeo TO-BE (Framework 2)
           </button>
-          <button
-            onClick={() => setActiveTab("fce")}
-            className={`px-4 py-1.5 text-xs font-semibold tracking-wide transition-colors ${
-              activeTab === "fce"
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            Factores Críticos de Éxito (Framework 1)
-          </button>
+          {(isAdmin || docPerms.fce.view || docPerms.additionalDocs.view) && (
+            <button
+              onClick={() => setActiveTab("fce")}
+              className={`px-4 py-1.5 text-xs font-semibold tracking-wide transition-colors ${
+                activeTab === "fce"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              Factores Críticos de Éxito (Framework 1)
+            </button>
+          )}
         </div>
       </div>
 
       <div className="p-6 lg:p-8">
         {activeTab === "fce" ? (
           /* FRAMEWORK 1: FACTORES CRÍTICOS DE ÉXITO (FCE) */
-          <div className="space-y-8 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-slate-500" />
-                  Matriz de Factores Críticos de Éxito y KPIs Operativos
-                </h4>
-                <p className="text-xs text-slate-500 mt-1">
-                  Indicadores clave formulados matemáticamente para el control continuo de la eficiencia y calidad del proceso TO-BE.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingKpiId(null);
-                  setKpiForm({
-                    id: "",
-                    name: "",
-                    description: "",
-                    formula: "(EntregablesConformes / TotalProcesados) * 100",
-                    periodicity: "Monthly",
-                    targetRange: ">= 95%",
-                    otherRanges: "< 90%"
-                  });
-                  setKpiModalOpen(true);
-                }}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm self-start sm:self-auto"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Agregar Indicador KPI</span>
-              </button>
+          !(isAdmin || docPerms.additionalDocs.view) ? (
+            <div className="bg-rose-50 border border-rose-200 p-8 text-center space-y-3">
+              <ShieldAlert className="w-10 h-10 text-rose-600 mx-auto" />
+              <h3 className="text-base font-black text-rose-950 uppercase tracking-tight">Acceso Restringido</h3>
+              <p className="text-xs text-rose-800 max-w-md mx-auto leading-relaxed">
+                El administrador del sistema ha deshabilitado el acceso a la Ficha de Indicadores y KPIs de este proceso.
+              </p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {process.kpis.map((kpi) => (
-                <div key={kpi.id} className="border border-slate-200 p-5 bg-slate-50/50 hover:bg-slate-50 transition-colors relative group">
-                  <div className="flex justify-between items-start">
-                    <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold bg-slate-900 text-white uppercase tracking-wider">
-                      {kpi.periodicity}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingKpiId(kpi.id);
-                          setKpiForm(kpi);
-                          setKpiModalOpen(true);
-                        }}
-                        className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
-                        title="Editar KPI"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteKpi(kpi.id)}
-                        className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
-                        title="Eliminar KPI"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                      <span className="text-xs text-slate-400 font-mono ml-1">#{kpi.id}</span>
-                    </div>
-                  </div>
-                  <h5 className="font-bold text-slate-900 text-sm mt-3">{kpi.name}</h5>
-                  <p className="text-xs text-slate-600 mt-2 leading-relaxed h-12 overflow-y-auto">
-                    {kpi.description}
+          ) : (
+            <div className="space-y-8 animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-slate-500" />
+                    Matriz de Factores Críticos de Éxito y KPIs Operativos
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Indicadores clave formulados matemáticamente para el control continuo de la eficiencia y calidad del proceso TO-BE.
                   </p>
-                  
-                  <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
-                    <div>
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fórmula</span>
-                      <code className="text-xs font-mono text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-sm block mt-1 overflow-x-auto whitespace-nowrap">
-                        {kpi.formula}
-                      </code>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div>
-                        <span className="block text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Meta</span>
-                        <span className="text-xs font-semibold text-slate-800">{kpi.targetRange}</span>
+                </div>
+                {(isAdmin || docPerms.additionalDocs.edit) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingKpiId(null);
+                      setKpiForm({
+                        id: "",
+                        name: "",
+                        description: "",
+                        formula: "(EntregablesConformes / TotalProcesados) * 100",
+                        periodicity: "Monthly",
+                        targetRange: ">= 95%",
+                        otherRanges: "< 90%"
+                      });
+                      setKpiModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm self-start sm:self-auto"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Agregar Indicador KPI</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {process.kpis.map((kpi) => (
+                  <div key={kpi.id} className="border border-slate-200 p-5 bg-slate-50/50 hover:bg-slate-50 transition-colors relative group">
+                    <div className="flex justify-between items-start">
+                      <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold bg-slate-900 text-white uppercase tracking-wider">
+                        {kpi.periodicity}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {(isAdmin || docPerms.additionalDocs.edit) && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingKpiId(kpi.id);
+                                setKpiForm(kpi);
+                                setKpiModalOpen(true);
+                              }}
+                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                              title="Editar KPI"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteKpi(kpi.id)}
+                              className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                              title="Eliminar KPI"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
+                        <span className="text-xs text-slate-400 font-mono ml-1">#{kpi.id}</span>
                       </div>
+                    </div>
+                    <h5 className="font-bold text-slate-900 text-sm mt-3">{kpi.name}</h5>
+                    <p className="text-xs text-slate-600 mt-2 leading-relaxed h-12 overflow-y-auto">
+                      {kpi.description}
+                    </p>
+                    
+                    <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
                       <div>
-                        <span className="block text-[10px] font-bold text-rose-600 uppercase tracking-wider">Insatisfactorio</span>
-                        <span className="text-xs font-semibold text-slate-800">{kpi.otherRanges}</span>
+                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fórmula</span>
+                        <code className="text-xs font-mono text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-sm block mt-1 overflow-x-auto whitespace-nowrap">
+                          {kpi.formula}
+                        </code>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <span className="block text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Meta</span>
+                          <span className="text-xs font-semibold text-slate-800">{kpi.targetRange}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold text-rose-600 uppercase tracking-wider">Insatisfactorio</span>
+                          <span className="text-xs font-semibold text-slate-800">{kpi.otherRanges}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )
         ) : (
           /* FRAMEWORK 2: MODELO PROPUESTO (TO BE) */
           <div className="space-y-12 animate-fadeIn max-w-none">
             {/* 1. Definiciones */}
-            <section className="space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <HelpCircle className="w-4 h-4 text-slate-500" />
-                  1. Definiciones (Glosario Técnico)
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingGlossaryIndex(null);
-                    setGlossaryForm({ term: "", definition: "" });
-                    setGlossaryModalOpen(true);
-                  }}
-                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Agregar Término</span>
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {process.glossary.map((g, i) => (
-                  <div key={i} className="bg-slate-50 border border-slate-200 p-4 relative group">
-                    <div className="flex justify-between items-start">
-                      <strong className="text-xs font-bold text-slate-900 block">{g.term}</strong>
-                      <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingGlossaryIndex(i);
-                            setGlossaryForm({ term: g.term, definition: g.definition });
-                            setGlossaryModalOpen(true);
-                          }}
-                          className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
-                          title="Editar Término"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteGlossary(i)}
-                          className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
-                          title="Eliminar Término"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+            {(isAdmin || docPerms.additionalDocs.view) && (
+              <section className="space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <HelpCircle className="w-4 h-4 text-slate-500" />
+                    1. Definiciones (Glosario Técnico)
+                  </h4>
+                  {(isAdmin || docPerms.additionalDocs.edit) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingGlossaryIndex(null);
+                        setGlossaryForm({ term: "", definition: "" });
+                        setGlossaryModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Agregar Término</span>
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {process.glossary.map((g, i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-200 p-4 relative group">
+                      <div className="flex justify-between items-start">
+                        <strong className="text-xs font-bold text-slate-900 block">{g.term}</strong>
+                        {(isAdmin || docPerms.additionalDocs.edit) && (
+                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingGlossaryIndex(i);
+                                setGlossaryForm({ term: g.term, definition: g.definition });
+                                setGlossaryModalOpen(true);
+                              }}
+                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                              title="Editar Término"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteGlossary(i)}
+                              className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                              title="Eliminar Término"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </div>
+                      <span className="text-xs text-slate-600 mt-1 block leading-relaxed">{g.definition}</span>
                     </div>
-                    <span className="text-xs text-slate-600 mt-1 block leading-relaxed">{g.definition}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* 2. PROCESO */}
-            <section className="space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                <h4 className="text-base font-bold text-slate-900">
-                  2. PROCESO: {process.name.toUpperCase()}
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGeneralForm({
-                      name: process.name || "",
-                      description: process.description || "",
-                      responsibleRole: process.responsibleRole || "",
-                      processOwner: process.processOwner || "",
-                      scopeStart: process.scopeStart || "",
-                      scopeEnd: process.scopeEnd || "",
-                      suppliers: process.suppliers || "",
-                      customers: process.customers || "",
-                      processInputs: process.processInputs || "",
-                      processOutputs: process.processOutputs || ""
-                    });
-                    setGeneralModalOpen(true);
-                  }}
-                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  <span>Editar Información General y Alcance (2.1 - 2.2)</span>
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">2.1. Alcance del Proceso</h5>
-                  <p className="text-xs leading-relaxed text-slate-700 bg-slate-50 border border-slate-100 p-4">
-                    El proceso trata de <span className="font-semibold text-slate-900">{process.scopeStart || "recepción de la solicitud"}</span>. El <span className="font-semibold text-slate-900">{process.name}</span> se puede realizar en la unidad de <span className="font-semibold text-slate-900">{process.processOwner || "la Unidad Responsable"}</span> y culmina con <span className="font-semibold text-slate-900">{process.scopeEnd || "el entregable finalizado"}</span>.
-                  </p>
+            {(isAdmin || docPerms.generalInfo.view) && (
+              <section className="space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h4 className="text-base font-bold text-slate-900">
+                    2. PROCESO: {process.name.toUpperCase()}
+                  </h4>
+                  {(isAdmin || docPerms.generalInfo.edit) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGeneralForm({
+                          name: process.name || "",
+                          description: process.description || "",
+                          responsibleRole: process.responsibleRole || "",
+                          processOwner: process.processOwner || "",
+                          scopeStart: process.scopeStart || "",
+                          scopeEnd: process.scopeEnd || "",
+                          suppliers: process.suppliers || "",
+                          customers: process.customers || "",
+                          processInputs: process.processInputs || "",
+                          processOutputs: process.processOutputs || ""
+                        });
+                        setGeneralModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Editar Información General y Alcance (2.1 - 2.2)</span>
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">2.2. Descripción General del Proceso</h5>
-                  <div className="text-xs leading-relaxed text-slate-700 bg-slate-50 border border-slate-100 p-4 space-y-3">
-                    <p>
-                      El proceso <span className="font-semibold text-slate-900">{process.name}</span> se realizará en la unidad de <span className="font-semibold text-slate-900">{process.processOwner || "la Unidad Responsable"}</span>. Este proceso {process.description || "gestiona de manera coordinada cada una de las actividades requeridas para alcanzar el objetivo operativo."}
-                    </p>
-                    <p className="font-semibold text-slate-800 border-t border-slate-200/80 pt-2.5">
-                      Todo lo anterior deberá ser soportado por un sistema de información que permita mantener la trazabilidad de la información en todo momento.
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">2.1. Alcance del Proceso</h5>
+                    <p className="text-xs leading-relaxed text-slate-700 bg-slate-50 border border-slate-100 p-4">
+                      El proceso trata de <span className="font-semibold text-slate-900">{process.scopeStart || "recepción de la solicitud"}</span>. El <span className="font-semibold text-slate-900">{process.name}</span> se puede realizar en la unidad de <span className="font-semibold text-slate-900">{process.processOwner || "la Unidad Responsable"}</span> y culmina con <span className="font-semibold text-slate-900">{process.scopeEnd || "el entregable finalizado"}</span>.
                     </p>
                   </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">2.2. Descripción General del Proceso</h5>
+                    <div className="text-xs leading-relaxed text-slate-700 bg-slate-50 border border-slate-100 p-4 space-y-3">
+                      <p>
+                        El proceso <span className="font-semibold text-slate-900">{process.name}</span> se realizará en la unidad de <span className="font-semibold text-slate-900">{process.processOwner || "la Unidad Responsable"}</span>. Este proceso {process.description || "gestiona de manera coordinada cada una de las actividades requeridas para alcanzar el objetivo operativo."}
+                      </p>
+                      <p className="font-semibold text-slate-800 border-t border-slate-200/80 pt-2.5">
+                        Todo lo anterior deberá ser soportado por un sistema de información que permita mantener la trazabilidad de la información en todo momento.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             {/* 3. Ficha del Proceso */}
-            <section className="space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-500" />
-                  3. Ficha Descriptiva del Proceso
-                </h4>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingRiskIndex(null);
-                      setRiskForm("");
-                      setRiskModalOpen(true);
-                    }}
-                    className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1 shadow-2xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Agregar Riesgo</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGeneralForm({
-                        name: process.name || "",
-                        description: process.description || "",
-                        responsibleRole: process.responsibleRole || "",
-                        processOwner: process.processOwner || "",
-                        scopeStart: process.scopeStart || "",
-                        scopeEnd: process.scopeEnd || "",
-                        suppliers: process.suppliers || "",
-                        customers: process.customers || "",
-                        processInputs: process.processInputs || "",
-                        processOutputs: process.processOutputs || ""
-                      });
-                      setGeneralModalOpen(true);
-                    }}
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span>Editar Ficha Descriptiva</span>
-                  </button>
+            {(isAdmin || docPerms.fce.view) && (
+              <section className="space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-500" />
+                    3. Ficha Descriptiva del Proceso
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    {(isAdmin || docPerms.riskMatrix.edit) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRiskIndex(null);
+                          setRiskForm("");
+                          setRiskModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1 shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Agregar Riesgo</span>
+                      </button>
+                    )}
+                    {(isAdmin || docPerms.fce.edit) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGeneralForm({
+                            name: process.name || "",
+                            description: process.description || "",
+                            responsibleRole: process.responsibleRole || "",
+                            processOwner: process.processOwner || "",
+                            scopeStart: process.scopeStart || "",
+                            scopeEnd: process.scopeEnd || "",
+                            suppliers: process.suppliers || "",
+                            customers: process.customers || "",
+                            processInputs: process.processInputs || "",
+                            processOutputs: process.processOutputs || ""
+                          });
+                          setGeneralModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Editar Ficha Descriptiva</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="border border-slate-200 overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <tbody>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 bg-slate-50 font-bold text-slate-700 w-1/4">Nombre del Proceso</td>
-                      <td className="p-3 text-slate-800 font-bold">{process.name}</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 bg-slate-50 font-bold text-slate-700">Responsable del Proceso</td>
-                      <td className="p-3 text-slate-800 font-medium">{process.responsibleRole}</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 bg-slate-50 font-bold text-slate-700">Dueño del Proceso</td>
-                      <td className="p-3 text-slate-800 font-medium">{process.processOwner}</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 bg-slate-50 font-bold text-slate-700">Entradas del Proceso</td>
-                      <td className="p-3 text-slate-800 font-medium">{process.scopeStart || process.processInputs}</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 bg-slate-50 font-bold text-slate-700">Resultados / Entregables</td>
-                      <td className="p-3 text-slate-800 font-medium">{process.scopeEnd || process.processOutputs}</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 bg-slate-50 font-bold text-slate-700">Proveedores / Relaciones</td>
-                      <td className="p-3 text-slate-600">{process.suppliers}</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 bg-slate-50 font-bold text-slate-700">Usuarios / Destinatarios</td>
-                      <td className="p-3 text-slate-600">{process.customers}</td>
-                    </tr>
-                    <tr>
-                      <td className="p-3 bg-slate-50 font-bold text-slate-700">Riesgos Identificados</td>
-                      <td className="p-3 text-slate-600">
-                        <ul className="space-y-1.5">
-                          {process.risks.map((risk, i) => (
-                            <li key={i} className="flex items-center justify-between group bg-slate-50/60 p-1.5 border border-slate-100 rounded">
-                              <span className="text-xs text-slate-800 font-medium">&bull; {risk}</span>
-                              <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingRiskIndex(i);
-                                    setRiskForm(risk);
-                                    setRiskModalOpen(true);
-                                  }}
-                                  className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
-                                  title="Editar Riesgo"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteRisk(i)}
-                                  className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
-                                  title="Eliminar Riesgo"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                <div className="border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <tbody>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700 w-1/4">Nombre del Proceso</td>
+                        <td className="p-3 text-slate-800 font-bold">{process.name}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Responsable del Proceso</td>
+                        <td className="p-3 text-slate-800 font-medium">{process.responsibleRole}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Dueño del Proceso</td>
+                        <td className="p-3 text-slate-800 font-medium">{process.processOwner}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Entradas del Proceso</td>
+                        <td className="p-3 text-slate-800 font-medium">{process.scopeStart || process.processInputs}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Resultados / Entregables</td>
+                        <td className="p-3 text-slate-800 font-medium">{process.scopeEnd || process.processOutputs}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Proveedores / Relaciones</td>
+                        <td className="p-3 text-slate-600">{process.suppliers}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Usuarios / Destinatarios</td>
+                        <td className="p-3 text-slate-600">{process.customers}</td>
+                      </tr>
+                      {(isAdmin || docPerms.riskMatrix.view) && (
+                        <tr>
+                          <td className="p-3 bg-slate-50 font-bold text-slate-700">Riesgos Identificados</td>
+                          <td className="p-3 text-slate-600">
+                            <ul className="space-y-1.5">
+                              {process.risks.map((risk, i) => (
+                                <li key={i} className="flex items-center justify-between group bg-slate-50/60 p-1.5 border border-slate-100 rounded">
+                                  <span className="text-xs text-slate-800 font-medium">&bull; {risk}</span>
+                                  {(isAdmin || docPerms.riskMatrix.edit) && (
+                                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingRiskIndex(i);
+                                          setRiskForm(risk);
+                                          setRiskModalOpen(true);
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                                        title="Editar Riesgo"
+                                      >
+                                        <Edit2 className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteRisk(i)}
+                                        className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                        title="Eliminar Riesgo"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
 
             {/* 3.4. Modelo Descriptivo */}
-            <section className="space-y-4" id="section-3-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-slate-500" />
-                  3.4. Modelo Descriptivo (Estados Oficiales del Proceso y Diagrama BPMN 2.0)
-                </h4>
-                <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 border border-slate-200 self-start sm:self-auto uppercase tracking-wider">
-                  Metodología BPMN 2.0
-                </span>
+            {!(isAdmin || docPerms.tobeDiagram.view) ? (
+              <div className="bg-amber-50 border border-amber-200 p-6 text-center space-y-2">
+                <ShieldAlert className="w-8 h-8 text-amber-600 mx-auto" />
+                <h4 className="text-sm font-bold text-amber-950 uppercase">Acceso Restringido 3.4 Modelo Descriptivo</h4>
+                <p className="text-xs text-amber-800 max-w-sm mx-auto leading-relaxed">
+                  Su rol actual no posee permisos para visualizar esta sección del documento.
+                </p>
               </div>
+            ) : (
+              <section className="space-y-4" id="section-3-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-slate-500" />
+                    3.4. Modelo Descriptivo (Estados Oficiales del Proceso y Diagrama BPMN 2.0)
+                  </h4>
+                  <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 border border-slate-200 self-start sm:self-auto uppercase tracking-wider">
+                    Metodología BPMN 2.0
+                  </span>
+                </div>
 
-              {/* BARRA DE HERRAMIENTAS DE EDICIÓN BPMN 2.0 (SECCIÓN 3.4) */}
-              <div className="bg-slate-900 text-white p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-sm border border-slate-800">
+                {/* BARRA DE HERRAMIENTAS DE EDICIÓN BPMN 2.0 (SECCIÓN 3.4) */}
+                {(isAdmin || docPerms.tobeDiagram.edit) && (
+                  <div className="bg-slate-900 text-white p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-sm border border-slate-800">
                 <div className="flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-blue-400" />
                   <span className="text-xs font-bold tracking-tight">Herramientas de Edición BPMN 2.0 & Subprocesos</span>
@@ -1918,6 +2011,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   </button>
                 </div>
               </div>
+            )}
 
               {/* Banner de Confirmación al Presionar Guardar (Éxito) */}
               {saveToastVisible && (
@@ -1953,7 +2047,8 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
               )}
 
               {/* Paleta de Elementos BPMN 2.0 Arrastrábles */}
-              <div className="bg-slate-100 border border-slate-200/90 p-2.5 rounded-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+              {(isAdmin || docPerms.tobeDiagram.edit) && (
+                <div className="bg-slate-100 border border-slate-200/90 p-2.5 rounded-sm flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2 font-bold text-slate-800">
                   <span className="text-sm">🎨</span>
                   <span>Paleta de Elementos BPMN 2.0 (Arrastra y Suelta sobre el Canvas):</span>
@@ -2016,6 +2111,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   </div>
                 </div>
               </div>
+            )}
 
               {/* Diagrama BPMN 2.0 Interactivo de Subprocesos, Estados y Compuertas */}
               <div className="border border-slate-300 bg-slate-50 p-3 space-y-3 shadow-sm rounded-sm">
@@ -2852,12 +2948,20 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   </div>
                 </div>
               </div>
-
-
             </section>
+          )}
 
             {/* 3.5. Matriz SIPOC */}
-            <section className="space-y-4" id="section-3-5">
+            {!(isAdmin || docPerms.additionalDocs.view) ? (
+              <div className="bg-amber-50 border border-amber-200 p-6 text-center space-y-2 mt-4">
+                <ShieldAlert className="w-8 h-8 text-amber-600 mx-auto" />
+                <h4 className="text-sm font-bold text-amber-950 uppercase">Acceso Restringido 3.5 Matriz SIPOC</h4>
+                <p className="text-xs text-amber-800 max-w-sm mx-auto leading-relaxed">
+                  Su rol actual no posee permisos para visualizar esta sección del documento.
+                </p>
+              </div>
+            ) : (
+              <section className="space-y-4" id="section-3-5">
               <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Table className="w-4 h-4 text-slate-500" />
@@ -2912,25 +3016,27 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                               {displayC}
                             </td>
                             <td className="p-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingSipocSubIndex(sub.index);
-                                  setSipocForm({
-                                    supplier: displayS,
-                                    inputs: displayI,
-                                    subprocess: displayP,
-                                    outputs: displayO,
-                                    customer: displayC
-                                  });
-                                  setSipocModalOpen(true);
-                                }}
-                                className="px-2 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded inline-flex items-center gap-1 shadow-2xs"
-                                title="Editar Ficha SIPOC de este Subproceso"
-                              >
-                                <Edit2 className="w-3 h-3 text-slate-500" />
-                                <span>Editar SIPOC</span>
-                              </button>
+                              {(isAdmin || docPerms.additionalDocs.edit) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingSipocSubIndex(sub.index);
+                                    setSipocForm({
+                                      supplier: displayS,
+                                      inputs: displayI,
+                                      subprocess: displayP,
+                                      outputs: displayO,
+                                      customer: displayC
+                                    });
+                                    setSipocModalOpen(true);
+                                  }}
+                                  className="px-2 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded inline-flex items-center gap-1 shadow-2xs"
+                                  title="Editar Ficha SIPOC de este Subproceso"
+                                >
+                                  <Edit2 className="w-3 h-3 text-slate-500" />
+                                  <span>Editar SIPOC</span>
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -2940,9 +3046,19 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                 </table>
               </div>
             </section>
+          )}
 
             {/* 4. PROCEDIMIENTO MODELO DE NIVEL OPERATIVO (EDITABLE) */}
-            <section className="space-y-6">
+            {!(isAdmin || docPerms.tobeDiagram.view) ? (
+              <div className="bg-amber-50 border border-amber-200 p-6 text-center space-y-2 mt-6">
+                <ShieldAlert className="w-8 h-8 text-amber-600 mx-auto" />
+                <h4 className="text-sm font-bold text-amber-950 uppercase">Acceso Restringido Sección 4</h4>
+                <p className="text-xs text-amber-800 max-w-sm mx-auto leading-relaxed">
+                  Su rol actual no posee permisos para visualizar esta sección del documento.
+                </p>
+              </div>
+            ) : (
+              <section className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-3">
                 <div>
                   <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -2976,17 +3092,19 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                     Colapsar Todos
                   </button>
 
-                  <button
-                    onClick={() => {
-                      setEditingSubIndex(null);
-                      setSubForm({ index: `4.${process.subprocesses.length + 1}`, name: "", narrative: "" });
-                      setSubModalOpen(true);
-                    }}
-                    className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-1.5 ml-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Agregar Subproceso
-                  </button>
+                  {(isAdmin || docPerms.tobeDiagram.edit) && (
+                    <button
+                      onClick={() => {
+                        setEditingSubIndex(null);
+                        setSubForm({ index: `4.${process.subprocesses.length + 1}`, name: "", narrative: "" });
+                        setSubModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-1.5 ml-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Agregar Subproceso
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -2998,17 +3116,19 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                     <p className="text-xs text-slate-600 max-w-xl mx-auto leading-relaxed">
                       No hay subprocesos ni fichas de actividad modeladas aún. Ingrese el <strong>Nombre del Proceso</strong> y el <strong>Contexto o Alcance Operativo (Obligatorio)</strong> en el panel superior para generar la arquitectura TO-BE, o construya manualmente los subprocesos.
                     </p>
-                    <button
-                      onClick={() => {
-                        setEditingSubIndex(null);
-                        setSubForm({ index: "4.1", name: "", narrative: "" });
-                        setSubModalOpen(true);
-                      }}
-                      className="px-4 py-2 bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors inline-flex items-center gap-1.5 mt-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Agregar Primer Subproceso (4.1)
-                    </button>
+                    {(isAdmin || docPerms.tobeDiagram.edit) && (
+                      <button
+                        onClick={() => {
+                          setEditingSubIndex(null);
+                          setSubForm({ index: "4.1", name: "", narrative: "" });
+                          setSubModalOpen(true);
+                        }}
+                        className="px-4 py-2 bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors inline-flex items-center gap-1.5 mt-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Agregar Primer Subproceso (4.1)
+                      </button>
+                    )}
                   </div>
                 ) : (
                   process.subprocesses.map((sub, sIdx) => {
@@ -3131,7 +3251,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                   
                                   <div className="flex items-center gap-1">
                                     {/* Reorder Activity Up / Down */}
-                                    {sub.activities.findIndex((a) => a.index === act.index) > 0 && (
+                                    {(isAdmin || docPerms.tobeDiagram.edit) && sub.activities.findIndex((a) => a.index === act.index) > 0 && (
                                       <button
                                         type="button"
                                         onClick={() => handleMoveActivity(sub.index, act.index, "up")}
@@ -3141,7 +3261,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                         <ChevronUp className="w-3.5 h-3.5" />
                                       </button>
                                     )}
-                                    {sub.activities.findIndex((a) => a.index === act.index) < sub.activities.length - 1 && (
+                                    {(isAdmin || docPerms.tobeDiagram.edit) && sub.activities.findIndex((a) => a.index === act.index) < sub.activities.length - 1 && (
                                       <button
                                         type="button"
                                         onClick={() => handleMoveActivity(sub.index, act.index, "down")}
@@ -3151,24 +3271,28 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                         <ChevronDown className="w-3.5 h-3.5" />
                                       </button>
                                     )}
-                                    <button
-                                      onClick={() => {
-                                        setEditingAct({ subIndex: sub.index, actIndex: act.index });
-                                        setActForm(act);
-                                        setActModalOpen(true);
-                                      }}
-                                      className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-sm"
-                                      title="Editar Ficha"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteActivity(sub.index, act.index)}
-                                      className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-sm"
-                                      title="Eliminar Actividad"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    {(isAdmin || docPerms.tobeDiagram.edit) && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingAct({ subIndex: sub.index, actIndex: act.index });
+                                          setActForm(act);
+                                          setActModalOpen(true);
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-sm"
+                                        title="Editar Ficha"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    {(isAdmin || docPerms.tobeDiagram.edit) && (
+                                      <button
+                                        onClick={() => handleDeleteActivity(sub.index, act.index)}
+                                        className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-sm"
+                                        title="Eliminar Actividad"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
 
@@ -3219,8 +3343,9 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                 }))}
               </div>
             </section>
-          </div>
-        )}
+          )}
+        </div>
+      )}
       </div>
 
       {/* SUBPROCESS EDIT/CREATE MODAL */}
