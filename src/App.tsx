@@ -5,7 +5,7 @@ import ProcessSelector from "./components/ProcessSelector";
 import FrameworkDocViewer from "./components/FrameworkDocViewer";
 import ProcessSimulator from "./components/ProcessSimulator";
 import UserManager from "./components/UserManager";
-import { autoSaveProcessToCloud, syncUserProfile, subscribeToUserProfile, UserProfile } from "./firebaseSync";
+import { autoSaveProcessToCloud, syncUserProfile, subscribeToUserProfile, UserProfile, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_ANALYST_PERMISSIONS } from "./firebaseSync";
 import { auth, getUserRole, loginWithGoogle, logout, UserRole, AppUser, getStoredSessionUser, setStoredSessionUser } from "./firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import {
@@ -104,11 +104,23 @@ export default function App() {
       });
   }, []);
 
-  // Calculate dynamic user role
+  // Calculate dynamic user role & permissions
   const userRole: UserRole = userProfile
     ? userProfile.role
     : getUserRole(currentUser?.email);
   const isAdmin = userRole === "admin";
+
+  const permissions = userProfile?.permissions || (isAdmin ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_ANALYST_PERMISSIONS);
+  const canAccessDoc = isAdmin || permissions.docAccess !== false;
+  const canAccessSim = isAdmin || permissions.simAccess !== false;
+
+  useEffect(() => {
+    if (!canAccessDoc && activeView === "doc" && canAccessSim) {
+      setActiveView("simulator");
+    } else if (!canAccessSim && activeView === "simulator" && canAccessDoc) {
+      setActiveView("doc");
+    }
+  }, [canAccessDoc, canAccessSim, activeView]);
 
   // AUTOMATIC SYNC TO FIREBASE FIRESTORE ON PROCESS CHANGE (ADMIN ONLY)
   useEffect(() => {
@@ -369,48 +381,64 @@ export default function App() {
         />
 
         {/* WORKSPACE NAVIGATION TABS */}
-        <div className="border-b border-slate-200 flex flex-wrap gap-2">
-          <button
-            onClick={() => setActiveView("doc")}
-            className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
-              activeView === "doc"
-                ? "border-slate-900 text-slate-900 font-black"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            1. Documentación (Manual TO-BE)
-          </button>
-          <button
-            onClick={() => setActiveView("simulator")}
-            className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
-              activeView === "simulator"
-                ? "border-slate-900 text-slate-900 font-black"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <PlayCircle className="w-4 h-4" />
-            2. Simulador & KPIs Dashboard
-          </button>
-        </div>
+        {!canAccessDoc && !canAccessSim ? (
+          <div className="bg-rose-50 border border-rose-200 p-8 text-center space-y-3">
+            <ShieldAlert className="w-10 h-10 text-rose-600 mx-auto" />
+            <h3 className="text-base font-black text-rose-950 uppercase tracking-tight">Acceso Restringido</h3>
+            <p className="text-xs text-rose-800 max-w-md mx-auto leading-relaxed">
+              El administrador del sistema ha deshabilitado el acceso a todos los módulos de trabajo para su cuenta (<strong className="font-mono">{currentUser.email}</strong>). Contacte a su supervisor para solicitar permisos.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="border-b border-slate-200 flex flex-wrap gap-2">
+              {canAccessDoc && (
+                <button
+                  onClick={() => setActiveView("doc")}
+                  className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
+                    activeView === "doc"
+                      ? "border-slate-900 text-slate-900 font-black"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  1. Documentación (Manual TO-BE)
+                </button>
+              )}
+              {canAccessSim && (
+                <button
+                  onClick={() => setActiveView("simulator")}
+                  className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
+                    activeView === "simulator"
+                      ? "border-slate-900 text-slate-900 font-black"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <PlayCircle className="w-4 h-4" />
+                  2. Simulador & KPIs Dashboard
+                </button>
+              )}
+            </div>
 
-        {/* ACTIVE WORKSPACE RENDER */}
-        <div className="space-y-6">
-          {activeView === "doc" && (
-            <FrameworkDocViewer
-              process={currentProcess}
-              onProcessChange={(updated) => setCurrentProcess(updated)}
-              userRole={userRole}
-            />
-          )}
+            {/* ACTIVE WORKSPACE RENDER */}
+            <div className="space-y-6">
+              {activeView === "doc" && canAccessDoc && (
+                <FrameworkDocViewer
+                  process={currentProcess}
+                  onProcessChange={(updated) => setCurrentProcess(updated)}
+                  userRole={userRole}
+                />
+              )}
 
-          {activeView === "simulator" && (
-            <ProcessSimulator
-              process={currentProcess}
-              onProcessChange={(updated) => setCurrentProcess(updated)}
-            />
-          )}
-        </div>
+              {activeView === "simulator" && canAccessSim && (
+                <ProcessSimulator
+                  process={currentProcess}
+                  onProcessChange={(updated) => setCurrentProcess(updated)}
+                />
+              )}
+            </div>
+          </>
+        )}
       </main>
 
       {/* USER MANAGEMENT MODAL */}
