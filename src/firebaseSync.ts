@@ -9,11 +9,63 @@ export interface SavedProcessEntry {
   process: ProcessDefinition;
 }
 
+export interface UserPermissions {
+  docAccess: boolean; // 1. Documentación (Manual TO-BE)
+  docComponents: {
+    viewer: boolean;
+    library: boolean;
+    metadata: boolean;
+    export: boolean;
+  };
+  simAccess: boolean; // 2. Simulador & KPIs Dashboard
+  simComponents: {
+    monteCarlo: boolean;
+    kpisDashboard: boolean;
+    riskMatrix: boolean;
+    reports: boolean;
+  };
+}
+
+export const DEFAULT_ANALYST_PERMISSIONS: UserPermissions = {
+  docAccess: true,
+  docComponents: {
+    viewer: true,
+    library: true,
+    metadata: true,
+    export: true,
+  },
+  simAccess: true,
+  simComponents: {
+    monteCarlo: true,
+    kpisDashboard: true,
+    riskMatrix: true,
+    reports: true,
+  },
+};
+
+export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
+  docAccess: true,
+  docComponents: {
+    viewer: true,
+    library: true,
+    metadata: true,
+    export: true,
+  },
+  simAccess: true,
+  simComponents: {
+    monteCarlo: true,
+    kpisDashboard: true,
+    riskMatrix: true,
+    reports: true,
+  },
+};
+
 export interface UserProfile {
   email: string;
   role: UserRole;
   displayName?: string | null;
   photoURL?: string | null;
+  permissions?: UserPermissions;
   lastLoginAt: string;
   createdAt: string;
   updatedAt: string;
@@ -221,6 +273,7 @@ export async function updateUserRole(
         email: normalizedEmail,
         role: newRole,
         displayName: normalizedEmail.split("@")[0],
+        permissions: newRole === "admin" ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_ANALYST_PERMISSIONS,
         lastLoginAt: now,
         createdAt: now,
         updatedAt: now,
@@ -231,6 +284,52 @@ export async function updateUserRole(
     return true;
   } catch (err) {
     console.error("Error updating user role in Firestore:", err);
+    throw err;
+  }
+}
+
+/**
+ * Update user permissions in Firestore (Admin tool)
+ */
+export async function updateUserPermissions(
+  email: string,
+  permissions: UserPermissions,
+  updatedByEmail: string
+): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const docId = getUserDocId(normalizedEmail);
+  const userDocRef = doc(db, USERS_COLLECTION, docId);
+  const now = new Date().toISOString();
+
+  try {
+    const docSnap = await getDoc(userDocRef);
+    if (docSnap.exists()) {
+      await setDoc(
+        userDocRef,
+        {
+          permissions,
+          updatedAt: now,
+          updatedBy: updatedByEmail,
+        },
+        { merge: true }
+      );
+    } else {
+      const isMainAdmin = normalizedEmail === MAIN_SUPER_ADMIN;
+      const newProfile: UserProfile = {
+        email: normalizedEmail,
+        role: isMainAdmin ? "admin" : "analyst",
+        displayName: normalizedEmail.split("@")[0],
+        permissions,
+        lastLoginAt: now,
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: updatedByEmail,
+      };
+      await setDoc(userDocRef, JSON.parse(JSON.stringify(newProfile)));
+    }
+    return true;
+  } catch (err) {
+    console.error("Error updating user permissions in Firestore:", err);
     throw err;
   }
 }

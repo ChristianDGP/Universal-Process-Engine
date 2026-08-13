@@ -405,7 +405,10 @@ export default function App() {
           )}
 
           {activeView === "simulator" && (
-            <ProcessSimulator process={currentProcess} />
+            <ProcessSimulator
+              process={currentProcess}
+              onProcessChange={(updated) => setCurrentProcess(updated)}
+            />
           )}
         </div>
       </main>
