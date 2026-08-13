@@ -378,6 +378,7 @@ export default function App() {
             setActiveView("doc");
           }}
           userRole={userRole}
+          permissions={permissions}
         />
 
         {/* WORKSPACE NAVIGATION TABS */}
@@ -402,7 +403,7 @@ export default function App() {
                   }`}
                 >
                   <FileText className="w-4 h-4" />
-                  1. Documentación (Manual TO-BE)
+                  1. Documentación
                 </button>
               )}
               {canAccessSim && (
@@ -427,6 +428,7 @@ export default function App() {
                   process={currentProcess}
                   onProcessChange={(updated) => setCurrentProcess(updated)}
                   userRole={userRole}
+                  permissions={permissions}
                 />
               )}
 

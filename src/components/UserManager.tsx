@@ -542,13 +542,56 @@ export default function UserManager({
                 Seleccione los módulos y subcomponentes específicos a los cuales este usuario tendrá acceso habilitado dentro de la plataforma UPE.
               </p>
 
-              {/* Module 1: Documentación (Manual TO-BE) */}
+              {/* Taxonomy Filters Permission */}
+              <div className="border border-slate-200 rounded-xs overflow-hidden">
+                <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Filter className="w-4 h-4 text-purple-600" />
+                    <div>
+                      <span className="font-bold text-slate-900 text-sm">Filtros de Estructura Taxonómica (Proceso Activo)</span>
+                      <p className="text-[11px] text-slate-500 font-normal">Permisos para visualizar y filtrar por Macroproceso, Proceso y Microproceso.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs font-semibold">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.taxonomyFilters?.view ?? true}
+                        onChange={(e) =>
+                          setEditPermissions({
+                            ...editPermissions,
+                            taxonomyFilters: { ...(editPermissions.taxonomyFilters || { view: true, edit: true }), view: e.target.checked }
+                          })
+                        }
+                        className="w-4 h-4 text-purple-600 rounded-xs border-slate-300 focus:ring-slate-900"
+                      />
+                      <span>Visualizar</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.taxonomyFilters?.edit ?? true}
+                        onChange={(e) =>
+                          setEditPermissions({
+                            ...editPermissions,
+                            taxonomyFilters: { ...(editPermissions.taxonomyFilters || { view: true, edit: true }), edit: e.target.checked }
+                          })
+                        }
+                        className="w-4 h-4 text-purple-600 rounded-xs border-slate-300 focus:ring-slate-900"
+                      />
+                      <span>Editar</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Module 1: 1. Documentación */}
               <div className="border border-slate-200 rounded-xs overflow-hidden">
                 <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-blue-600" />
                     <div>
-                      <span className="font-bold text-slate-900 text-sm">1. Documentación (Manual TO-BE)</span>
+                      <span className="font-bold text-slate-900 text-sm">1. Documentación</span>
                       <p className="text-[11px] text-slate-500 font-normal">Acceso al visor de procesos, flujogramas y repositorio normativo.</p>
                     </div>
                   </div>
@@ -566,80 +609,62 @@ export default function UserManager({
                 </div>
 
                 <div className={`p-4 space-y-3 bg-white ${!editPermissions.docAccess ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Componentes de Documentación:</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Puntos de Documentación (Visualizar & Editar independientes):</p>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <label className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editPermissions.docComponents.viewer}
-                        onChange={(e) =>
-                          setEditPermissions({
-                            ...editPermissions,
-                            docComponents: { ...editPermissions.docComponents, viewer: e.target.checked }
-                          })
-                        }
-                        className="w-4 h-4 text-blue-600 rounded-xs border-slate-300 focus:ring-slate-900"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-800 block">Visor de Procesos & Diagrama Bizagi</span>
-                        <span className="text-[10px] text-slate-500">Visualización de flujos y estados</span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editPermissions.docComponents.library}
-                        onChange={(e) =>
-                          setEditPermissions({
-                            ...editPermissions,
-                            docComponents: { ...editPermissions.docComponents, library: e.target.checked }
-                          })
-                        }
-                        className="w-4 h-4 text-blue-600 rounded-xs border-slate-300 focus:ring-slate-900"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-800 block">Biblioteca & Modelos (Presets)</span>
-                        <span className="text-[10px] text-slate-500">Catálogo de procesos institucionales</span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editPermissions.docComponents.metadata}
-                        onChange={(e) =>
-                          setEditPermissions({
-                            ...editPermissions,
-                            docComponents: { ...editPermissions.docComponents, metadata: e.target.checked }
-                          })
-                        }
-                        className="w-4 h-4 text-blue-600 rounded-xs border-slate-300 focus:ring-slate-900"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-800 block">Metadatos & Descripción Descriptiva</span>
-                        <span className="text-[10px] text-slate-500">Fichas técnicas y parámetros</span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editPermissions.docComponents.export}
-                        onChange={(e) =>
-                          setEditPermissions({
-                            ...editPermissions,
-                            docComponents: { ...editPermissions.docComponents, export: e.target.checked }
-                          })
-                        }
-                        className="w-4 h-4 text-blue-600 rounded-xs border-slate-300 focus:ring-slate-900"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-800 block">Generador de Código & Exportación</span>
-                        <span className="text-[10px] text-slate-500">Exportar documentos y código fuente</span>
-                      </div>
-                    </label>
+                  <div className="space-y-2">
+                    {[
+                      { key: "generalInfo", label: "1.1 Información General del Proceso", desc: "Ficha resumen y parámetros generales" },
+                      { key: "fce", label: "1.2 Ficha de Caracterización y Especificación (FCE)", desc: "Especificaciones normativas y técnicas" },
+                      { key: "tobeDiagram", label: "1.3 Diagrama de Flujo (BPMN 2.0 / Subprocesos)", desc: "Secuencia de subprocesos y actividades operativas" },
+                      { key: "riskMatrix", label: "1.4 Matriz de Riesgos & Controles / Estados", desc: "Gestión de riesgos, SLA y transiciones de estado" },
+                      { key: "additionalDocs", label: "1.5 Glosario, SIPOC, Indicadores y Roles", desc: "Glosario, matriz SIPOC, fichas KPI y roles humanos" }
+                    ].map((item) => {
+                      const compState = (editPermissions.docComponents as any)[item.key] || { view: true, edit: true };
+                      return (
+                        <div key={item.key} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200">
+                          <div>
+                            <span className="font-bold text-slate-800 block text-xs">{item.label}</span>
+                            <span className="text-[10px] text-slate-500">{item.desc}</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs font-semibold">
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={compState.view}
+                                onChange={(e) =>
+                                  setEditPermissions({
+                                    ...editPermissions,
+                                    docComponents: {
+                                      ...editPermissions.docComponents,
+                                      [item.key]: { ...compState, view: e.target.checked }
+                                    }
+                                  })
+                                }
+                                className="w-4 h-4 text-blue-600 rounded-xs border-slate-300 focus:ring-slate-900"
+                              />
+                              <span>Visualizar</span>
+                            </label>
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={compState.edit}
+                                onChange={(e) =>
+                                  setEditPermissions({
+                                    ...editPermissions,
+                                    docComponents: {
+                                      ...editPermissions.docComponents,
+                                      [item.key]: { ...compState, edit: e.target.checked }
+                                    }
+                                  })
+                                }
+                                className="w-4 h-4 text-blue-600 rounded-xs border-slate-300 focus:ring-slate-900"
+                              />
+                              <span>Editar</span>
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

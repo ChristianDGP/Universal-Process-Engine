@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ProcessDefinition, ProcessInstance, SimulationLogEntry, KPIDefinition } from "../types";
+import { ensureProcessSubprocessKpis } from "../lib/processTemplateGenerator";
 import {
   Play, PlayCircle, RotateCcw, Plus, AlertCircle, ShieldAlert, CheckCircle2,
   RefreshCw, BarChart2, ListTodo, UserCheck, Sliders, Filter, Activity, Clock,
@@ -27,7 +28,8 @@ interface SimulationScenario {
   iterations: number;
 }
 
-export default function ProcessSimulator({ process, onProcessChange }: ProcessSimulatorProps) {
+export default function ProcessSimulator({ process: rawProcess, onProcessChange }: ProcessSimulatorProps) {
+  const process = React.useMemo(() => ensureProcessSubprocessKpis(rawProcess), [rawProcess]);
   const [instances, setInstances] = useState<ProcessInstance[]>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [operatorName, setOperatorName] = useState("Ing. Carlos Soto");

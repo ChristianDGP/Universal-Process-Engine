@@ -10,12 +10,14 @@ export interface SavedProcessEntry {
 }
 
 export interface UserPermissions {
-  docAccess: boolean; // 1. Documentación (Manual TO-BE)
+  taxonomyFilters: { view: boolean; edit: boolean }; // Filtros de Estructura Taxonómica (Proceso Activo)
+  docAccess: boolean; // 1. Documentación
   docComponents: {
-    viewer: boolean;
-    library: boolean;
-    metadata: boolean;
-    export: boolean;
+    generalInfo: { view: boolean; edit: boolean };   // 1. Información General del Proceso
+    fce: { view: boolean; edit: boolean };           // Ficha FCE / Caracterización
+    tobeDiagram: { view: boolean; edit: boolean };   // Diagrama de Flujo (BPMN 2.0 / Subprocesos)
+    riskMatrix: { view: boolean; edit: boolean };    // Matriz de Riesgos & Controles
+    additionalDocs: { view: boolean; edit: boolean };// Glosario, SIPOC, Indicadores y Roles
   };
   simAccess: boolean; // 2. Simulador & KPIs Dashboard
   simComponents: {
@@ -27,12 +29,14 @@ export interface UserPermissions {
 }
 
 export const DEFAULT_ANALYST_PERMISSIONS: UserPermissions = {
+  taxonomyFilters: { view: true, edit: true },
   docAccess: true,
   docComponents: {
-    viewer: true,
-    library: true,
-    metadata: true,
-    export: true,
+    generalInfo: { view: true, edit: true },
+    fce: { view: true, edit: true },
+    tobeDiagram: { view: true, edit: true },
+    riskMatrix: { view: true, edit: true },
+    additionalDocs: { view: true, edit: true },
   },
   simAccess: true,
   simComponents: {
@@ -44,12 +48,14 @@ export const DEFAULT_ANALYST_PERMISSIONS: UserPermissions = {
 };
 
 export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
+  taxonomyFilters: { view: true, edit: true },
   docAccess: true,
   docComponents: {
-    viewer: true,
-    library: true,
-    metadata: true,
-    export: true,
+    generalInfo: { view: true, edit: true },
+    fce: { view: true, edit: true },
+    tobeDiagram: { view: true, edit: true },
+    riskMatrix: { view: true, edit: true },
+    additionalDocs: { view: true, edit: true },
   },
   simAccess: true,
   simComponents: {

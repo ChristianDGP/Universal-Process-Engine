@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { ProcessDefinition, SubprocessDefinition, ActivityFicha, BpmnGateway, BpmnStartEvent, StateTransition, KPIDefinition } from "../types";
 import { UserRole } from "../firebase";
+import { UserPermissions } from "../firebaseSync";
+import { ensureProcessSubprocessKpis } from "../lib/processTemplateGenerator";
 import {
   FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
@@ -12,6 +14,7 @@ interface FrameworkDocViewerProps {
   process: ProcessDefinition;
   onProcessChange?: (updated: ProcessDefinition) => void;
   userRole?: UserRole;
+  permissions?: UserPermissions;
 }
 
 const FORBIDDEN_SOFTWARE_TERMS = [
@@ -151,8 +154,22 @@ export function getSubprocessesForStartEvent(
   return subs.slice(startSubIdx, endSubIdx);
 }
 
-export default function FrameworkDocViewer({ process, onProcessChange, userRole = "admin" }: FrameworkDocViewerProps) {
+export default function FrameworkDocViewer({ process: rawProcess, onProcessChange, userRole = "admin", permissions }: FrameworkDocViewerProps) {
+  const process = React.useMemo(() => ensureProcessSubprocessKpis(rawProcess), [rawProcess]);
   const isAdmin = userRole === "admin";
+
+  if (permissions && permissions.docAccess === false) {
+    return (
+      <div className="bg-rose-50 border border-rose-200 p-8 text-center space-y-3">
+        <ShieldAlert className="w-10 h-10 text-rose-600 mx-auto" />
+        <h3 className="text-base font-black text-rose-950 uppercase tracking-tight">Acceso Restringido a Documentación</h3>
+        <p className="text-xs text-rose-800 max-w-md mx-auto leading-relaxed">
+          El administrador del sistema ha deshabilitado el acceso al módulo de Documentación para su cuenta.
+        </p>
+      </div>
+    );
+  }
+
   const [activeTab, setActiveTab] = useState<"fce" | "tobe">("tobe");
 
   // Section 4 Collapse / Expand State

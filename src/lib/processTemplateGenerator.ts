@@ -313,3 +313,61 @@ export function generateFallbackProcess(processName: string, descriptionContext:
     }
   };
 }
+
+export function ensureProcessSubprocessKpis(process: ProcessDefinition): ProcessDefinition {
+  if (!process.subprocesses || process.subprocesses.length === 0) return process;
+
+  let kpis = [...(process.kpis || [])];
+
+  process.subprocesses.forEach((sub, sIdx) => {
+    const matchingKpi = kpis.find(k => k.id.includes(sub.index) || k.description.toLowerCase().includes(sub.name.toLowerCase()) || k.name.toLowerCase().includes(sub.name.toLowerCase()));
+
+    if (!matchingKpi) {
+      const firstAct = sub.activities[0];
+      const lastAct = sub.activities[sub.activities.length - 1];
+      const tech = firstAct?.supportTech || "Plataforma Core Institucional";
+      const inputData = firstAct?.infoInputs || sub.sipoc?.[0]?.inputs || "Insumos de Entrada";
+      const resultData = lastAct?.result || sub.sipoc?.[0]?.outputs || "Entregable Conforme";
+      const rules = firstAct?.rules || "Normativa Estándar";
+      const role = sub.responsibleRole || firstAct?.responsibleRole || process.responsibleRole || "Rol Operativo";
+      const actCount = sub.activities.length;
+
+      // Select purpose prefix to avoid sub-process index naming
+      const prefixes = [
+        "Cumplimiento de",
+        "Tasa de efectividad en",
+        "Eficiencia de",
+        "Oportunidad en",
+        "Precisión de"
+      ];
+      const selectedPrefix = prefixes[sIdx % prefixes.length];
+      const kpiName = `${selectedPrefix} ${sub.name}`;
+
+      // Generate a clean slug from the purpose name to avoid sub-process indices like "KPI-4_1"
+      const cleanSlug = kpiName
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/[^a-z0-9]/g, "_")      // replace non-alphanumeric with underscore
+        .replace(/_+/g, "_")             // collapse multiple underscores
+        .trim()
+        .replace(/^_+|_+$/g, "")         // trim leading/trailing underscores
+        .substring(0, 40);               // limit length
+
+      const kpiId = `kpi_${cleanSlug}`;
+
+      kpis.push({
+        id: kpiId,
+        name: kpiName,
+        description: `Mide el rendimiento, cumplimiento de SLA y conformidad de ${sub.name} considerando sus ${actCount} actividades, ejecutadas por ${role}.`,
+        formula: `${kpiId.toUpperCase()} = ( ActividadesConformes / ${actCount} ) * ( 1 - TasaIncidencias ) [Soporte: ${tech} | Insumos: ${inputData} | Resultado: ${resultData} | Reglas: ${rules}]`,
+        periodicity: sIdx % 2 === 0 ? "Monthly" : "Daily",
+        targetRange: ">= 95.0%",
+        otherRanges: "< 90.0%"
+      });
+    }
+  });
+
+  return { ...process, kpis };
+}
+
