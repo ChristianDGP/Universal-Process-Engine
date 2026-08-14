@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { ProcessDefinition, ProcessInstance, SimulationLogEntry, KPIDefinition } from "../types";
 import { ensureProcessSubprocessKpis } from "../lib/processTemplateGenerator";
 import FlowSimulationEngine from "./FlowSimulationEngine";
+import FormulaEditor, { FormulaVisualizer } from "./FormulaEditor";
 import {
   Play, PlayCircle, RotateCcw, Plus, AlertCircle, ShieldAlert, CheckCircle2,
   RefreshCw, BarChart2, ListTodo, UserCheck, Sliders, Filter, Activity, Clock,
   Target, Layers, Zap, TrendingUp, Cpu, PieChart as PieIcon, Settings2, ArrowRight, X, Edit3, Trash2,
-  BookOpen, Info, HelpCircle
+  BookOpen, Info, HelpCircle, Calculator, Code
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -16,6 +17,7 @@ import {
 interface ProcessSimulatorProps {
   process: ProcessDefinition;
   onProcessChange?: (updated: ProcessDefinition) => void;
+  viewMode?: "all" | "kpis" | "simulator";
 }
 
 interface SimulationScenario {
@@ -30,7 +32,7 @@ interface SimulationScenario {
   iterations: number;
 }
 
-export default function ProcessSimulator({ process: rawProcess, onProcessChange }: ProcessSimulatorProps) {
+export default function ProcessSimulator({ process: rawProcess, onProcessChange, viewMode = "all" }: ProcessSimulatorProps) {
   const process = React.useMemo(() => ensureProcessSubprocessKpis(rawProcess), [rawProcess]);
   const [instances, setInstances] = useState<ProcessInstance[]>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
   const [variables, setVariables] = useState<Record<string, string | number | boolean>>({});
   const [kpiMetrics, setKpiMetrics] = useState<Record<string, { value: number; status: string }>>({});
 
-  // 2.1 Simulador Parameters & Scenarios State
+  // 3.1 Simulador Parameters & Scenarios State
   const [simMode, setSimMode] = useState<"deterministic" | "stochastic">("stochastic");
   const [distributionType, setDistributionType] = useState<"normal" | "poisson" | "exponential" | "weibull" | "bernoulli" | "mixed">("normal");
   const [meanTimeHours, setMeanTimeHours] = useState<number>(3.5);
@@ -52,6 +54,7 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
 
   // KPI CRUD State
   const [showKpiModal, setShowKpiModal] = useState<boolean>(false);
+  const [showFormulaEditorModal, setShowFormulaEditorModal] = useState<boolean>(false);
   const [editingKpi, setEditingKpi] = useState<KPIDefinition | null>(null);
   const [kpiForm, setKpiForm] = useState<KPIDefinition>({
     id: `KPI-${String((process.kpis?.length || 0) + 1).padStart(2, '0')}`,
@@ -484,17 +487,25 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
       <div className="bg-white border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-50 border-b border-slate-200 flex justify-between items-center px-6 py-4 flex-wrap gap-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-950 tracking-tight">2. Simulador & KPIs Dashboard</h3>
-            <p className="text-xs text-slate-500">Monitoreo y modelado estocástico de procesos</p>
+            <h3 className="text-lg font-bold text-slate-950 tracking-tight">
+              {viewMode === "kpis" ? "2. KPIs Dashboard" : viewMode === "simulator" ? "3. Simulador" : "2. KPIs Dashboard & 3. Simulador"}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {viewMode === "kpis" ? "Tablero estructurado de indicadores clave de rendimiento" : viewMode === "simulator" ? "Monitoreo y modelado estocástico de procesos" : "Monitoreo y modelado estocástico de procesos"}
+            </p>
           </div>
         </div>
         <div className="p-16 text-center">
           <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
-            <PlayCircle className="w-6 h-6" />
+            {viewMode === "kpis" ? <BarChart2 className="w-6 h-6" /> : <PlayCircle className="w-6 h-6" />}
           </div>
           <h4 className="text-base font-bold text-slate-950 tracking-tight">Ningún proceso seleccionado</h4>
           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-            Por favor seleccione un proceso existente en la librería o genere un nuevo modelo TO-BE en el selector superior para iniciar la simulación y el tablero de KPIs.
+            {viewMode === "kpis"
+              ? "Por favor seleccione un proceso existente en la librería o genere un nuevo modelo TO-BE en el selector superior para desplegar el tablero de KPIs."
+              : viewMode === "simulator"
+              ? "Por favor seleccione un proceso existente en la librería o genere un nuevo modelo TO-BE en el selector superior para iniciar la simulación."
+              : "Por favor seleccione un proceso existente en la librería o genere un nuevo modelo TO-BE en el selector superior para iniciar la simulación y el tablero de KPIs."}
           </p>
         </div>
       </div>
@@ -509,15 +520,16 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
   return (
     <div className="space-y-10">
       {/* =========================================================================
-          MODULE 2.1: SIMULADOR AVANZADO (DETERMINÍSTICO / ESTOCÁSTICO / MONTE CARLO)
+          MODULE 3.1: SIMULADOR AVANZADO (DETERMINÍSTICO / ESTOCÁSTICO / MONTE CARLO)
          ========================================================================= */}
+      {(viewMode === "simulator" || viewMode === "all") && (
       <section className="bg-white border border-slate-200 shadow-sm p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
               <Zap className="w-6 h-6 text-amber-600" />
               <h3 className="text-lg font-black text-slate-950 tracking-tight uppercase">
-                2.1 Módulo de Simulación Avanzada
+                3.1 Módulo de Simulación Avanzada
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -1022,18 +1034,19 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
           </ul>
         </div>
       </section>
-
+      )}
 
       {/* =========================================================================
-          MODULE 2.2: KPIS DASHBOARD & INDICATOR CARDS (FICHAS DE INDICADORES)
+          MODULE 2.1: KPIS DASHBOARD & INDICATOR CARDS (FICHAS DE INDICADORES)
          ========================================================================= */}
+      {(viewMode === "kpis" || viewMode === "all") && (
       <section className="bg-white border border-slate-200 shadow-sm p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
               <BarChart2 className="w-6 h-6 text-slate-950" />
               <h3 className="text-lg font-black text-slate-950 tracking-tight uppercase">
-                2.2 KPIs Dashboard
+                2.1 KPIs Dashboard
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -1060,94 +1073,31 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
           </div>
         </div>
 
-        {/* Dynamic Parameter Controls Panel */}
-        <div className="bg-slate-50 border border-slate-200 p-4 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-slate-600" />
-              Filtros & Controles del Tablero de KPIs
-            </h4>
-            <span className="text-[10px] text-slate-400 font-mono font-semibold">
-              Ajuste la sensibilidad para recalcular el cumplimiento de metas
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <Filter className="w-3 h-3 text-slate-500" />
-                Filtro de Periodicidad
-              </label>
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="w-full bg-white border border-slate-300 p-2 text-xs text-slate-900 font-medium focus:ring-1 focus:ring-slate-950 focus:outline-none cursor-pointer"
-              >
-                <option value="ALL">Todos los Períodos ({process.kpis.length})</option>
-                <option value="Daily">Diario (Daily)</option>
-                <option value="Weekly">Semanal (Weekly)</option>
-                <option value="Monthly">Mensual (Monthly)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-slate-500" />
-                SLA Tolerancia Tiempo (Horas)
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0.5"
-                max="72"
-                value={targetSlaToleranceHours}
-                onChange={(e) => setTargetSlaToleranceHours(parseFloat(e.target.value) || 4)}
-                className="w-full bg-white border border-slate-300 p-2 text-xs text-slate-900 font-bold focus:ring-1 focus:ring-slate-950 focus:outline-none font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5 text-slate-500" />
-                Tasa Tolerancia Desviación (%)
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0"
-                max="100"
-                value={customErrorRate}
-                onChange={(e) => setCustomErrorRate(parseFloat(e.target.value) || 2.5)}
-                className="w-full bg-white border border-slate-300 p-2 text-xs text-slate-900 font-bold focus:ring-1 focus:ring-slate-950 focus:outline-none font-mono"
-              />
-            </div>
-          </div>
-        </div>
-
         {/* Primary KPI Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredKpis.length > 0 ? (
-            filteredKpis.map((kpi) => {
+          {(process.kpis || []).length > 0 ? (
+            (process.kpis || []).map((kpi) => {
               const metric = kpiMetrics[kpi.id] || { value: 0, status: "ALERTA" };
               const isTimeKpi = kpi.id.includes("time") || kpi.id.includes("ciclo") || kpi.id.includes("rec");
 
               return (
-                <div key={kpi.id} className="border border-slate-200 p-5 space-y-4 bg-slate-50/40 hover:border-slate-300 transition-colors relative flex flex-col justify-between">
-                  <div className="space-y-2">
+                <div key={kpi.id} className="border border-slate-200 bg-white p-5 space-y-4 hover:border-slate-300 transition-all shadow-2xs relative flex flex-col justify-between">
+                  {/* Card Header: Code, Period, Status & Title */}
+                  <div className="space-y-2.5">
                     <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-950 leading-snug">{kpi.name}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] font-mono font-bold bg-slate-200/80 text-slate-700 px-1.5 py-0.5">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-mono font-bold bg-slate-900 text-white px-2 py-0.5 uppercase tracking-wider">
                             {kpi.id}
                           </span>
-                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                            Período: {kpi.periodicity}
+                          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 border border-slate-200 px-2 py-0.5">
+                            {kpi.periodicity}
                           </span>
                         </div>
+                        <h4 className="font-bold text-sm text-slate-950 leading-snug pt-0.5">{kpi.name}</h4>
                       </div>
                       <span
-                        className={`px-2.5 py-1 text-[10px] font-black tracking-wider uppercase ${
+                        className={`px-2.5 py-1 text-[10px] font-black tracking-wider uppercase shrink-0 ${
                           metric.status === "SATISFACTORIO"
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                             : metric.status === "INSATISFACTORIO"
@@ -1159,90 +1109,104 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                      {kpi.description}
-                    </p>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 p-4 space-y-3">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-3xl font-black text-slate-950 tracking-tight font-mono">
-                        {metric.value}
-                      </span>
-                      <span className="text-xs font-bold text-slate-500">
-                        {isTimeKpi ? "Horas / Promedio" : "% Cumplimiento"}
-                      </span>
-                    </div>
-
-                    <div className="w-full bg-slate-100 h-2 overflow-hidden rounded-full">
-                      <div
-                        className={`h-full transition-all duration-500 ${
-                          metric.status === "SATISFACTORIO"
-                            ? "bg-emerald-500"
-                            : metric.status === "INSATISFACTORIO"
-                            ? "bg-rose-500"
-                            : "bg-amber-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(100, isTimeKpi ? (metric.value / (targetSlaToleranceHours * 2)) * 100 : metric.value)}%`
-                        }}
-                      ></div>
-                    </div>
-
-                    <div className="flex justify-between text-[11px] text-slate-600 pt-1 font-medium">
-                      <span>Meta: <strong className="text-emerald-700 font-bold">{kpi.targetRange}</strong></span>
-                      <span>Crítico: <strong className="text-rose-600 font-bold">{kpi.otherRanges}</strong></span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono bg-slate-100/80 p-2 border border-slate-200/75">
-                    <span className="truncate max-w-[160px]">
-                      <strong className="text-slate-700 font-sans mr-1">Fórmula:</strong>
-                      {kpi.formula}
-                    </span>
-                    {onProcessChange && (
-                      <div className="flex items-center gap-1 shrink-0 ml-1">
-                        <button
-                          onClick={() => handleOpenEditKpi(kpi)}
-                          className="px-1.5 py-0.5 bg-white hover:bg-slate-200 text-slate-700 font-bold border border-slate-300 flex items-center gap-0.5 cursor-pointer"
-                          title="Editar Indicador"
-                        >
-                          <Edit3 className="w-3 h-3 text-blue-600" />
-                          <span>Editar</span>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteKpi(kpi.id)}
-                          className="px-1.5 py-0.5 bg-white hover:bg-rose-50 text-rose-700 font-bold border border-rose-200 flex items-center gap-0.5 cursor-pointer"
-                          title="Eliminar Indicador"
-                        >
-                          <Trash2 className="w-3 h-3 text-rose-600" />
-                          <span>Eliminar</span>
-                        </button>
-                      </div>
+                    {kpi.description && (
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {kpi.description}
+                      </p>
                     )}
                   </div>
+
+                  {/* FORMULA DISPLAY BOX - MATCHING CLEAN LIGHT CARD AESTHETIC */}
+                  <div className="bg-slate-50 border border-slate-200/90 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                        <Calculator className="w-3.5 h-3.5 text-slate-700" />
+                        Fórmula de Cálculo
+                      </span>
+                      {onProcessChange && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingKpi(kpi);
+                            setKpiForm({ ...kpi });
+                            setShowFormulaEditorModal(true);
+                          }}
+                          className="text-[10px] font-mono font-bold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-100 border border-slate-200 px-1.5 py-0.5 flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Abrir Editor de Fórmulas Matemáticas"
+                        >
+                          <Sliders className="w-2.5 h-2.5 text-slate-600" />
+                          Editor de Fórmulas
+                        </button>
+                      )}
+                    </div>
+                    <FormulaVisualizer formula={kpi.formula} />
+                  </div>
+
+                  {/* TARGET RANGES & CURRENT VALUE */}
+                  <div className="bg-slate-50 border border-slate-200 p-3 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2 text-xs divide-x divide-slate-200">
+                      <div className="pr-2">
+                        <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Meta (Objetivo)</span>
+                        <span className="font-mono font-bold text-emerald-700 text-sm">{kpi.targetRange}</span>
+                      </div>
+                      <div className="pl-3">
+                        <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Rango Crítico</span>
+                        <span className="font-mono font-bold text-rose-600 text-sm">{kpi.otherRanges}</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-200/80 pt-2 flex items-center justify-between text-xs">
+                      <span className="text-[11px] font-semibold text-slate-600">Valor Simulado / Actual:</span>
+                      <span className="font-mono font-black text-slate-950 text-sm">
+                        {metric.value} {isTimeKpi ? "hrs" : "%"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ACTION BUTTONS FOOTER */}
+                  {onProcessChange && (
+                    <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-100">
+                      <button
+                        onClick={() => handleOpenEditKpi(kpi)}
+                        className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Editar Indicador"
+                      >
+                        <Edit3 className="w-3 h-3 text-blue-600" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteKpi(kpi.id)}
+                        className="px-2.5 py-1 bg-white hover:bg-rose-50 text-rose-700 font-bold text-[11px] border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Eliminar Indicador"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-600" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })
           ) : (
             <div className="col-span-full border border-dashed border-slate-200 p-8 text-center text-slate-500 text-xs">
-              No hay indicadores definidos para el período seleccionado. Selecciona "Todos los Períodos".
+              No hay indicadores definidos para este proceso. Haz clic en "Agregar Indicador" para registrar uno.
             </div>
           )}
         </div>
       </section>
-
+      )}
 
       {/* =========================================================================
-          MODULE 2.3: SIMULADOR INTERACTIVO DE PROCESOS (PRUEBAS OPERATIVAS)
+          MODULE 3.2: SIMULADOR INTERACTIVO DE PROCESOS (PRUEBAS OPERATIVAS)
          ========================================================================= */}
+      {(viewMode === "simulator" || viewMode === "all") && (
       <section className="bg-white border border-slate-200 shadow-sm p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
               <Activity className="w-5 h-5 text-slate-800" />
               <h3 className="text-base font-bold text-slate-950 tracking-tight uppercase">
-                Simulador Operativo de Instancias & Transiciones
+                3.2 Simulador Operativo de Instancias & Transiciones
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -1452,6 +1416,7 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
           </div>
         )}
       </section>
+      )}
 
       {/* KPI ADD/EDIT MODAL */}
       {showKpiModal && (
@@ -1521,16 +1486,30 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Fórmula Matemática</label>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700">Fórmula Matemática</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowFormulaEditorModal(true)}
+                    className="text-xs font-bold text-slate-900 hover:text-blue-700 flex items-center gap-1 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-0.5 border border-slate-300 transition-colors"
+                  >
+                    <Calculator className="w-3.5 h-3.5 text-slate-800" />
+                    <span>Abrir Editor de Fórmulas</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
-                  placeholder="Ej. (OnTime / Total) * 100"
+                  placeholder="Ej. ([Casos a Tiempo] / [Casos Totales]) * 100"
                   value={kpiForm.formula}
                   onChange={(e) => setKpiForm({ ...kpiForm, formula: e.target.value })}
                   className="w-full border border-slate-300 p-2 text-xs font-mono focus:ring-1 focus:ring-slate-950 focus:outline-none"
                 />
+                <div className="pt-1">
+                  <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Vista Previa Renderizada:</span>
+                  <FormulaVisualizer formula={kpiForm.formula} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1574,6 +1553,28 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* FORMULA EDITOR MODAL OVERLAY */}
+      {showFormulaEditorModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-slate-300 shadow-2xl max-w-3xl w-full max-h-[92vh] overflow-y-auto">
+            <FormulaEditor
+              initialFormula={kpiForm.formula || (editingKpi?.formula || "")}
+              onCancel={() => setShowFormulaEditorModal(false)}
+              onSave={(updatedFormula) => {
+                setKpiForm((prev) => ({ ...prev, formula: updatedFormula }));
+                if (editingKpi && onProcessChange) {
+                  const updatedKpis = (process.kpis || []).map((k) =>
+                    k.id === editingKpi.id ? { ...k, formula: updatedFormula } : k
+                  );
+                  onProcessChange({ ...process, kpis: updatedKpis });
+                }
+                setShowFormulaEditorModal(false);
+              }}
+            />
           </div>
         </div>
       )}

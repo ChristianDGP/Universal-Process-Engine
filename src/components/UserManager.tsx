@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Users, ShieldCheck, User as UserIcon, Search, UserPlus, Lock, CheckCircle2,
-  AlertCircle, Loader2, X, RefreshCw, Filter, ShieldAlert, Sliders, FileText, PlayCircle, Check
+  AlertCircle, Loader2, X, RefreshCw, Filter, ShieldAlert, Sliders, FileText, PlayCircle, BarChart2, Check
 } from "lucide-react";
 import { UserRole } from "../firebase";
 import {
@@ -670,14 +670,38 @@ export default function UserManager({
                 </div>
               </div>
 
-              {/* Module 2: Simulador & KPIs Dashboard */}
+              {/* Module 2: KPIs Dashboard */}
+              <div className="border border-slate-200 rounded-xs overflow-hidden">
+                <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <BarChart2 className="w-4 h-4 text-slate-900" />
+                    <div>
+                      <span className="font-bold text-slate-900 text-sm">2. KPIs Dashboard</span>
+                      <p className="text-[11px] text-slate-500 font-normal">Acceso al tablero estructurado de indicadores clave de rendimiento (KPIs) y fichas de control.</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editPermissions.kpiAccess ?? true}
+                      onChange={(e) =>
+                        setEditPermissions({ ...editPermissions, kpiAccess: e.target.checked })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-900"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Module 3: Simulador */}
               <div className="border border-slate-200 rounded-xs overflow-hidden">
                 <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <PlayCircle className="w-4 h-4 text-amber-600" />
                     <div>
-                      <span className="font-bold text-slate-900 text-sm">2. Simulador & KPIs Dashboard</span>
-                      <p className="text-[11px] text-slate-500 font-normal">Acceso a simulaciones estocásticas Monte Carlo y analítica de rendimiento.</p>
+                      <span className="font-bold text-slate-900 text-sm">3. Simulador</span>
+                      <p className="text-[11px] text-slate-500 font-normal">Acceso a simulación avanzada Monte Carlo, análisis estocástico y pruebas de instancias.</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -694,7 +718,7 @@ export default function UserManager({
                 </div>
 
                 <div className={`p-4 space-y-3 bg-white ${!editPermissions.simAccess ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Componentes de Simulador & KPIs:</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Componentes del Simulador:</p>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <label className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 cursor-pointer">

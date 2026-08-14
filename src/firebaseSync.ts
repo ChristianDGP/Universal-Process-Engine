@@ -20,7 +20,8 @@ export interface UserPermissions {
     additionalDocs: { view: boolean; edit: boolean };// Glosario, SIPOC, Indicadores y Roles
     procedureModel: { view: boolean; edit: boolean };// 4. Descripción del Procedimiento Modelo de Nivel Operativo
   };
-  simAccess: boolean; // 2. Simulador & KPIs Dashboard
+  kpiAccess: boolean; // 2. KPIs Dashboard
+  simAccess: boolean; // 3. Simulador
   simComponents: {
     monteCarlo: boolean;
     kpisDashboard: boolean;
@@ -40,6 +41,7 @@ export const DEFAULT_ANALYST_PERMISSIONS: UserPermissions = {
     additionalDocs: { view: false, edit: false },
     procedureModel: { view: false, edit: false },
   },
+  kpiAccess: false,
   simAccess: false,
   simComponents: {
     monteCarlo: false,
@@ -60,6 +62,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
     additionalDocs: { view: true, edit: true },
     procedureModel: { view: true, edit: true },
   },
+  kpiAccess: true,
   simAccess: true,
   simComponents: {
     monteCarlo: true,

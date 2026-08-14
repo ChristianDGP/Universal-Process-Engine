@@ -9,7 +9,7 @@ import { autoSaveProcessToCloud, syncUserProfile, subscribeToUserProfile, UserPr
 import { auth, getUserRole, loginWithGoogle, logout, UserRole, AppUser, getStoredSessionUser, setStoredSessionUser } from "./firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import {
-  FileText, PlayCircle, Settings, ShieldAlert, Cloud, Loader2, CheckCircle2, AlertCircle,
+  FileText, PlayCircle, BarChart2, Settings, ShieldAlert, Cloud, Loader2, CheckCircle2, AlertCircle,
   LogOut, ShieldCheck, User as UserIcon, Lock, Key, ArrowRight, Library, Sparkles, Check,
   AlertTriangle, Mail, Users
 } from "lucide-react";
@@ -22,7 +22,7 @@ export default function App() {
   const [showUserManager, setShowUserManager] = useState(false);
 
   const [currentProcess, setCurrentProcess] = useState<ProcessDefinition>(BLANK_PROCESS_PRESET);
-  const [activeView, setActiveView] = useState<"doc" | "simulator">("doc");
+  const [activeView, setActiveView] = useState<"doc" | "kpis" | "simulator">("doc");
   const [apiHealth, setApiHealth] = useState({ healthy: false, loading: true });
   const [autoSyncState, setAutoSyncState] = useState<{
     status: "idle" | "saving" | "synced" | "error";
@@ -112,15 +112,21 @@ export default function App() {
 
   const permissions = userProfile?.permissions || (isAdmin ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_ANALYST_PERMISSIONS);
   const canAccessDoc = isAdmin || permissions.docAccess !== false;
+  const canAccessKpis = isAdmin || permissions.kpiAccess !== false || permissions.simAccess !== false;
   const canAccessSim = isAdmin || permissions.simAccess !== false;
 
   useEffect(() => {
-    if (!canAccessDoc && activeView === "doc" && canAccessSim) {
-      setActiveView("simulator");
-    } else if (!canAccessSim && activeView === "simulator" && canAccessDoc) {
-      setActiveView("doc");
+    if (activeView === "doc" && !canAccessDoc) {
+      if (canAccessKpis) setActiveView("kpis");
+      else if (canAccessSim) setActiveView("simulator");
+    } else if (activeView === "kpis" && !canAccessKpis) {
+      if (canAccessDoc) setActiveView("doc");
+      else if (canAccessSim) setActiveView("simulator");
+    } else if (activeView === "simulator" && !canAccessSim) {
+      if (canAccessDoc) setActiveView("doc");
+      else if (canAccessKpis) setActiveView("kpis");
     }
-  }, [canAccessDoc, canAccessSim, activeView]);
+  }, [canAccessDoc, canAccessKpis, canAccessSim, activeView]);
 
   // AUTOMATIC SYNC TO FIREBASE FIRESTORE ON PROCESS CHANGE (ADMIN ONLY)
   useEffect(() => {
@@ -382,7 +388,7 @@ export default function App() {
         />
 
         {/* WORKSPACE NAVIGATION TABS */}
-        {!canAccessDoc && !canAccessSim ? (
+        {!canAccessDoc && !canAccessKpis && !canAccessSim ? (
           <div className="bg-rose-50 border border-rose-200 p-8 text-center space-y-3">
             <ShieldAlert className="w-10 h-10 text-rose-600 mx-auto" />
             <h3 className="text-base font-black text-rose-950 uppercase tracking-tight">Acceso Restringido</h3>
@@ -406,6 +412,19 @@ export default function App() {
                   1. Documentación
                 </button>
               )}
+              {canAccessKpis && (
+                <button
+                  onClick={() => setActiveView("kpis")}
+                  className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
+                    activeView === "kpis"
+                      ? "border-slate-900 text-slate-900 font-black"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <BarChart2 className="w-4 h-4" />
+                  2. KPIs Dashboard
+                </button>
+              )}
               {canAccessSim && (
                 <button
                   onClick={() => setActiveView("simulator")}
@@ -416,7 +435,7 @@ export default function App() {
                   }`}
                 >
                   <PlayCircle className="w-4 h-4" />
-                  2. Simulador & KPIs Dashboard
+                  3. Simulador
                 </button>
               )}
             </div>
@@ -432,10 +451,19 @@ export default function App() {
                 />
               )}
 
+              {activeView === "kpis" && canAccessKpis && (
+                <ProcessSimulator
+                  process={currentProcess}
+                  onProcessChange={(updated) => setCurrentProcess(updated)}
+                  viewMode="kpis"
+                />
+              )}
+
               {activeView === "simulator" && canAccessSim && (
                 <ProcessSimulator
                   process={currentProcess}
                   onProcessChange={(updated) => setCurrentProcess(updated)}
+                  viewMode="simulator"
                 />
               )}
             </div>

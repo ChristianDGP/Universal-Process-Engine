@@ -44,7 +44,7 @@ export function generateFallbackProcess(processName: string, descriptionContext:
         id: "KPI-01",
         name: `Nivel de Cumplimiento de SLA en ${cleanName}`,
         description: "Mide el porcentaje de solicitudes atendidas dentro de los plazos estipulados.",
-        formula: "(SolicitudesEnSLA / TotalSolicitudes) * 100",
+        formula: "([Número de solicitudes atendidas en SLA] / [Número total de solicitudes recibidas en periodo determinado]) * 100",
         periodicity: "Monthly",
         targetRange: ">= 92%",
         otherRanges: "< 85%"
@@ -53,7 +53,7 @@ export function generateFallbackProcess(processName: string, descriptionContext:
         id: "KPI-02",
         name: "Tasa de Conformidad al Primer Intento (First Time Right)",
         description: "Porcentaje de trámites procesados sin requerir reprocesos ni observaciones.",
-        formula: "(SolicitudesSinReproceso / TotalSolicitudes) * 100",
+        formula: "([Número de solicitudes sin reproceso ni observaciones] / [Número total de solicitudes procesadas en periodo determinado]) * 100",
         periodicity: "Monthly",
         targetRange: ">= 88%",
         otherRanges: "< 80%"
@@ -62,7 +62,7 @@ export function generateFallbackProcess(processName: string, descriptionContext:
         id: "KPI-03",
         name: "Índice de Satisfacción del Usuario / Beneficiario",
         description: "Evaluación promedio del nivel de satisfacción tras la finalización del servicio.",
-        formula: "(PuntajeTotalObtenido / PuntajeMaximoPosible) * 100",
+        formula: "([Puntaje total de satisfacción obtenido] / [Puntaje máximo de evaluación posible]) * 100",
         periodicity: "Quarterly",
         targetRange: ">= 90%",
         otherRanges: "< 75%"
