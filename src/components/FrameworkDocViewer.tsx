@@ -2162,7 +2162,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span className="text-slate-900 font-extrabold text-sm">
-                      Canvas Interactivo BPMN 2.0 (Bizagi Modeler)
+                      Canvas Interactivo
                     </span>
                   </div>
 

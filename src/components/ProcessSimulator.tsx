@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ProcessDefinition, ProcessInstance, SimulationLogEntry, KPIDefinition } from "../types";
 import { ensureProcessSubprocessKpis } from "../lib/processTemplateGenerator";
+import FlowSimulationEngine from "./FlowSimulationEngine";
 import {
   Play, PlayCircle, RotateCcw, Plus, AlertCircle, ShieldAlert, CheckCircle2,
   RefreshCw, BarChart2, ListTodo, UserCheck, Sliders, Filter, Activity, Clock,
@@ -915,6 +916,21 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
             </div>
             <span className="text-[10px] text-amber-700 font-semibold">Cuello de botella</span>
           </div>
+        </div>
+
+        {/* SIMULACIÓN Y MODELADO DE COMPORTAMIENTO SOBRE EL FLUJO DESCRIPTIVO */}
+        <div className="pt-2 border-t border-slate-200">
+          <FlowSimulationEngine
+            process={process}
+            simulatedVolume={simulatedVolume}
+            simMode={simMode}
+            distributionType={distributionType}
+            meanTimeHours={meanTimeHours}
+            varianceValue={varianceValue}
+            resourceLimit={resourceLimit}
+            customErrorRate={customErrorRate}
+            targetSlaHours={targetSlaToleranceHours}
+          />
         </div>
 
         {/* Charts Section: Timeline & Probability Distribution */}

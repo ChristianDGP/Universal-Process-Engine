@@ -222,7 +222,7 @@ export default function App() {
               </div>
               <div>
                 <h1 className="text-base font-black text-slate-900 tracking-tight leading-none">UNIVERSAL PROCESS ENGINE</h1>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">BPMN 2.0 TO-BE & FCE Compliance Design System</p>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">Compliance Design System</p>
               </div>
             </div>
             <span className="text-xs text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1 font-mono font-semibold flex items-center gap-1.5 shadow-2xs">
@@ -300,7 +300,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-base font-black text-slate-900 tracking-tight leading-none">UNIVERSAL PROCESS ENGINE</h1>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">BPMN 2.0 TO-BE & FCE Compliance Design System</p>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">Compliance Design System</p>
             </div>
           </div>
 
