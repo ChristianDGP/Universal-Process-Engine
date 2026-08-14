@@ -102,29 +102,36 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
 
   const handleOpenSaveModal = () => {
     setSaveModalProcName(currentProcess.name || "Nuevo Proceso");
-    const match = matchProcessToTaxonomy(currentProcess, taxonomy);
-    if (match.isMatched) {
-      setSaveModalMode("taxonomy");
-      setSaveModalMacro(match.macroproceso);
-      setSaveModalProc(match.proceso);
-      setSaveModalMicro(match.microproceso);
-    } else if (currentProcess.macroproceso || currentProcess.proceso || currentProcess.microproceso) {
-      setSaveModalMode("taxonomy");
-      setSaveModalMacro(currentProcess.macroproceso || "");
-      setSaveModalProc(currentProcess.proceso || "");
-      setSaveModalMicro(currentProcess.microproceso || "");
+    if (!canViewTaxonomy) {
+      setSaveModalMode("others");
+      setSaveModalMacro("");
+      setSaveModalProc("");
+      setSaveModalMicro("");
     } else {
-      const autoMatch = taxonomy.find(t => t.microproceso.toLowerCase().includes((currentProcess.name || "").toLowerCase()));
-      if (autoMatch) {
+      const match = matchProcessToTaxonomy(currentProcess, taxonomy);
+      if (match.isMatched) {
         setSaveModalMode("taxonomy");
-        setSaveModalMacro(autoMatch.macroproceso);
-        setSaveModalProc(autoMatch.proceso);
-        setSaveModalMicro(autoMatch.microproceso);
+        setSaveModalMacro(match.macroproceso);
+        setSaveModalProc(match.proceso);
+        setSaveModalMicro(match.microproceso);
+      } else if (currentProcess.macroproceso || currentProcess.proceso || currentProcess.microproceso) {
+        setSaveModalMode("taxonomy");
+        setSaveModalMacro(currentProcess.macroproceso || "");
+        setSaveModalProc(currentProcess.proceso || "");
+        setSaveModalMicro(currentProcess.microproceso || "");
       } else {
-        setSaveModalMode("others");
-        setSaveModalMacro("");
-        setSaveModalProc("");
-        setSaveModalMicro("");
+        const autoMatch = taxonomy.find(t => t.microproceso.toLowerCase().includes((currentProcess.name || "").toLowerCase()));
+        if (autoMatch) {
+          setSaveModalMode("taxonomy");
+          setSaveModalMacro(autoMatch.macroproceso);
+          setSaveModalProc(autoMatch.proceso);
+          setSaveModalMicro(autoMatch.microproceso);
+        } else {
+          setSaveModalMode("others");
+          setSaveModalMacro("");
+          setSaveModalProc("");
+          setSaveModalMicro("");
+        }
       }
     }
     setShowSaveModal(true);
@@ -1207,139 +1214,141 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
       </div>
 
       {/* Filtros de Clasificación Taxonómica (Macroproceso, Proceso, Microproceso por escritura o selección) */}
-      <div className="bg-slate-50/80 border border-slate-200 p-4 rounded-sm mt-5 space-y-3.5 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
-          <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wider">
-            <FolderTree className="w-4 h-4 text-emerald-700" />
-            <span>Filtros de Estructura Taxonómica (Proceso Activo)</span>
-          </div>
-          {(filterMacro || filterProc || filterMicro) && (
-            <button
-              type="button"
-              onClick={handleClearTaxonomyFilters}
-              className="text-[11px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Limpiar Filtros</span>
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* 1. Macroproceso Filter */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-              1. Seleccionar Macroproceso
-            </label>
-            <select
-              value={filterMacro}
-              onChange={(e) => handleSelectFilterMacro(e.target.value)}
-              className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs cursor-pointer"
-            >
-              <option value="">-- Todos los Macroprocesos --</option>
-              {macroList.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 2. Proceso Filter */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-              2. Seleccionar Proceso
-            </label>
-            <select
-              value={filterProc}
-              onChange={(e) => handleSelectFilterProc(e.target.value)}
-              className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs cursor-pointer"
-            >
-              <option value="">-- Todos los Procesos --</option>
-              {procList.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 3. Microproceso Filter (Escritura o Selección) */}
-          <div className="relative" ref={microComboRef}>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-              3. Microproceso (Escritura / Selección)
-            </label>
-            <div className="relative flex items-center">
-              <input
-                type="text"
-                value={filterMicro}
-                onChange={(e) => {
-                  setFilterMicro(e.target.value);
-                  setIsMicroDropdownOpen(true);
-                }}
-                onFocus={() => setIsMicroDropdownOpen(true)}
-                placeholder="Escriba o seleccione un microproceso..."
-                className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs pl-2.5 pr-8 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs"
-              />
+      {canViewTaxonomy && (
+        <div className="bg-slate-50/80 border border-slate-200 p-4 rounded-sm mt-5 space-y-3.5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+            <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wider">
+              <FolderTree className="w-4 h-4 text-emerald-700" />
+              <span>Filtros de Estructura Taxonómica (Proceso Activo)</span>
+            </div>
+            {(filterMacro || filterProc || filterMicro) && (
               <button
                 type="button"
-                onClick={() => setIsMicroDropdownOpen(!isMicroDropdownOpen)}
-                className="absolute right-2 text-slate-500 hover:text-slate-900 p-1 cursor-pointer"
-                title="Desplegar lista de microprocesos"
+                onClick={handleClearTaxonomyFilters}
+                className="text-[11px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <ChevronDown className={`w-3.5 h-3.5 transform transition-transform ${isMicroDropdownOpen ? "rotate-180" : ""}`} />
+                <RotateCcw className="w-3 h-3" />
+                <span>Limpiar Filtros</span>
               </button>
-            </div>
-
-            {/* Floating Dropdown for Microprocesos */}
-            {isMicroDropdownOpen && (
-              <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-300 shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 rounded text-xs font-sans">
-                {microListFiltered.length === 0 ? (
-                  <div className="p-3 text-center text-slate-500 font-medium text-[11px]">
-                    No se encontraron microprocesos en el filtro. Puede usar la palabra escrita como microproceso personalizado.
-                  </div>
-                ) : (
-                  microListFiltered.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleSelectMicroItem(item)}
-                      className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors flex flex-col gap-0.5 cursor-pointer ${
-                        filterMicro === item.microproceso ? "bg-slate-900 text-white" : "hover:bg-slate-100 text-slate-800"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span>{item.microproceso}</span>
-                        {filterMicro === item.microproceso && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                      </div>
-                      <span className={`text-[10px] font-mono opacity-75 ${filterMicro === item.microproceso ? "text-slate-300" : "text-slate-500"}`}>
-                        {item.macroproceso} &gt; {item.proceso}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
             )}
           </div>
-        </div>
 
-        {/* Association Actions & Status Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-[11px]">
-          <div className="flex items-center gap-1.5 text-slate-600">
-            <Tag className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-            <span>Clasificación asignada:</span>
-            <strong className="text-slate-900 font-mono">
-              {filterMacro || "Sin especificar"} &gt; {filterProc || "Sin especificar"} &gt; {filterMicro || "Sin especificar"}
-            </strong>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* 1. Macroproceso Filter */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                1. Seleccionar Macroproceso
+              </label>
+              <select
+                value={filterMacro}
+                onChange={(e) => handleSelectFilterMacro(e.target.value)}
+                className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs cursor-pointer"
+              >
+                <option value="">-- Todos los Macroprocesos --</option>
+                {macroList.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Proceso Filter */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                2. Seleccionar Proceso
+              </label>
+              <select
+                value={filterProc}
+                onChange={(e) => handleSelectFilterProc(e.target.value)}
+                className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs cursor-pointer"
+              >
+                <option value="">-- Todos los Procesos --</option>
+                {procList.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 3. Microproceso Filter (Escritura o Selección) */}
+            <div className="relative" ref={microComboRef}>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                3. Microproceso (Escritura / Selección)
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={filterMicro}
+                  onChange={(e) => {
+                    setFilterMicro(e.target.value);
+                    setIsMicroDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsMicroDropdownOpen(true)}
+                  placeholder="Escriba o seleccione un microproceso..."
+                  className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs pl-2.5 pr-8 py-2 rounded focus:outline-none focus:border-slate-900 shadow-2xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsMicroDropdownOpen(!isMicroDropdownOpen)}
+                  className="absolute right-2 text-slate-500 hover:text-slate-900 p-1 cursor-pointer"
+                  title="Desplegar lista de microprocesos"
+                >
+                  <ChevronDown className={`w-3.5 h-3.5 transform transition-transform ${isMicroDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+
+              {/* Floating Dropdown for Microprocesos */}
+              {isMicroDropdownOpen && (
+                <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-300 shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 rounded text-xs font-sans">
+                  {microListFiltered.length === 0 ? (
+                    <div className="p-3 text-center text-slate-500 font-medium text-[11px]">
+                      No se encontraron microprocesos en el filtro. Puede usar la palabra escrita como microproceso personalizado.
+                    </div>
+                  ) : (
+                    microListFiltered.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectMicroItem(item)}
+                        className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors flex flex-col gap-0.5 cursor-pointer ${
+                          filterMicro === item.microproceso ? "bg-slate-900 text-white" : "hover:bg-slate-100 text-slate-800"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>{item.microproceso}</span>
+                          {filterMicro === item.microproceso && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                        </div>
+                        <span className={`text-[10px] font-mono opacity-75 ${filterMicro === item.microproceso ? "text-slate-300" : "text-slate-500"}`}>
+                          {item.macroproceso} &gt; {item.proceso}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleApplyToActiveProcess}
-            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
-            title="Asignar esta estructura al Proceso Activo actual"
-          >
-            <Check className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Asignar al Proceso Activo</span>
-          </button>
+          {/* Association Actions & Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-[11px]">
+            <div className="flex items-center gap-1.5 text-slate-600">
+              <Tag className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <span>Clasificación asignada:</span>
+              <strong className="text-slate-900 font-mono">
+                {filterMacro || "Sin especificar"} &gt; {filterProc || "Sin especificar"} &gt; {filterMicro || "Sin especificar"}
+              </strong>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleApplyToActiveProcess}
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              title="Asignar esta estructura al Proceso Activo actual"
+            >
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Asignar al Proceso Activo</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {saveSuccessMsg && (
         <div className="mt-4 bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 font-semibold flex items-center gap-2 animate-fadeIn">
@@ -1494,18 +1503,20 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
                 <BookOpen className="w-4 h-4 text-slate-700" />
                 <span>1. Diseños Guardados y Asimilación ({savedProcesses.length})</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setLibraryTab("taxonomy")}
-                className={`px-4 py-2 text-xs font-bold transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
-                  libraryTab === "taxonomy"
-                    ? "border-slate-900 text-slate-900 bg-white shadow-2xs"
-                    : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
-                }`}
-              >
-                <FolderTree className="w-4 h-4 text-emerald-700" />
-                <span>2. Estructura Taxonómica ({taxonomy.length} Microprocesos)</span>
-              </button>
+              {canViewTaxonomy && (
+                <button
+                  type="button"
+                  onClick={() => setLibraryTab("taxonomy")}
+                  className={`px-4 py-2 text-xs font-bold transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
+                    libraryTab === "taxonomy"
+                      ? "border-slate-900 text-slate-900 bg-white shadow-2xs"
+                      : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                  }`}
+                >
+                  <FolderTree className="w-4 h-4 text-emerald-700" />
+                  <span>2. Estructura Taxonómica ({taxonomy.length} Microprocesos)</span>
+                </button>
+              )}
             </div>
 
             {/* TAB 1: DISEÑOS GUARDADOS & ASIMILACIÓN */}
@@ -1632,7 +1643,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
             )}
 
             {/* TAB 2: GESTIONAR ESTRUCTURA TAXONÓMICA */}
-            {libraryTab === "taxonomy" && (
+            {libraryTab === "taxonomy" && canViewTaxonomy && (
               <div className="p-6 overflow-y-auto flex-1 space-y-6">
                 {/* Control bar */}
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-4 border border-slate-200 rounded">
@@ -2046,171 +2057,173 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
               </div>
 
               {/* Classification Options */}
-              <div className="space-y-3">
-                <label className="block text-xs font-black uppercase text-slate-700 tracking-wider">
-                  Opciones de Clasificación Taxonómica
-                </label>
+              {canViewTaxonomy && (
+                <div className="space-y-3">
+                  <label className="block text-xs font-black uppercase text-slate-700 tracking-wider">
+                    Opciones de Clasificación Taxonómica
+                  </label>
 
-                {/* Option 1: Official Taxonomy Structure */}
-                <div
-                  onClick={() => setSaveModalMode("taxonomy")}
-                  className={`p-4 border-2 rounded-sm cursor-pointer transition-all space-y-3 ${
-                    saveModalMode === "taxonomy"
-                      ? "bg-emerald-50/50 border-emerald-600 shadow-xs"
-                      : "bg-white border-slate-200 hover:border-slate-400"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
+                  {/* Option 1: Official Taxonomy Structure */}
+                  <div
+                    onClick={() => setSaveModalMode("taxonomy")}
+                    className={`p-4 border-2 rounded-sm cursor-pointer transition-all space-y-3 ${
+                      saveModalMode === "taxonomy"
+                        ? "bg-emerald-50/50 border-emerald-600 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2.5 text-xs font-bold text-slate-900 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="saveClassificationMode"
+                          checked={saveModalMode === "taxonomy"}
+                          onChange={() => setSaveModalMode("taxonomy")}
+                          className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="flex items-center gap-1.5">
+                          <FolderTree className="w-4 h-4 text-emerald-700" />
+                          <span>🟢 Seleccionar de la Estructura Taxonómica Definida</span>
+                        </span>
+                      </label>
+
+                      {saveModalMode === "taxonomy" && saveModalMicro && (
+                        <span className="text-[10px] font-bold bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded border border-emerald-400">
+                          Estructura Válida
+                        </span>
+                      )}
+                    </div>
+
+                    {saveModalMode === "taxonomy" && (
+                      <div className="pl-6 space-y-3 pt-2 border-t border-emerald-200/60">
+                        {/* Macroproceso */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                            1. Macroproceso
+                          </label>
+                          <select
+                            value={saveModalMacro}
+                            onChange={(e) => {
+                              const m = e.target.value;
+                              setSaveModalMacro(m);
+                              setSaveModalProc("");
+                              setSaveModalMicro("");
+                            }}
+                            className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 cursor-pointer"
+                          >
+                            <option value="">-- Seleccionar Macroproceso --</option>
+                            {Array.from(new Set(taxonomy.map((t) => t.macroproceso))).sort().map((m) => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Proceso */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                            2. Proceso
+                          </label>
+                          <select
+                            value={saveModalProc}
+                            onChange={(e) => {
+                              const p = e.target.value;
+                              setSaveModalProc(p);
+                              setSaveModalMicro("");
+                              if (p && !saveModalMacro) {
+                                const found = taxonomy.find((t) => t.proceso === p);
+                                if (found) setSaveModalMacro(found.macroproceso);
+                              }
+                            }}
+                            className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 cursor-pointer"
+                          >
+                            <option value="">-- Seleccionar Proceso --</option>
+                            {Array.from(
+                              new Set(
+                                taxonomy
+                                  .filter((t) => !saveModalMacro || t.macroproceso === saveModalMacro)
+                                  .map((t) => t.proceso)
+                              )
+                            ).sort().map((p) => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Microproceso */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                            3. Microproceso
+                          </label>
+                          <select
+                            value={saveModalMicro}
+                            onChange={(e) => {
+                              const mic = e.target.value;
+                              setSaveModalMicro(mic);
+                              const node = taxonomy.find((t) => t.microproceso === mic);
+                              if (node) {
+                                setSaveModalMacro(node.macroproceso);
+                                setSaveModalProc(node.proceso);
+                              }
+                            }}
+                            className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 cursor-pointer"
+                          >
+                            <option value="">-- Seleccionar Microproceso --</option>
+                            {taxonomy
+                              .filter((t) => {
+                                if (saveModalMacro && t.macroproceso !== saveModalMacro) return false;
+                                if (saveModalProc && t.proceso !== saveModalProc) return false;
+                                return true;
+                              })
+                              .map((t) => (
+                                <option key={t.id} value={t.microproceso}>
+                                  {t.microproceso} ({t.macroproceso} &gt; {t.proceso})
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        {/* Selected structure summary */}
+                        {saveModalMacro && saveModalProc && saveModalMicro && (
+                          <div className="p-2.5 bg-emerald-100 border border-emerald-300 rounded text-xs text-emerald-950 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-700 shrink-0" />
+                            <div>
+                              <span className="font-bold">Estructura Asignada: </span>
+                              <span className="font-mono">{saveModalMacro} &gt; {saveModalProc} &gt; <strong>{saveModalMicro}</strong></span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Option 2: Guardar como Otros */}
+                  <div
+                    onClick={() => setSaveModalMode("others")}
+                    className={`p-4 border-2 rounded-sm cursor-pointer transition-all space-y-2 ${
+                      saveModalMode === "others"
+                        ? "bg-amber-50/70 border-amber-500 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
                     <label className="flex items-center gap-2.5 text-xs font-bold text-slate-900 cursor-pointer">
                       <input
                         type="radio"
                         name="saveClassificationMode"
-                        checked={saveModalMode === "taxonomy"}
-                        onChange={() => setSaveModalMode("taxonomy")}
-                        className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                        checked={saveModalMode === "others"}
+                        onChange={() => setSaveModalMode("others")}
+                        className="w-4 h-4 text-amber-600 focus:ring-amber-500"
                       />
                       <span className="flex items-center gap-1.5">
-                        <FolderTree className="w-4 h-4 text-emerald-700" />
-                        <span>🟢 Seleccionar de la Estructura Taxonómica Definida</span>
+                        <Tag className="w-4 h-4 text-amber-700" />
+                        <span>⚪ No corresponde a la estructura definida (Guardar como "Otros / Sin Clasificar")</span>
                       </span>
                     </label>
-
-                    {saveModalMode === "taxonomy" && saveModalMicro && (
-                      <span className="text-[10px] font-bold bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded border border-emerald-400">
-                        Estructura Válida
-                      </span>
-                    )}
+                    <p className="pl-6 text-[11px] text-slate-500 leading-relaxed">
+                      Si el proceso no pertenece a ninguno de los 92 microprocesos definidos en la estructura institucional, se guardará bajo la sección "Otros".
+                    </p>
                   </div>
-
-                  {saveModalMode === "taxonomy" && (
-                    <div className="pl-6 space-y-3 pt-2 border-t border-emerald-200/60">
-                      {/* Macroproceso */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                          1. Macroproceso
-                        </label>
-                        <select
-                          value={saveModalMacro}
-                          onChange={(e) => {
-                            const m = e.target.value;
-                            setSaveModalMacro(m);
-                            setSaveModalProc("");
-                            setSaveModalMicro("");
-                          }}
-                          className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 cursor-pointer"
-                        >
-                          <option value="">-- Seleccionar Macroproceso --</option>
-                          {Array.from(new Set(taxonomy.map((t) => t.macroproceso))).sort().map((m) => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Proceso */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                          2. Proceso
-                        </label>
-                        <select
-                          value={saveModalProc}
-                          onChange={(e) => {
-                            const p = e.target.value;
-                            setSaveModalProc(p);
-                            setSaveModalMicro("");
-                            if (p && !saveModalMacro) {
-                              const found = taxonomy.find((t) => t.proceso === p);
-                              if (found) setSaveModalMacro(found.macroproceso);
-                            }
-                          }}
-                          className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 cursor-pointer"
-                        >
-                          <option value="">-- Seleccionar Proceso --</option>
-                          {Array.from(
-                            new Set(
-                              taxonomy
-                                .filter((t) => !saveModalMacro || t.macroproceso === saveModalMacro)
-                                .map((t) => t.proceso)
-                            )
-                          ).sort().map((p) => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Microproceso */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                          3. Microproceso
-                        </label>
-                        <select
-                          value={saveModalMicro}
-                          onChange={(e) => {
-                            const mic = e.target.value;
-                            setSaveModalMicro(mic);
-                            const node = taxonomy.find((t) => t.microproceso === mic);
-                            if (node) {
-                              setSaveModalMacro(node.macroproceso);
-                              setSaveModalProc(node.proceso);
-                            }
-                          }}
-                          className="w-full bg-white border border-slate-300 text-slate-900 font-bold text-xs px-2.5 py-2 rounded focus:outline-none focus:border-slate-900 cursor-pointer"
-                        >
-                          <option value="">-- Seleccionar Microproceso --</option>
-                          {taxonomy
-                            .filter((t) => {
-                              if (saveModalMacro && t.macroproceso !== saveModalMacro) return false;
-                              if (saveModalProc && t.proceso !== saveModalProc) return false;
-                              return true;
-                            })
-                            .map((t) => (
-                              <option key={t.id} value={t.microproceso}>
-                                {t.microproceso} ({t.macroproceso} &gt; {t.proceso})
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-
-                      {/* Selected structure summary */}
-                      {saveModalMacro && saveModalProc && saveModalMicro && (
-                        <div className="p-2.5 bg-emerald-100 border border-emerald-300 rounded text-xs text-emerald-950 flex items-center gap-2">
-                          <Check className="w-4 h-4 text-emerald-700 shrink-0" />
-                          <div>
-                            <span className="font-bold">Estructura Asignada: </span>
-                            <span className="font-mono">{saveModalMacro} &gt; {saveModalProc} &gt; <strong>{saveModalMicro}</strong></span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
-
-                {/* Option 2: Guardar como Otros */}
-                <div
-                  onClick={() => setSaveModalMode("others")}
-                  className={`p-4 border-2 rounded-sm cursor-pointer transition-all space-y-2 ${
-                    saveModalMode === "others"
-                      ? "bg-amber-50/70 border-amber-500 shadow-xs"
-                      : "bg-white border-slate-200 hover:border-slate-400"
-                  }`}
-                >
-                  <label className="flex items-center gap-2.5 text-xs font-bold text-slate-900 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="saveClassificationMode"
-                      checked={saveModalMode === "others"}
-                      onChange={() => setSaveModalMode("others")}
-                      className="w-4 h-4 text-amber-600 focus:ring-amber-500"
-                    />
-                    <span className="flex items-center gap-1.5">
-                      <Tag className="w-4 h-4 text-amber-700" />
-                      <span>⚪ No corresponde a la estructura definida (Guardar como "Otros / Sin Clasificar")</span>
-                    </span>
-                  </label>
-                  <p className="pl-6 text-[11px] text-slate-500 leading-relaxed">
-                    Si el proceso no pertenece a ninguno de los 92 microprocesos definidos en la estructura institucional, se guardará bajo la sección "Otros".
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Modal Footer */}
