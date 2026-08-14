@@ -29,21 +29,21 @@ export interface UserPermissions {
 }
 
 export const DEFAULT_ANALYST_PERMISSIONS: UserPermissions = {
-  taxonomyFilters: { view: true, edit: true },
-  docAccess: true,
+  taxonomyFilters: { view: false, edit: false },
+  docAccess: false,
   docComponents: {
-    generalInfo: { view: true, edit: true },
-    fce: { view: true, edit: true },
-    tobeDiagram: { view: true, edit: true },
-    riskMatrix: { view: true, edit: true },
-    additionalDocs: { view: true, edit: true },
+    generalInfo: { view: false, edit: false },
+    fce: { view: false, edit: false },
+    tobeDiagram: { view: false, edit: false },
+    riskMatrix: { view: false, edit: false },
+    additionalDocs: { view: false, edit: false },
   },
-  simAccess: true,
+  simAccess: false,
   simComponents: {
-    monteCarlo: true,
-    kpisDashboard: true,
-    riskMatrix: true,
-    reports: true,
+    monteCarlo: false,
+    kpisDashboard: false,
+    riskMatrix: false,
+    reports: false,
   },
 };
 
@@ -127,12 +127,13 @@ export async function syncUserProfile(user: {
       await setDoc(userDocRef, JSON.parse(JSON.stringify(updatedProfile)), { merge: true });
       return updatedProfile;
     } else {
-      // Create new user profile
+      // Create new user profile with default restricted permissions
       const newProfile: UserProfile = {
         email: normalizedEmail,
         role: isMainAdmin ? "admin" : "analyst",
         displayName: user.displayName || normalizedEmail.split("@")[0],
         photoURL: user.photoURL || null,
+        permissions: isMainAdmin ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_ANALYST_PERMISSIONS,
         lastLoginAt: now,
         createdAt: now,
         updatedAt: now,
@@ -149,6 +150,7 @@ export async function syncUserProfile(user: {
       role: isMainAdmin ? "admin" : "analyst",
       displayName: user.displayName || normalizedEmail.split("@")[0],
       photoURL: user.photoURL || null,
+      permissions: isMainAdmin ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_ANALYST_PERMISSIONS,
       lastLoginAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
