@@ -1636,16 +1636,61 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
               </div>
             </div>
           )
-        ) : (
+        ) : (() => {
           /* FRAMEWORK 2: MODELO PROPUESTO (TO BE) */
+          // Calculate dynamic section numbers according to visible components
+          const canViewSec1 = isAdmin || docPerms.additionalDocs.view;
+          const canViewSec2 = isAdmin || docPerms.generalInfo.view;
+          const canViewSec3 = isAdmin || docPerms.fce.view;
+          const canViewSec34 = isAdmin || docPerms.tobeDiagram.view;
+          const canViewSec35 = isAdmin || docPerms.additionalDocs.view;
+          const canViewSec4 = isAdmin || docPerms.procedureModel.view;
+
+          const visibleCount = [canViewSec1, canViewSec2, canViewSec3, canViewSec34, canViewSec35, canViewSec4].filter(Boolean).length;
+          const isSingleModule = visibleCount === 1;
+
+          // Compute main section index numbers dynamically
+          let mainCounter = 0;
+          const numSec1 = canViewSec1 ? `${++mainCounter}.` : "";
+          const numSec2 = canViewSec2 ? `${++mainCounter}.` : "";
+          
+          let numSec3 = "";
+          let numSec31 = "";
+          let numSec32 = "";
+          let numSec34 = "";
+          let numSec35 = "";
+
+          if (canViewSec3) {
+            const currentMain = ++mainCounter;
+            numSec3 = `${currentMain}.`;
+            numSec31 = `${currentMain}.1.`;
+            numSec32 = `${currentMain}.2.`;
+            numSec34 = canViewSec34 ? `${currentMain}.4.` : "";
+            numSec35 = canViewSec35 ? `${currentMain}.5.` : "";
+          } else {
+            // If Section 3 is not visible, individual sub-sections get their own dynamic main numbers
+            if (canViewSec34) {
+              numSec34 = isSingleModule ? "1.0." : `${++mainCounter}.`;
+            }
+            if (canViewSec35) {
+              numSec35 = isSingleModule ? "1.0." : `${++mainCounter}.`;
+            }
+          }
+
+          let numSec4 = "";
+          if (canViewSec4) {
+            numSec4 = isSingleModule ? "1.0." : `${++mainCounter}.`;
+          }
+
+          return (
           <div className="space-y-12 animate-fadeIn max-w-none">
             {/* 1. Definiciones */}
-            {(isAdmin || docPerms.additionalDocs.view) && (
+            {canViewSec1 && (
               <section className="space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                   <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <HelpCircle className="w-4 h-4 text-slate-500" />
-                    1. Definiciones (Glosario Técnico)
+                    {numSec1} Definiciones (Glosario Técnico)
                   </h4>
                   {(isAdmin || docPerms.additionalDocs.edit) && (
                     <button
@@ -1700,11 +1745,11 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
             )}
 
             {/* 2. PROCESO */}
-            {(isAdmin || docPerms.generalInfo.view) && (
+            {canViewSec2 && (
               <section className="space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                   <h4 className="text-base font-bold text-slate-900">
-                    2. PROCESO: {process.name.toUpperCase()}
+                    {numSec2} PROCESO: {process.name.toUpperCase()}
                   </h4>
                   {(isAdmin || docPerms.generalInfo.edit) && (
                     <button
@@ -1727,19 +1772,19 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
-                      <span>Editar Información General y Alcance (2.1 - 2.2)</span>
+                      <span>Editar Información General y Alcance ({numSec2 ? `${numSec2}1 - ${numSec2}2` : "2.1 - 2.2"})</span>
                     </button>
                   )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">2.1. Alcance del Proceso</h5>
+                    <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">{numSec2 ? `${numSec2}1.` : "2.1."} Alcance del Proceso</h5>
                     <p className="text-xs leading-relaxed text-slate-700 bg-slate-50 border border-slate-100 p-4">
                       El proceso trata de <span className="font-semibold text-slate-900">{process.scopeStart || "recepción de la solicitud"}</span>. El <span className="font-semibold text-slate-900">{process.name}</span> se puede realizar en la unidad de <span className="font-semibold text-slate-900">{process.processOwner || "la Unidad Responsable"}</span> y culmina con <span className="font-semibold text-slate-900">{process.scopeEnd || "el entregable finalizado"}</span>.
                     </p>
                   </div>
                   <div>
-                    <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">2.2. Descripción General del Proceso</h5>
+                    <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">{numSec2 ? `${numSec2}2.` : "2.2."} Descripción General del Proceso</h5>
                     <div className="text-xs leading-relaxed text-slate-700 bg-slate-50 border border-slate-100 p-4 space-y-3">
                       <p>
                         El proceso <span className="font-semibold text-slate-900">{process.name}</span> se realizará en la unidad de <span className="font-semibold text-slate-900">{process.processOwner || "la Unidad Responsable"}</span>. Este proceso {process.description || "gestiona de manera coordinada cada una de las actividades requeridas para alcanzar el objetivo operativo."}
@@ -1754,12 +1799,12 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
             )}
 
             {/* 3. Ficha del Proceso */}
-            {(isAdmin || docPerms.fce.view) && (
+            {canViewSec3 && (
               <section className="space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                   <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-slate-500" />
-                    3. Ficha Descriptiva del Proceso
+                    {numSec3} Ficha Descriptiva del Proceso
                   </h4>
                   <div className="flex items-center gap-2">
                     {(isAdmin || docPerms.riskMatrix.edit) && (
@@ -1878,20 +1923,12 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
             )}
 
             {/* 3.4. Modelo Descriptivo */}
-            {!(isAdmin || docPerms.tobeDiagram.view) ? (
-              <div className="bg-amber-50 border border-amber-200 p-6 text-center space-y-2">
-                <ShieldAlert className="w-8 h-8 text-amber-600 mx-auto" />
-                <h4 className="text-sm font-bold text-amber-950 uppercase">Acceso Restringido 3.4 Modelo Descriptivo</h4>
-                <p className="text-xs text-amber-800 max-w-sm mx-auto leading-relaxed">
-                  Su rol actual no posee permisos para visualizar esta sección del documento.
-                </p>
-              </div>
-            ) : (
+            {canViewSec34 && (
               <section className="space-y-4" id="section-3-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
                   <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <Layers className="w-4 h-4 text-slate-500" />
-                    3.4. Modelo Descriptivo (Estados Oficiales del Proceso y Diagrama BPMN 2.0)
+                    {numSec34} Modelo Descriptivo
                   </h4>
                   <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 border border-slate-200 self-start sm:self-auto uppercase tracking-wider">
                     Metodología BPMN 2.0
@@ -2957,12 +2994,12 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           )}
 
             {/* 3.5. Matriz SIPOC */}
-            {(isAdmin || docPerms.additionalDocs.view) && (
+            {canViewSec35 && (
               <section className="space-y-4" id="section-3-5">
               <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Table className="w-4 h-4 text-slate-500" />
-                  3.5. Ficha de Subprocesos (Matriz SIPOC)
+                  {numSec35} Ficha de Subprocesos (Matriz SIPOC)
                 </div>
                 <span className="text-[10px] font-mono text-slate-500 font-normal">
                   Ref. BPMN 2.0
@@ -3046,20 +3083,12 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           )}
 
             {/* 4. PROCEDIMIENTO MODELO DE NIVEL OPERATIVO (EDITABLE) */}
-            {!(isAdmin || docPerms.procedureModel.view) ? (
-              <div className="bg-amber-50 border border-amber-200 p-6 text-center space-y-2 mt-6">
-                <ShieldAlert className="w-8 h-8 text-amber-600 mx-auto" />
-                <h4 className="text-sm font-bold text-amber-950 uppercase">Acceso Restringido Sección 4</h4>
-                <p className="text-xs text-amber-800 max-w-sm mx-auto leading-relaxed">
-                  Su rol actual no posee permisos para visualizar esta sección del documento.
-                </p>
-              </div>
-            ) : (
+            {canViewSec4 && (
               <section className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-3">
                 <div>
                   <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    4. DESCRIPCIÓN DEL PROCEDIMIENTO MODELO DE NIVEL OPERATIVO
+                    {numSec4} DESCRIPCIÓN DEL PROCEDIMIENTO MODELO DE NIVEL OPERATIVO
                     <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 border border-slate-200">
                       BPMN 2.0 & FCE
                     </span>
@@ -3346,7 +3375,8 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
             </section>
           )}
         </div>
-      )}
+        );
+      })()}
       </div>
 
       {/* SUBPROCESS EDIT/CREATE MODAL */}
