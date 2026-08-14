@@ -697,6 +697,51 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
                   <strong>Cálculo:</strong> <span className="text-amber-700">Volumen Efectivo = Volumen Inicial / (1 - Error Rate)</span>
                 </div>
               </div>
+
+              {/* Bloque 8: Riesgo Sistema / Saturación */}
+              <div className="bg-white border border-slate-200 p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Riesgo Sistema (Nivel de Saturación Operativa)</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Semáforo de alerta global que evalúa la estabilidad del sistema ante la tasa de ocupación de recursos y colas de espera.
+                </p>
+                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm space-y-1">
+                  <div><strong>Rangos de Evaluación:</strong></div>
+                  <div className="text-emerald-700 font-bold">• Bajo (&le; 70%): Operación holgada y estable.</div>
+                  <div className="text-amber-700 font-bold">• Moderado (70% - 85%): Carga alta, vulnerable a picos.</div>
+                  <div className="text-rose-700 font-bold">• Crítico (&gt; 85%): Riesgo inminente de colapso de SLA y retrasos en cola.</div>
+                </div>
+              </div>
+
+              {/* Bloque 9: Métricas Estadísticas de Salida */}
+              <div className="bg-white border border-slate-200 p-4 space-y-2 md:col-span-2">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                  <Sliders className="w-3.5 h-3.5 text-slate-800" />
+                  <span>Métricas Estadísticas de Salida y Percentiles (SLA)</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-[11px]">
+                  <div className="border border-slate-100 p-2.5 bg-slate-50/50">
+                    <strong className="text-[10px] text-slate-800 block uppercase">Mediana (P50)</strong>
+                    <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
+                      El 50% de los casos concluyen en un tiempo menor o igual a este valor. No se ve afectado por casos extremos atípicos.
+                    </p>
+                  </div>
+                  <div className="border border-slate-100 p-2.5 bg-slate-50/50">
+                    <strong className="text-[10px] text-slate-800 block uppercase">Percentil 95 (P95)</strong>
+                    <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
+                      Límite crítico de compromiso SLA: el 95% de los casos se resuelven antes de esta marca temporal; solo un 5% de casos complejos lo superan.
+                    </p>
+                  </div>
+                  <div className="border border-slate-100 p-2.5 bg-slate-50/50">
+                    <strong className="text-[10px] text-slate-800 block uppercase">Rendimiento (Throughput - Th)</strong>
+                    <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
+                      Tasa de salida promedio de transacciones o casos completados por unidad de hora (<span className="font-mono font-bold text-slate-700">Th = Casos / Horas Totales</span>).
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div className="bg-slate-900 text-slate-200 p-3.5 text-[11px] font-medium leading-relaxed">
