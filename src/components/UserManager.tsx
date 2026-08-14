@@ -617,7 +617,8 @@ export default function UserManager({
                       { key: "fce", label: "1.2 Ficha de Caracterización y Especificación (FCE)", desc: "Especificaciones normativas y técnicas" },
                       { key: "tobeDiagram", label: "1.3 Diagrama de Flujo (BPMN 2.0 / Subprocesos)", desc: "Secuencia de subprocesos y actividades operativas" },
                       { key: "riskMatrix", label: "1.4 Matriz de Riesgos & Controles / Estados", desc: "Gestión de riesgos, SLA y transiciones de estado" },
-                      { key: "additionalDocs", label: "1.5 Glosario, SIPOC, Indicadores y Roles", desc: "Glosario, matriz SIPOC, fichas KPI y roles humanos" }
+                      { key: "additionalDocs", label: "1.5 Glosario, SIPOC, Indicadores y Roles", desc: "Glosario, matriz SIPOC, fichas KPI y roles humanos" },
+                      { key: "procedureModel", label: "4. Descripción del Procedimiento Modelo de Nivel Operativo", desc: "Fichas descriptivas de subprocesos y actividades operativas" }
                     ].map((item) => {
                       const compState = (editPermissions.docComponents as any)[item.key] || { view: true, edit: true };
                       return (

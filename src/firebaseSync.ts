@@ -18,6 +18,7 @@ export interface UserPermissions {
     tobeDiagram: { view: boolean; edit: boolean };   // Diagrama de Flujo (BPMN 2.0 / Subprocesos)
     riskMatrix: { view: boolean; edit: boolean };    // Matriz de Riesgos & Controles
     additionalDocs: { view: boolean; edit: boolean };// Glosario, SIPOC, Indicadores y Roles
+    procedureModel: { view: boolean; edit: boolean };// 4. Descripción del Procedimiento Modelo de Nivel Operativo
   };
   simAccess: boolean; // 2. Simulador & KPIs Dashboard
   simComponents: {
@@ -37,6 +38,7 @@ export const DEFAULT_ANALYST_PERMISSIONS: UserPermissions = {
     tobeDiagram: { view: false, edit: false },
     riskMatrix: { view: false, edit: false },
     additionalDocs: { view: false, edit: false },
+    procedureModel: { view: false, edit: false },
   },
   simAccess: false,
   simComponents: {
@@ -56,6 +58,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: UserPermissions = {
     tobeDiagram: { view: true, edit: true },
     riskMatrix: { view: true, edit: true },
     additionalDocs: { view: true, edit: true },
+    procedureModel: { view: true, edit: true },
   },
   simAccess: true,
   simComponents: {

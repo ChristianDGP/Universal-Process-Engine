@@ -164,7 +164,8 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
       fce: { view: true, edit: true },
       tobeDiagram: { view: true, edit: true },
       riskMatrix: { view: true, edit: true },
-      additionalDocs: { view: true, edit: true }
+      additionalDocs: { view: true, edit: true },
+      procedureModel: { view: true, edit: true }
     };
     if (!permissions || !permissions.docComponents) {
       return defaultPerms;
@@ -189,6 +190,10 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
       additionalDocs: {
         view: permissions.docComponents.additionalDocs?.view ?? true,
         edit: permissions.docComponents.additionalDocs?.edit ?? true,
+      },
+      procedureModel: {
+        view: permissions.docComponents.procedureModel?.view ?? true,
+        edit: permissions.docComponents.procedureModel?.edit ?? true,
       },
     };
   }, [permissions]);
@@ -2952,15 +2957,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           )}
 
             {/* 3.5. Matriz SIPOC */}
-            {!(isAdmin || docPerms.additionalDocs.view) ? (
-              <div className="bg-amber-50 border border-amber-200 p-6 text-center space-y-2 mt-4">
-                <ShieldAlert className="w-8 h-8 text-amber-600 mx-auto" />
-                <h4 className="text-sm font-bold text-amber-950 uppercase">Acceso Restringido 3.5 Matriz SIPOC</h4>
-                <p className="text-xs text-amber-800 max-w-sm mx-auto leading-relaxed">
-                  Su rol actual no posee permisos para visualizar esta sección del documento.
-                </p>
-              </div>
-            ) : (
+            {(isAdmin || docPerms.additionalDocs.view) && (
               <section className="space-y-4" id="section-3-5">
               <h4 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -3049,7 +3046,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           )}
 
             {/* 4. PROCEDIMIENTO MODELO DE NIVEL OPERATIVO (EDITABLE) */}
-            {!(isAdmin || docPerms.tobeDiagram.view) ? (
+            {!(isAdmin || docPerms.procedureModel.view) ? (
               <div className="bg-amber-50 border border-amber-200 p-6 text-center space-y-2 mt-6">
                 <ShieldAlert className="w-8 h-8 text-amber-600 mx-auto" />
                 <h4 className="text-sm font-bold text-amber-950 uppercase">Acceso Restringido Sección 4</h4>
@@ -3092,7 +3089,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                     Colapsar Todos
                   </button>
 
-                  {(isAdmin || docPerms.tobeDiagram.edit) && (
+                  {(isAdmin || docPerms.procedureModel.edit) && (
                     <button
                       onClick={() => {
                         setEditingSubIndex(null);
@@ -3116,7 +3113,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                     <p className="text-xs text-slate-600 max-w-xl mx-auto leading-relaxed">
                       No hay subprocesos ni fichas de actividad modeladas aún. Ingrese el <strong>Nombre del Proceso</strong> y el <strong>Contexto o Alcance Operativo (Obligatorio)</strong> en el panel superior para generar la arquitectura TO-BE, o construya manualmente los subprocesos.
                     </p>
-                    {(isAdmin || docPerms.tobeDiagram.edit) && (
+                    {(isAdmin || docPerms.procedureModel.edit) && (
                       <button
                         onClick={() => {
                           setEditingSubIndex(null);
@@ -3134,105 +3131,109 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   process.subprocesses.map((sub, sIdx) => {
                     const isCollapsed = collapsedSubs[sub.index] !== undefined ? collapsedSubs[sub.index] : true;
 
-                  return (
-                    <div key={sub.index} className="border border-slate-200 bg-slate-50/30 transition-all">
-                      {/* Header del Subproceso */}
-                      <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 bg-slate-100/50">
-                        <button
-                          type="button"
-                          onClick={() => toggleSubCollapse(sub.index)}
-                          className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity group"
-                        >
-                          <span className="p-1 bg-slate-200 text-slate-700 group-hover:bg-slate-300 transition-colors">
-                            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                          </span>
-                          <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-xs font-bold">
-                            {sub.index}
-                          </span>
-                          <h5 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                            {sub.name}
-                            <span className="text-[10px] font-normal text-slate-500 font-mono">
-                              ({sub.activities.length} {sub.activities.length === 1 ? "actividad" : "actividades"})
-                            </span>
-                          </h5>
-                        </button>
-
-                        <div className="flex items-center gap-2 self-end sm:self-auto">
-                          {/* Reorder Subprocess */}
-                          {sIdx > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => handleMoveSubprocess(sub.index, "up")}
-                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
-                              title="Mover Subproceso Arriba"
-                            >
-                              <ChevronUp className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {sIdx < process.subprocesses.length - 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleMoveSubprocess(sub.index, "down")}
-                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
-                              title="Mover Subproceso Abajo"
-                            >
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                    return (
+                      <div key={sub.index} className="border border-slate-200 bg-slate-50/30 transition-all">
+                        {/* Header del Subproceso */}
+                        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 bg-slate-100/50">
                           <button
+                            type="button"
                             onClick={() => toggleSubCollapse(sub.index)}
-                            className="px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 flex items-center gap-1"
+                            className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity group"
                           >
-                            {isCollapsed ? (
+                            <span className="p-1 bg-slate-200 text-slate-700 group-hover:bg-slate-300 transition-colors">
+                              {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                            </span>
+                            <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-xs font-bold">
+                              {sub.index}
+                            </span>
+                            <h5 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                              {sub.name}
+                              <span className="text-[10px] font-normal text-slate-500 font-mono">
+                                ({sub.activities.length} {sub.activities.length === 1 ? "actividad" : "actividades"})
+                              </span>
+                            </h5>
+                          </button>
+
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            {/* Reorder Subprocess */}
+                            {(isAdmin || docPerms.procedureModel.edit) && sIdx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleMoveSubprocess(sub.index, "up")}
+                                className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                                title="Mover Subproceso Arriba"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {(isAdmin || docPerms.procedureModel.edit) && sIdx < process.subprocesses.length - 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleMoveSubprocess(sub.index, "down")}
+                                className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                                title="Mover Subproceso Abajo"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => toggleSubCollapse(sub.index)}
+                              className="px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 flex items-center gap-1"
+                            >
+                              {isCollapsed ? (
+                                <>
+                                  <ChevronDown className="w-3 h-3 text-slate-500" /> Expandir
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronUp className="w-3 h-3 text-slate-500" /> Colapsar
+                                </>
+                              )}
+                            </button>
+                            {(isAdmin || docPerms.procedureModel.edit) && (
                               <>
-                                <ChevronDown className="w-3 h-3 text-slate-500" /> Expandir
-                              </>
-                            ) : (
-                              <>
-                                <ChevronUp className="w-3 h-3 text-slate-500" /> Colapsar
+                                <button
+                                  onClick={() => {
+                                    setEditingSubIndex(sub.index);
+                                    setSubForm({ index: sub.index, name: sub.name, narrative: sub.narrative });
+                                    setSubModalOpen(true);
+                                  }}
+                                  className="px-2.5 py-1 text-[11px] font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 flex items-center gap-1"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSubprocess(sub.index)}
+                                  className="px-2.5 py-1 text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Eliminar
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingAct({ subIndex: sub.index, actIndex: "new" });
+                                    setActForm({
+                                      index: `${sub.index}.${sub.activities.length + 1}`,
+                                      name: "",
+                                      description: "",
+                                      supportTech: "",
+                                      infoInputs: "",
+                                      result: "",
+                                      rules: "No tiene",
+                                      variants: "No tiene"
+                                    });
+                                    setActModalOpen(true);
+                                  }}
+                                  className="px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white hover:bg-slate-700 flex items-center gap-1"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  + Actividad
+                                </button>
                               </>
                             )}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingSubIndex(sub.index);
-                              setSubForm({ index: sub.index, name: sub.name, narrative: sub.narrative });
-                              setSubModalOpen(true);
-                            }}
-                            className="px-2.5 py-1 text-[11px] font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 flex items-center gap-1"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSubprocess(sub.index)}
-                            className="px-2.5 py-1 text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 flex items-center gap-1"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            Eliminar
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingAct({ subIndex: sub.index, actIndex: "new" });
-                              setActForm({
-                                index: `${sub.index}.${sub.activities.length + 1}`,
-                                name: "",
-                                description: "",
-                                supportTech: "",
-                                infoInputs: "",
-                                result: "",
-                                rules: "No tiene",
-                                variants: "No tiene"
-                              });
-                              setActModalOpen(true);
-                            }}
-                            className="px-2.5 py-1 text-[11px] font-bold bg-slate-800 text-white hover:bg-slate-700 flex items-center gap-1"
-                          >
-                            <Plus className="w-3 h-3" />
-                            + Actividad
-                          </button>
+                          </div>
                         </div>
-                      </div>
 
                       {/* Subprocess Content (Collapsible) */}
                       {!isCollapsed && (
@@ -3251,7 +3252,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                   
                                   <div className="flex items-center gap-1">
                                     {/* Reorder Activity Up / Down */}
-                                    {(isAdmin || docPerms.tobeDiagram.edit) && sub.activities.findIndex((a) => a.index === act.index) > 0 && (
+                                    {(isAdmin || docPerms.procedureModel.edit) && sub.activities.findIndex((a) => a.index === act.index) > 0 && (
                                       <button
                                         type="button"
                                         onClick={() => handleMoveActivity(sub.index, act.index, "up")}
@@ -3261,7 +3262,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                         <ChevronUp className="w-3.5 h-3.5" />
                                       </button>
                                     )}
-                                    {(isAdmin || docPerms.tobeDiagram.edit) && sub.activities.findIndex((a) => a.index === act.index) < sub.activities.length - 1 && (
+                                    {(isAdmin || docPerms.procedureModel.edit) && sub.activities.findIndex((a) => a.index === act.index) < sub.activities.length - 1 && (
                                       <button
                                         type="button"
                                         onClick={() => handleMoveActivity(sub.index, act.index, "down")}
@@ -3271,7 +3272,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                         <ChevronDown className="w-3.5 h-3.5" />
                                       </button>
                                     )}
-                                    {(isAdmin || docPerms.tobeDiagram.edit) && (
+                                    {(isAdmin || docPerms.procedureModel.edit) && (
                                       <button
                                         onClick={() => {
                                           setEditingAct({ subIndex: sub.index, actIndex: act.index });
@@ -3284,7 +3285,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                         <Edit2 className="w-3.5 h-3.5" />
                                       </button>
                                     )}
-                                    {(isAdmin || docPerms.tobeDiagram.edit) && (
+                                    {(isAdmin || docPerms.procedureModel.edit) && (
                                       <button
                                         onClick={() => handleDeleteActivity(sub.index, act.index)}
                                         className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-sm"
