@@ -569,105 +569,115 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-              {/* Bloque 1: Tiempo Medio */}
+              {/* Bloque 1: Tipo de Modelo */}
               <div className="bg-white border border-slate-200 p-4 space-y-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                  <span className="text-blue-600 font-mono text-xs">μ</span>
-                  <span>Tiempo Medio del Proceso</span>
+                  <Layers className="w-3.5 h-3.5 text-slate-800" />
+                  <span>1. Tipo de Modelo (Determinístico vs. Estocástico)</span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Representa el valor esperado o centro de gravedad del tiempo total que demora completar el proceso. Es el parámetro base que define la velocidad promedio operativa del flujo completo.
+                  Establece la naturaleza de evaluación temporal en el motor de cálculo:
                 </p>
-                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm">
-                  <strong>Cálculo:</strong> <span className="text-blue-700">μ = (Σ T_i) / N</span> (Suma de tiempos de todos los casos dividida por la cantidad total de instancias).
+                <div className="space-y-1.5 text-[10px] text-slate-700">
+                  <div className="bg-slate-50 p-2 border border-slate-100 rounded-sm">
+                    <strong className="text-slate-900 block uppercase">Determinístico (Fijo):</strong> Asume tiempos constantes nominales sin fluctuación ni colas (T_caso = Σ μ_i). Útil para el tiempo mínimo teórico y camino crítico ideal.
+                  </div>
+                  <div className="bg-slate-50 p-2 border border-slate-100 rounded-sm">
+                    <strong className="text-slate-900 block uppercase">Estocástico (Monte Carlo):</strong> Modela la variabilidad real mediante funciones de densidad acumulada, cuellos de botella y disponibilidad de personal.
+                  </div>
                 </div>
               </div>
 
-              {/* Bloque 2: Varianza */}
-              <div className="bg-white border border-slate-200 p-4 space-y-2">
-                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                  <span className="text-amber-600 font-mono text-xs">σ²</span>
-                  <span>Varianza (Dispersión)</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Mide la variabilidad o incertidumbre de los tiempos de ciclo. Una varianza alta indica falta de estandarización, interrupciones externas o inestabilidad operativa.
-                </p>
-                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm">
-                  <strong>Cálculo:</strong> <span className="text-amber-700">σ² = Σ(T_i - μ)² / N</span> (Dispersión cuadrática respecto a la media).
-                </div>
-              </div>
-
-              {/* Bloque 3: Distribuciones */}
+              {/* Bloque 2: Distribución de Probabilidad */}
               <div className="bg-white border border-slate-200 p-4 space-y-2 md:col-span-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
                   <Sliders className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Distribuciones de Probabilidad (Flujo Estocástico)</span>
+                  <span>2. Distribución de Probabilidad (Funciones de Densidad)</span>
                 </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Gobierna la generación de números pseudoaleatorios para los tiempos de ejecución de cada actividad y la frecuencia de llegada de transacciones.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
-                    <strong className="text-[10px] text-slate-800 block uppercase">1. Normal (Gaussiana)</strong>
+                    <strong className="text-[10px] text-indigo-900 block uppercase">Normal (Gaussiana)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      Aproxima tareas estandarizadas donde los desvíos son simétricos alrededor del tiempo medio. Campana clásica de Gauss.
+                      Tareas estandarizadas repetitivas con desvíos simétricos respecto a la media: f(x) = (1 / (σ√(2π))) × e^(-(x-μ)² / 2σ²).
                     </p>
                   </div>
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
-                    <strong className="text-[10px] text-slate-800 block uppercase">2. Poisson</strong>
+                    <strong className="text-[10px] text-indigo-900 block uppercase">Poisson (Llegadas)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      Modela la frecuencia de llegada de transacciones o casos por unidad de tiempo. Ideal para flujos de alta demanda.
+                      Modela la tasa de entrada de solicitudes o trámites por unidad de tiempo: P(K=k) = (λ^k × e^-λ) / k!.
                     </p>
                   </div>
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
-                    <strong className="text-[10px] text-slate-800 block uppercase">3. Exponencial</strong>
+                    <strong className="text-[10px] text-indigo-900 block uppercase">Exponencial (Colas)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      Modela el tiempo transcurrido entre eventos aleatorios sucesivos. Adecuado para modelar colas y demoras de espera.
+                      Tiempo transcurrido entre eventos aleatorios sucesivos o duración de atención en colas de espera: f(x) = λ × e^(-λx).
                     </p>
                   </div>
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
-                    <strong className="text-[10px] text-slate-800 block uppercase">4. Weibull</strong>
+                    <strong className="text-[10px] text-indigo-900 block uppercase">Weibull (Confiabilidad)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      Muy versátil, modela desgaste, fatiga de recursos o fallas iniciales de herramientas que asisten al proceso.
+                      Modela desgaste, fatiga operativa de recursos o fallas iniciales en sistemas y equipos de soporte.
                     </p>
                   </div>
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
-                    <strong className="text-[10px] text-slate-800 block uppercase">5. Bernoulli</strong>
+                    <strong className="text-[10px] text-indigo-900 block uppercase">Bernoulli (Desvíos Sí/No)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      Modela decisiones discretas binarias (Ej: Aprobado / Rechazado) con una probabilidad fija de éxito o fracaso.
+                      Decisiones discretas binarias en compuertas (Aprobado / Rechazado) con probabilidad fija p.
                     </p>
                   </div>
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
-                    <strong className="text-[10px] text-slate-800 block uppercase">6. Mixta</strong>
+                    <strong className="text-[10px] text-indigo-900 block uppercase">Mixta (Empírica)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      Superposición de variables con componentes fijos (determinísticos) y desvíos aleatorios (estocásticos).
+                      Superposición de un componente determinístico base con retrasos estocásticos no-lineales.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Bloque 4: Capacidad y Ocupación */}
+              {/* Bloque 3: Tiempo Medio */}
+              <div className="bg-white border border-slate-200 p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                  <span>3. Tiempo Medio del Proceso (μ / Mean Time)</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Representa la esperanza matemática o valor central de tiempo requerido para completar cada tarea o la totalidad del flujo.
+                </p>
+                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm">
+                  <strong>Fórmula:</strong> <span className="text-blue-700">μ = E[T] = (Σ T_i) / N</span> (Promedio aritmético nominal de procesamiento sin considerar esperas en cola).
+                </div>
+              </div>
+
+              {/* Bloque 4: Varianza */}
+              <div className="bg-white border border-slate-200 p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                  <span className="text-amber-600 font-mono text-xs">σ²</span>
+                  <span>4. Varianza (σ²) y Desviación Estándar (σ)</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Mide la volatilidad, dispersión o inestabilidad de las duraciones reales frente al promedio esperado.
+                </p>
+                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm space-y-1">
+                  <div><strong>Varianza:</strong> <span className="text-amber-700">σ² = Σ(T_i - μ)² / N</span></div>
+                  <div><strong>Desviación:</strong> <span className="text-amber-700">σ = √(σ²)</span> | <strong>Variabilidad:</strong> <span className="text-slate-800">CV = σ / μ</span></div>
+                </div>
+              </div>
+
+              {/* Bloque 5: Capacidad de Recursos */}
               <div className="bg-white border border-slate-200 p-4 space-y-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
                   <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Capacidad de Recursos Concurrentes (C)</span>
+                  <span>5. Capacidad de Recursos Concurrentes (C)</span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Establece la cantidad máxima de analistas u operadores que pueden trabajar en paralelo. Si el volumen supera esta capacidad, los casos forman una cola, aumentando la duración total.
+                  Cantidad máxima de operadores, analistas o sistemas en paralelo. Determina la saturación del sistema y colas de espera.
                 </p>
-                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm">
-                  <strong>Ocupación:</strong> <span className="text-emerald-700">Utilización % = (Demanda × μ) / (Capacidad × SLA)</span>
-                </div>
-              </div>
-
-              {/* Bloque 5: Coeficiente de Correlación */}
-              <div className="bg-white border border-slate-200 p-4 space-y-2">
-                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                  <Activity className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Coeficiente de Correlación (r)</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Modela la relación de dependencia entre etapas sucesivas del flujo. Un coeficiente alto ($r \ge 0.70$) causa un efecto cascada: si la etapa inicial se retrasa, las siguientes también arrastrarán ese retraso de forma proporcional.
-                </p>
-                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm">
-                  <strong>Efecto:</strong> <span className="text-purple-700">Retraso Secundario = Retraso Previo × Coefficient (r)</span>
+                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm space-y-1">
+                  <div><strong>Utilización:</strong> <span className="text-emerald-700">U % = (Demanda × μ) / (Capacidad × TiempoDisponible)</span></div>
+                  <div><strong>Efecto Colas:</strong> Si U &gt; 85%, la cola L_q crece exponencialmente (L_q ∝ U² / (1 - U)).</div>
                 </div>
               </div>
 
@@ -675,70 +685,83 @@ export default function ProcessSimulator({ process: rawProcess, onProcessChange 
               <div className="bg-white border border-slate-200 p-4 space-y-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
                   <Cpu className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Iteraciones de Monte Carlo (N_runs)</span>
+                  <span>6. Iteraciones de Monte Carlo (N_runs)</span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Número de simulaciones individuales que corre el motor. Cada iteración utiliza variables aleatorias basadas en la distribución para simular un escenario posible diferente.
+                  Cantidad de simulaciones independientes generadas computacionalmente para converger estadísticamente a los resultados.
                 </p>
                 <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm">
-                  <strong>Convergencia:</strong> Más iteraciones otorgan mayor precisión estadística en percentiles extremos ($P_{95}$, $P_{99}$).
+                  <strong>Error Estándar:</strong> <span className="text-rose-700">SE = σ / √(N_runs)</span> (A mayor N_runs, mayor precisión en percentiles extremales P95, P99).
                 </div>
               </div>
 
-              {/* Bloque 7: Tasa de Error */}
+              {/* Bloque 7: Coeficiente de Correlación */}
+              <div className="bg-white border border-slate-200 p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                  <Activity className="w-3.5 h-3.5 text-purple-600" />
+                  <span>7. Coeficiente de Correlación (r)</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Mide el grado de acoplamiento lineal y propagación de retrasos entre etapas consecutivas del proceso (r ∈ [-1, 1]).
+                </p>
+                <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm">
+                  <strong>Efecto Cascada:</strong> <span className="text-purple-700">r ≥ 0.70</span> arrastra retrasos acumulativos a los pasos siguientes (Efecto Bola de Nieve).
+                </div>
+              </div>
+
+              {/* Bloque 8: Tasa de Error */}
               <div className="bg-white border border-slate-200 p-4 space-y-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Tasa de Error y Reproceso (%)</span>
+                  <span>8. Tasa de Error y Reproceso (%)</span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Probabilidad de que un caso no cumpla los estándares y requiera devolverse a etapas previas. Esto incrementa de forma no-lineal la carga de trabajo y congestiona los recursos.
+                  Probabilidad de fallo o devolución de un caso para corregir defectos. Aumenta la carga de trabajo efectiva de forma no-lineal.
                 </p>
                 <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm">
-                  <strong>Cálculo:</strong> <span className="text-amber-700">Volumen Efectivo = Volumen Inicial / (1 - Error Rate)</span>
+                  <strong>Volumen Efectivo:</strong> <span className="text-amber-700">Vol_Efectivo = Vol_Inicial / (1 - TasaError)</span>
                 </div>
               </div>
 
-              {/* Bloque 8: Riesgo Sistema / Saturación */}
+              {/* Bloque 9: Riesgo Sistema / Saturación */}
               <div className="bg-white border border-slate-200 p-4 space-y-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
                   <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Riesgo Sistema (Nivel de Saturación Operativa)</span>
+                  <span>9. Riesgo Sistema (Nivel de Saturación Operativa)</span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Semáforo de alerta global que evalúa la estabilidad del sistema ante la tasa de ocupación de recursos y colas de espera.
+                  Semáforo de estabilidad global según la tasa de utilización de recursos y formación de cuellos de botella.
                 </p>
                 <div className="bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-100 rounded-sm space-y-1">
-                  <div><strong>Rangos de Evaluación:</strong></div>
-                  <div className="text-emerald-700 font-bold">• Bajo (&le; 70%): Operación holgada y estable.</div>
-                  <div className="text-amber-700 font-bold">• Moderado (70% - 85%): Carga alta, vulnerable a picos.</div>
-                  <div className="text-rose-700 font-bold">• Crítico (&gt; 85%): Riesgo inminente de colapso de SLA y retrasos en cola.</div>
+                  <div className="text-emerald-700 font-bold">• Bajo (≤ 70%): Operación estable y fluida.</div>
+                  <div className="text-amber-700 font-bold">• Moderado (70% - 85%): Carga alta, sensible a picos.</div>
+                  <div className="text-rose-700 font-bold">• Crítico (&gt; 85%): Inminente colapso de colas y quiebre de SLAs.</div>
                 </div>
               </div>
 
-              {/* Bloque 9: Métricas Estadísticas de Salida */}
+              {/* Bloque 10: Métricas Estadísticas de Salida */}
               <div className="bg-white border border-slate-200 p-4 space-y-2 md:col-span-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                  <Sliders className="w-3.5 h-3.5 text-slate-800" />
-                  <span>Métricas Estadísticas de Salida y Percentiles (SLA)</span>
+                  <TrendingUp className="w-3.5 h-3.5 text-slate-800" />
+                  <span>10. Métricas Estadísticas de Salida y Percentiles (SLA)</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-[11px]">
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
                     <strong className="text-[10px] text-slate-800 block uppercase">Mediana (P50)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      El 50% de los casos concluyen en un tiempo menor o igual a este valor. No se ve afectado por casos extremos atípicos.
+                      El 50% de los casos concluyen en un tiempo menor o igual a este valor. Insensible a desvíos extremos atípicos.
                     </p>
                   </div>
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
                     <strong className="text-[10px] text-slate-800 block uppercase">Percentil 95 (P95)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      Límite crítico de compromiso SLA: el 95% de los casos se resuelven antes de esta marca temporal; solo un 5% de casos complejos lo superan.
+                      Límite de compromiso SLA: el 95% de las solicitudes se resuelven antes de esta marca temporal.
                     </p>
                   </div>
                   <div className="border border-slate-100 p-2.5 bg-slate-50/50">
                     <strong className="text-[10px] text-slate-800 block uppercase">Rendimiento (Throughput - Th)</strong>
                     <p className="text-[10px] text-slate-600 leading-relaxed mt-1">
-                      Tasa de salida promedio de transacciones o casos completados por unidad de hora (<span className="font-mono font-bold text-slate-700">Th = Casos / Horas Totales</span>).
+                      Tasa de salida promedio de transacciones o casos completados por hora (<span className="font-mono font-bold text-slate-700">Th = Casos / Horas Totales</span>).
                     </p>
                   </div>
                 </div>

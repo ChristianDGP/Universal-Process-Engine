@@ -85,13 +85,35 @@ export default function FlowSimulationEngine({
   const [showGrid, setShowGrid] = useState<boolean>(true);
   const [zoomScale, setZoomScale] = useState<number>(1.0);
   const [canvasHeight, setCanvasHeight] = useState<number>(550);
+  const [contentBounds, setContentBounds] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const diagramContentRef = useRef<HTMLDivElement>(null);
+
+  // Measure unscaled content bounds for perfect zoom wrapping without left truncation
+  useEffect(() => {
+    if (!diagramContentRef.current) return;
+    const updateBounds = () => {
+      if (diagramContentRef.current) {
+        const rect = diagramContentRef.current.getBoundingClientRect();
+        const currentScale = zoomScale || 1.0;
+        const unscaledW = rect.width / currentScale;
+        const unscaledH = rect.height / currentScale;
+        if (unscaledW > 0 && unscaledH > 0) {
+          setContentBounds({ width: unscaledW, height: unscaledH });
+        }
+      }
+    };
+    updateBounds();
+    const observer = new ResizeObserver(updateBounds);
+    observer.observe(diagramContentRef.current);
+    return () => observer.disconnect();
+  }, [process, zoomScale]);
 
   const handleAutoFitDiagram = () => {
     if (!canvasContainerRef.current || !diagramContentRef.current) return;
     const containerWidth = canvasContainerRef.current.clientWidth - 48;
-    const contentWidth = diagramContentRef.current.scrollWidth;
+    const currentScale = zoomScale || 1.0;
+    const contentWidth = diagramContentRef.current.scrollWidth / currentScale;
     if (contentWidth > 0) {
       const scale = Math.min(1.2, Math.max(0.3, Math.round((containerWidth / contentWidth) * 100) / 100));
       setZoomScale(scale);
@@ -132,19 +154,23 @@ export default function FlowSimulationEngine({
       type: "START" | "SUBPROCESS" | "GATEWAY" | "END" | "EXCEPTION_END";
       sub?: SubprocessDefinition;
       gw?: BpmnGateway;
+      flowIdx: number;
     }[] = [];
 
-    // 1. Start Event(s) & Gateways connected directly to Start
     const allStartEvents = getStartEvents(process);
+
     allStartEvents.forEach((stEvent, stIdx) => {
+      // 1. Start Event for this flow
       nodes.push({
         id: `node_start_${stEvent.id || stIdx}`,
         index: `START_${stIdx}`,
         name: stEvent.name || "Evento de Inicio",
         role: lanes[0] || "Solicitante",
-        type: "START"
+        type: "START",
+        flowIdx: stIdx
       });
 
+      // 2. Gateways connected directly after Start Event
       const gwAfterStart = process.stateMachine?.gateways?.filter(
         (g) => g.afterState === stEvent.id || g.afterState === stEvent.name
       );
@@ -155,67 +181,82 @@ export default function FlowSimulationEngine({
           name: gw.name,
           role: gw.role || lanes[0],
           type: "GATEWAY",
-          gw
+          gw,
+          flowIdx: stIdx
         });
       });
-    });
 
-    // 2. Subprocesses & Gateways exactly matching process definition
-    (process.subprocesses || []).forEach((sub, sIdx) => {
-      const subRole = sub.responsibleRole || sub.activities?.[0]?.responsibleRole || lanes[sIdx % lanes.length];
-      nodes.push({
-        id: `node_sub_${sub.index}`,
-        index: sub.index,
-        name: sub.name,
-        role: subRole,
-        type: "SUBPROCESS",
-        sub
-      });
+      // 3. Subprocesses in this flow
+      const flowSubs = getSubprocessesForStartEvent(process, stEvent, stIdx, allStartEvents);
 
-      // Check if there is a gateway after this subprocess
-      const matchingGw = process.stateMachine?.gateways?.find(
-        (g) => g.afterState === sub.name || g.afterState === sub.index
-      );
-      if (matchingGw) {
+      flowSubs.forEach((sub, sIdx) => {
+        const subRole = sub.responsibleRole || sub.activities?.[0]?.responsibleRole || lanes[sIdx % lanes.length];
         nodes.push({
-          id: `node_gw_${matchingGw.id}`,
-          index: `GW-${matchingGw.id}`,
-          name: matchingGw.name,
-          role: matchingGw.role || subRole,
-          type: "GATEWAY",
-          gw: matchingGw
+          id: `node_sub_${sub.index}`,
+          index: sub.index,
+          name: sub.name,
+          role: subRole,
+          type: "SUBPROCESS",
+          sub,
+          flowIdx: stIdx
         });
-      }
-    });
 
-    // If no gateways exist in model, add a default decision gateway after the review step for realistic simulation
-    if (!nodes.some(n => n.type === "GATEWAY") && nodes.length > 2) {
-      const midPoint = Math.min(2, nodes.length - 1);
-      nodes.splice(midPoint + 1, 0, {
-        id: "node_gw_eval",
-        index: "GW-EVAL",
-        name: "¿Requisitos y Validación Conformes?",
-        role: lanes[1] || lanes[0],
-        type: "GATEWAY",
-        gw: {
-          id: "gw_eval_default",
-          name: "¿Requisitos y Validación Conformes?",
-          type: "EXCLUSIVE_XOR",
-          afterState: nodes[midPoint].name,
-          conditionTrueTarget: "Aprobado",
-          conditionFalseTarget: "Rechazo / Cuarentena",
-          role: lanes[1] || lanes[0]
-        }
+        // Gateways connected after this Subprocess
+        const matchingGws = process.stateMachine?.gateways?.filter(
+          (g) => g.afterState === sub.name || g.afterState === sub.index
+        );
+        matchingGws?.forEach((gw) => {
+          nodes.push({
+            id: `node_gw_${gw.id}`,
+            index: `GW-${gw.id}`,
+            name: gw.name,
+            role: gw.role || subRole,
+            type: "GATEWAY",
+            gw,
+            flowIdx: stIdx
+          });
+        });
       });
-    }
 
-    // 3. End Event
-    nodes.push({
-      id: "node_end",
-      index: "END",
-      name: process.scopeEnd || "Resultado Final / Proceso Concluido",
-      role: lanes[lanes.length - 1] || lanes[0],
-      type: "END"
+      // 4. Default Gateway if no gateways exist in model and flow has >=2 subprocesses
+      const currentFlowNodes = nodes.filter(n => n.flowIdx === stIdx);
+      const currentFlowGws = currentFlowNodes.filter(n => n.type === "GATEWAY");
+      const currentFlowSubs = currentFlowNodes.filter(n => n.type === "SUBPROCESS");
+
+      if (currentFlowGws.length === 0 && currentFlowSubs.length >= 2) {
+        const firstSubIdx = nodes.findIndex(n => n.flowIdx === stIdx && n.type === "SUBPROCESS");
+        if (firstSubIdx !== -1) {
+          const firstSub = nodes[firstSubIdx];
+          const secondSub = currentFlowSubs[1];
+          nodes.splice(firstSubIdx + 1, 0, {
+            id: `node_gw_eval_${stIdx}`,
+            index: `GW-EVAL-${stIdx}`,
+            name: "¿Atributos y Documentación Conformes?",
+            role: lanes[1] || lanes[0],
+            type: "GATEWAY",
+            flowIdx: stIdx,
+            gw: {
+              id: `gw_eval_default_${stIdx}`,
+              name: "¿Atributos y Documentación Conformes?",
+              type: "EXCLUSIVE_XOR",
+              afterState: firstSub.name,
+              conditionTrueTarget: secondSub ? secondSub.name : "Siguiente Subproceso",
+              conditionFalseTarget: "Rechazado / Cuarentena",
+              role: lanes[1] || lanes[0]
+            }
+          });
+        }
+      }
+
+      // 5. End Event for this flow
+      nodes.push({
+        id: `node_end_${stIdx}`,
+        index: `END_${stIdx}`,
+        name: stEvent.endTrigger || process.scopeEnd || "Resultado Final / Proceso Concluido",
+        role: lanes[lanes.length - 1] || lanes[0],
+        type: "END",
+        flowIdx: stIdx
+      });
     });
 
     return nodes;
@@ -447,42 +488,38 @@ export default function FlowSimulationEngine({
             const nextProgress = t.progress + (0.12 * simSpeed);
             if (nextProgress >= 1) {
               const currentNode = flowNodes[t.currentNodeIndex];
+              if (!currentNode) return null;
+
               let nextNodeIdx = t.currentNodeIndex + 1;
 
-              // If current node is a START event, skip any trailing START events
-              if (currentNode && currentNode.type === "START") {
-                while (nextNodeIdx < flowNodes.length && flowNodes[nextNodeIdx].type === "START") {
-                  nextNodeIdx++;
-                }
+              // If current node is a START event, advance directly to the next node in the same flow
+              if (currentNode.type === "START") {
+                nextNodeIdx = t.currentNodeIndex + 1;
               }
-              // If current node is a SUBPROCESS, check if there is a matching gateway directly after it
-              else if (currentNode && currentNode.type === "SUBPROCESS") {
+              // If current node is a SUBPROCESS, check if there is a matching gateway directly after it in the same flow
+              else if (currentNode.type === "SUBPROCESS") {
                 const subIndex = currentNode.index || currentNode.id.replace("node_sub_", "");
                 const subName = currentNode.name;
                 
-                // Check if a gateway in flowNodes comes after this subprocess
                 const matchingGwIdx = flowNodes.findIndex(
-                  (n, idx) => idx > t.currentNodeIndex && n.type === "GATEWAY" && n.gw && (n.gw.afterState === subName || n.gw.afterState === subIndex)
+                  (n, idx) => idx > t.currentNodeIndex && n.flowIdx === currentNode.flowIdx && n.type === "GATEWAY" && n.gw && (n.gw.afterState === subName || n.gw.afterState === subIndex)
                 );
                 
                 if (matchingGwIdx !== -1) {
                   nextNodeIdx = matchingGwIdx;
                 } else {
-                  // Next node in sequence; skip any START event nodes if present
-                  while (nextNodeIdx < flowNodes.length && flowNodes[nextNodeIdx].type === "START") {
-                    nextNodeIdx++;
-                  }
+                  nextNodeIdx = t.currentNodeIndex + 1;
                 }
               }
               // Handle Gateway branching (Sí vs No routes)
-              else if (currentNode && currentNode.type === "GATEWAY" && currentNode.gw) {
+              else if (currentNode.type === "GATEWAY" && currentNode.gw) {
                 const gw = currentNode.gw;
                 if (t.isException) {
                   // Negative Branch (No / Excepción / Flecha que baja)
                   const targetName = gw.conditionFalseTarget;
                   if (targetName) {
                     const matchIdx = flowNodes.findIndex(
-                      (n) => n.name === targetName || n.index === targetName || n.id === targetName || n.id === `node_sub_${targetName}`
+                      (n) => n.flowIdx === currentNode.flowIdx && (n.name === targetName || n.index === targetName || n.id === targetName || n.id === `node_sub_${targetName}`)
                     );
                     if (matchIdx !== -1) {
                       nextNodeIdx = matchIdx;
@@ -502,26 +539,22 @@ export default function FlowSimulationEngine({
                   const targetName = gw.conditionTrueTarget;
                   if (targetName) {
                     const matchIdx = flowNodes.findIndex(
-                      (n) => n.name === targetName || n.index === targetName || n.id === targetName || n.id === `node_sub_${targetName}`
+                      (n, idx) => idx > t.currentNodeIndex && n.flowIdx === currentNode.flowIdx && (n.name === targetName || n.index === targetName || n.id === targetName || n.id === `node_sub_${targetName}`)
                     );
                     if (matchIdx !== -1) {
                       nextNodeIdx = matchIdx;
                     } else {
-                      while (nextNodeIdx < flowNodes.length && flowNodes[nextNodeIdx].type === "START") {
-                        nextNodeIdx++;
-                      }
+                      nextNodeIdx = t.currentNodeIndex + 1;
                     }
                   } else {
-                    while (nextNodeIdx < flowNodes.length && flowNodes[nextNodeIdx].type === "START") {
-                      nextNodeIdx++;
-                    }
+                    nextNodeIdx = t.currentNodeIndex + 1;
                   }
                 }
               }
 
               const passingNode = flowNodes[nextNodeIdx];
 
-              if (passingNode) {
+              if (passingNode && passingNode.flowIdx === currentNode.flowIdx) {
                 // Increment dynamic cases processed for this node
                 setNodeLiveProcessed((prev) => ({
                   ...prev,
@@ -538,8 +571,8 @@ export default function FlowSimulationEngine({
                 }
               }
 
-              if (nextNodeIdx >= flowNodes.length || (passingNode && passingNode.type === "END")) {
-                // Arrived at end or exception
+              // Boundary check: if passingNode doesn't exist, belongs to another flow, or is END
+              if (!passingNode || passingNode.flowIdx !== currentNode.flowIdx || passingNode.type === "END" || passingNode.type === "START") {
                 if (t.isException) {
                   setRejectedCases((c) => c + 1);
                 } else {
@@ -548,6 +581,7 @@ export default function FlowSimulationEngine({
                 setInFlowCases((c) => Math.max(0, c - 1));
                 return null;
               }
+
               return {
                 ...t,
                 currentNodeIndex: nextNodeIdx,
@@ -1012,18 +1046,25 @@ export default function FlowSimulationEngine({
               <div
                 ref={canvasContainerRef}
                 style={{ height: `${canvasHeight}px`, minHeight: `${canvasHeight}px` }}
-                className={`flex-1 overflow-x-auto overflow-y-auto p-6 transition-all relative flex items-center justify-center select-none ${
+                className={`flex-1 overflow-x-auto overflow-y-auto p-6 transition-all relative flex select-none ${
                   showGrid ? "bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px]" : "bg-white"
                 }`}
               >
                 <div
-                  ref={diagramContentRef}
                   style={{
-                    transform: `scale(${zoomScale})`,
-                    transformOrigin: "center center"
+                    width: contentBounds.width ? `${contentBounds.width * zoomScale}px` : "auto",
+                    height: contentBounds.height ? `${contentBounds.height * zoomScale}px` : "auto",
                   }}
-                  className="relative flex flex-col items-center justify-center gap-8 min-w-max py-4 px-4 divide-y divide-dashed divide-slate-200 transition-transform duration-200"
+                  className="m-auto relative flex items-start justify-start shrink-0"
                 >
+                  <div
+                    ref={diagramContentRef}
+                    style={{
+                      transform: `scale(${zoomScale})`,
+                      transformOrigin: "top left"
+                    }}
+                    className="relative flex flex-col items-start gap-8 min-w-max py-4 px-4 divide-y divide-dashed divide-slate-200 transition-transform duration-200"
+                  >
                   {startEvents.map((stEvent, stIdx) => {
                     const flowSubs = getSubprocessesForStartEvent(process, stEvent, stIdx, startEvents);
 
@@ -1423,6 +1464,7 @@ export default function FlowSimulationEngine({
                 </div>
               </div>
             </div>
+          </div>
 
             {/* CONTROL MANUAL DE ALTURA DE CANVAS (IDÉNTICO A MODELO DESCRIPTIVO) */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 border border-slate-200 p-2.5 rounded-xs text-xs font-mono text-slate-700 mt-2">

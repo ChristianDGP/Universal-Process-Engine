@@ -359,6 +359,27 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
   const [canvasHeight, setCanvasHeight] = useState<number>(550); // Default 550px height
   const [zoomScale, setZoomScale] = useState<number>(1.0); // Default 100% zoom
   const [showGrid, setShowGrid] = useState<boolean>(true);
+  const [contentBounds, setContentBounds] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  // Measure unscaled content bounds for perfect zoom wrapping without left truncation
+  React.useEffect(() => {
+    if (!diagramContentRef.current) return;
+    const updateBounds = () => {
+      if (diagramContentRef.current) {
+        const rect = diagramContentRef.current.getBoundingClientRect();
+        const currentScale = zoomScale || 1.0;
+        const unscaledW = rect.width / currentScale;
+        const unscaledH = rect.height / currentScale;
+        if (unscaledW > 0 && unscaledH > 0) {
+          setContentBounds({ width: unscaledW, height: unscaledH });
+        }
+      }
+    };
+    updateBounds();
+    const observer = new ResizeObserver(updateBounds);
+    observer.observe(diagramContentRef.current);
+    return () => observer.disconnect();
+  }, [process, zoomScale, activeTab, collapsedSubs]);
 
   // Quick Connect Modal State (+) (Punto 3.2)
   const [connectorModalOpen, setConnectorModalOpen] = useState(false);
@@ -2286,21 +2307,27 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                         setEndModalOpen(true);
                       }
                     }}
-                    className={`flex-1 overflow-x-auto overflow-y-auto p-6 transition-all relative flex items-center justify-center select-none ${
+                    className={`flex-1 overflow-x-auto overflow-y-auto p-6 transition-all relative flex select-none ${
                       isPanning ? "cursor-grabbing" : "cursor-grab"
                     } ${
                       showGrid ? "bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px]" : "bg-white"
                     }`}
                   >
-
                     <div
-                      ref={diagramContentRef}
                       style={{
-                        transform: `scale(${zoomScale})`,
-                        transformOrigin: "center center"
+                        width: contentBounds.width ? `${contentBounds.width * zoomScale}px` : "auto",
+                        height: contentBounds.height ? `${contentBounds.height * zoomScale}px` : "auto",
                       }}
-                      className="relative flex flex-col items-center justify-center gap-6 min-w-max py-4 px-4 divide-y divide-dashed divide-slate-200 transition-transform duration-200"
+                      className="m-auto relative flex items-start justify-start shrink-0"
                     >
+                      <div
+                        ref={diagramContentRef}
+                        style={{
+                          transform: `scale(${zoomScale})`,
+                          transformOrigin: "top left"
+                        }}
+                        className="relative flex flex-col items-start gap-6 min-w-max py-4 px-4 divide-y divide-dashed divide-slate-200 transition-transform duration-200"
+                      >
                       {getStartEvents(process).map((stEvent, stIdx, allStartEvents) => {
                         const flowSubs = getSubprocessesForStartEvent(process, stEvent, stIdx, allStartEvents);
 
@@ -2953,6 +2980,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       </div>
                     </div>
                   </div>
+                </div>
                 </div>
 
                 {/* Barra Inferior Interactiva para Ajustar Altura del Canvas */}
