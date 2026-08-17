@@ -31,6 +31,7 @@ export interface ActivityFicha {
   rules: string; // Business rules
   variants: string; // Edge cases, exception paths
   responsibleRole?: string; // Participant actor / role
+  jciAttribute?: string; // Joint Commission International (JCI) accreditation standard / goal
 }
 
 export interface SubprocessDefinition {
@@ -114,7 +115,48 @@ export interface ProcessDefinition {
   stateMachine: ProcessStateMachine;
 }
 
-// Types for simulation
+// Types for SIH (Sistemas de Información Hospitalarios / Apoyo Tecnológico)
+export interface SIHSystem {
+  id: string; // e.g. "1.1.1"
+  code: string; // e.g. "1.1.1"
+  area: string; // Category Area name
+  name: string; // System name
+  objective: string; // Purpose / Objective
+  features: string[]; // Relevent features
+  integrations: string[]; // Interoperability / Integrations
+  legalConsiderations?: string; // Legal considerations / Normas
+  supportStatus?: "SOPORTADO" | "EN_IMPLEMENTACION" | "BRECHA" | "REQUERIDO";
+  linkedProcessActivities?: string[]; // Linked process activity indices e.g. ["4.1.1"]
+  providerVendor?: string; // Vendor / Software system
+  notes?: string;
+}
+
+export interface SIHCategory {
+  code: string; // e.g. "1.1"
+  name: string; // e.g. "Apoyo administrativo a la atención clínica e información al usuario"
+  systemsCount?: number;
+}
+
+// Types for JCI (Joint Commission International - Acreditación de Calidad)
+export interface JCIStandard {
+  id: string; // e.g. "IPSG.1"
+  code: string; // e.g. "IPSG.1"
+  chapter: string; // e.g. "IPSG - Metas Internacionales de Seguridad del Paciente"
+  name: string; // Title / Name
+  objective: string; // Purpose / Standard statement
+  measurableElements: string[]; // Elementos Medibles / Requisitos
+  category?: "PATIENT_CENTERED" | "HEALTHCARE_MANAGEMENT" | "SAFETY_GOALS";
+  supportStatus?: "CUMPLIDO" | "EN_EVALUACION" | "BRECHA";
+  linkedProcessActivities?: string[];
+  notes?: string;
+}
+
+export interface JCICategory {
+  code: string; // e.g. "IPSG"
+  name: string; // e.g. "Metas Internacionales de Seguridad del Paciente"
+  standardsCount?: number;
+}
+
 export interface SimulationLogEntry {
   timestamp: string;
   activityIndex: string;

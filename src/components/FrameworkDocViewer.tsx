@@ -1,13 +1,17 @@
 import React, { useState } from "react";
-import { ProcessDefinition, SubprocessDefinition, ActivityFicha, BpmnGateway, BpmnStartEvent, StateTransition, KPIDefinition } from "../types";
+import { ProcessDefinition, SubprocessDefinition, ActivityFicha, BpmnGateway, BpmnStartEvent, StateTransition, KPIDefinition, SIHSystem, JCIStandard } from "../types";
 import { UserRole } from "../firebase";
 import { UserPermissions } from "../firebaseSync";
 import { ensureProcessSubprocessKpis } from "../lib/processTemplateGenerator";
+import { OFFICIAL_SIH_CATEGORIES, INITIAL_SIH_CATALOG } from "../data/sihCatalogPreset";
+import { systemMatchesQuery } from "../lib/sihUtils";
+import { OFFICIAL_JCI_CATEGORIES, INITIAL_JCI_CATALOG } from "../data/jciCatalogPreset";
+import { jciMatchesQuery, autoDetectJCIForFicha } from "../lib/jciUtils";
 import {
   FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
   MoveLeft, MoveRight, Sliders, PlusCircle, Play, StopCircle, RefreshCw, Save, GripVertical,
-  Minus, Maximize2, Minimize2, Grid, ZoomIn, ZoomOut, Hand, MousePointer, ShieldCheck, Lock, ShieldAlert, Search
+  Minus, Maximize2, Minimize2, Grid, ZoomIn, ZoomOut, Hand, MousePointer, ShieldCheck, Lock, ShieldAlert, Search, Server, Award
 } from "lucide-react";
 
 interface FrameworkDocViewerProps {
@@ -19,7 +23,7 @@ interface FrameworkDocViewerProps {
 
 const FORBIDDEN_SOFTWARE_TERMS = [
   "sistema", "wms", "erp", "sap", "software", "módulo", "modulo", "plataforma",
-  "bot", "algoritmo", "no tiene", "aplicación", "portal web", "base de datos", "pantalla", "interfaz"
+  "bot", "algoritmo", "aplicación", "portal web", "base de datos", "pantalla", "interfaz"
 ];
 
 export function extractHumanRolesFromActivity(act: ActivityFicha): string[] {
@@ -607,6 +611,208 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
     rules: "No tiene",
     variants: "No tiene"
   });
+
+  // SIH Listbox, Search & Match Checkboxes State for Activity Ficha Editing (Punto 4)
+  const [sihSelectedCode, setSihSelectedCode] = useState<string>("");
+  const [sihSearchTerm, setSihSearchTerm] = useState<string>("");
+  const [sihSelectedArea, setSihSelectedArea] = useState<string>("ALL");
+  const [sihSelectedStatus, setSihSelectedStatus] = useState<string>("ALL");
+  const [sihMatchOptionSystem, setSihMatchOptionSystem] = useState<boolean>(true);
+  const [sihMatchOptionFeatures, setSihMatchOptionFeatures] = useState<boolean>(true);
+
+  // Helper to load current SIH catalog from localStorage or preset
+  const getActiveSihCatalog = React.useCallback((): SIHSystem[] => {
+    try {
+      const stored = localStorage.getItem("sih_catalog_state_v1");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn("Could not read sih_catalog_state_v1", e);
+    }
+    return INITIAL_SIH_CATALOG;
+  }, []);
+
+  // Sync SIH selected system when editing an activity card
+  React.useEffect(() => {
+    if (actModalOpen) {
+      setSihSearchTerm("");
+      setSihSelectedArea("ALL");
+      setSihSelectedStatus("ALL");
+      if (actForm.supportTech) {
+        const catalog = getActiveSihCatalog();
+        const currentTechLower = actForm.supportTech.toLowerCase();
+        const matched = catalog.find(
+          (sys) =>
+            currentTechLower.includes(sys.code.toLowerCase()) ||
+            currentTechLower.includes(sys.name.toLowerCase())
+        );
+        if (matched) {
+          setSihSelectedCode(matched.code);
+          setSihMatchOptionFeatures(currentTechLower.includes("funcionalidades"));
+          setSihMatchOptionSystem(currentTechLower.includes(matched.name.toLowerCase()) || currentTechLower.includes(matched.code.toLowerCase()));
+        } else {
+          setSihSelectedCode("");
+        }
+      } else {
+        setSihSelectedCode("");
+        setSihMatchOptionSystem(true);
+        setSihMatchOptionFeatures(false);
+      }
+    }
+  }, [actModalOpen, actForm.index]);
+
+  const applySihMatch = (sysCode: string, matchSystem: boolean, matchFeatures: boolean) => {
+    if (!sysCode || sysCode === "CUSTOM") return;
+    const catalog = getActiveSihCatalog();
+    const sys = catalog.find((s) => s.code === sysCode || s.id === sysCode);
+    if (!sys) return;
+
+    const systemPart = matchSystem ? `${sys.code} - ${sys.name}` : "";
+    const featuresPart = matchFeatures && sys.features && sys.features.length > 0
+      ? `Funcionalidades: ${sys.features.join("; ")}`
+      : "";
+
+    let result = "";
+    if (matchSystem && matchFeatures) {
+      result = `${systemPart} | ${featuresPart}`;
+    } else if (matchSystem) {
+      result = systemPart;
+    } else if (matchFeatures) {
+      result = featuresPart;
+    } else {
+      result = systemPart;
+    }
+
+    setActForm((prev) => ({
+      ...prev,
+      supportTech: result
+    }));
+  };
+
+  const handleSihSelectChange = (code: string) => {
+    setSihSelectedCode(code);
+    if (code === "NO_TIENE") {
+      setActForm((prev) => ({ ...prev, supportTech: "No tiene" }));
+    } else if (code && code !== "CUSTOM") {
+      applySihMatch(code, sihMatchOptionSystem, sihMatchOptionFeatures);
+    }
+  };
+
+  const handleMatchToggleSystem = (checked: boolean) => {
+    setSihMatchOptionSystem(checked);
+    if (sihSelectedCode && sihSelectedCode !== "CUSTOM") {
+      applySihMatch(sihSelectedCode, checked, sihMatchOptionFeatures);
+    }
+  };
+
+  const handleMatchToggleFeatures = (checked: boolean) => {
+    setSihMatchOptionFeatures(checked);
+    if (sihSelectedCode && sihSelectedCode !== "CUSTOM") {
+      applySihMatch(sihSelectedCode, sihMatchOptionSystem, checked);
+    }
+  };
+
+  // JCI Listbox, Search & Match Checkboxes State for Activity Ficha Editing
+  const [jciSelectedCode, setJciSelectedCode] = useState<string>("");
+  const [jciSearchTerm, setJciSearchTerm] = useState<string>("");
+  const [jciSelectedChapter, setJciSelectedChapter] = useState<string>("ALL");
+  const [jciMatchOptionStandard, setJciMatchOptionStandard] = useState<boolean>(true);
+  const [jciMatchOptionElements, setJciMatchOptionElements] = useState<boolean>(true);
+
+  // Helper to load current JCI catalog from localStorage or preset
+  const getActiveJciCatalog = React.useCallback((): JCIStandard[] => {
+    try {
+      const stored = localStorage.getItem("jci_catalog_state_v1");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn("Could not read jci_catalog_state_v1", e);
+    }
+    return INITIAL_JCI_CATALOG;
+  }, []);
+
+  // Sync JCI selected standard when editing an activity card
+  React.useEffect(() => {
+    if (actModalOpen) {
+      setJciSearchTerm("");
+      setJciSelectedChapter("ALL");
+      if (actForm.jciAttribute) {
+        const catalog = getActiveJciCatalog();
+        const currentJciLower = actForm.jciAttribute.toLowerCase();
+        const matched = catalog.find(
+          (std) =>
+            currentJciLower.includes(std.code.toLowerCase()) ||
+            currentJciLower.includes(std.name.toLowerCase())
+        );
+        if (matched) {
+          setJciSelectedCode(matched.code);
+          setJciMatchOptionElements(currentJciLower.includes("elementos medibles") || currentJciLower.includes("requisitos"));
+          setJciMatchOptionStandard(currentJciLower.includes(matched.name.toLowerCase()) || currentJciLower.includes(matched.code.toLowerCase()));
+        } else {
+          setJciSelectedCode("");
+        }
+      } else {
+        setJciSelectedCode("");
+        setJciMatchOptionStandard(true);
+        setJciMatchOptionElements(false);
+      }
+    }
+  }, [actModalOpen, actForm.index]);
+
+  const applyJciMatch = (stdCode: string, matchStandard: boolean, matchElements: boolean) => {
+    if (!stdCode || stdCode === "CUSTOM") return;
+    const catalog = getActiveJciCatalog();
+    const std = catalog.find((s) => s.code === stdCode || s.id === stdCode);
+    if (!std) return;
+
+    const stdPart = matchStandard ? `${std.code} - ${std.name}` : "";
+    const elemsPart = matchElements && std.measurableElements && std.measurableElements.length > 0
+      ? `Elementos Medibles: ${std.measurableElements.slice(0, 3).join("; ")}`
+      : "";
+
+    let result = "";
+    if (matchStandard && matchElements) {
+      result = `${stdPart} | ${elemsPart}`;
+    } else if (matchStandard) {
+      result = stdPart;
+    } else if (matchElements) {
+      result = elemsPart;
+    } else {
+      result = stdPart;
+    }
+
+    setActForm((prev) => ({
+      ...prev,
+      jciAttribute: result
+    }));
+  };
+
+  const handleJciSelectChange = (code: string) => {
+    setJciSelectedCode(code);
+    if (code === "NO_APLICA") {
+      setActForm((prev) => ({ ...prev, jciAttribute: "No aplica" }));
+    } else if (code && code !== "CUSTOM") {
+      applyJciMatch(code, jciMatchOptionStandard, jciMatchOptionElements);
+    }
+  };
+
+  const handleMatchToggleJciStandard = (checked: boolean) => {
+    setJciMatchOptionStandard(checked);
+    if (jciSelectedCode && jciSelectedCode !== "CUSTOM") {
+      applyJciMatch(jciSelectedCode, checked, jciMatchOptionElements);
+    }
+  };
+
+  const handleMatchToggleJciElements = (checked: boolean) => {
+    setJciMatchOptionElements(checked);
+    if (jciSelectedCode && jciSelectedCode !== "CUSTOM") {
+      applyJciMatch(jciSelectedCode, jciMatchOptionStandard, checked);
+    }
+  };
 
   // Validation helpers for TO-BE Ficha constraints
   const forbiddenTechRegex = /(office|excel|word|drive|mail|outlook|hardware|equipamiento|monitor|teclado|pc\b|mouse)/i;
@@ -3360,18 +3566,44 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                   <p className="text-slate-600">
                                     <span className="font-bold text-slate-800">Descripción:</span> {act.description}
                                   </p>
-                                  <p className="text-slate-600">
-                                    <span className="font-bold text-slate-800">Responsable / Cargo Operativo:</span>{" "}
-                                    <span className="font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
-                                      {act.responsibleRole || extractHumanRolesFromActivity(act).join(", ") || "Personal Operativo"}
-                                    </span>
-                                  </p>
-                                  <p className="text-slate-600">
+                                  <div className="text-slate-600 flex flex-wrap items-center gap-1.5 pt-0.5">
+                                    <span className="font-bold text-slate-800">JCI:</span>{" "}
+                                    {(() => {
+                                      const displayVal =
+                                        act.jciAttribute && act.jciAttribute.trim() !== "" && act.jciAttribute !== "AUTO"
+                                          ? act.jciAttribute
+                                          : autoDetectJCIForFicha(act.name, act.description, getActiveJciCatalog());
+
+                                      if (
+                                        displayVal &&
+                                        displayVal.trim() !== "" &&
+                                        displayVal.toLowerCase().trim() !== "no aplica" &&
+                                        displayVal.toLowerCase().trim() !== "no tiene"
+                                      ) {
+                                        return (
+                                          <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-extrabold text-indigo-950 bg-indigo-100/90 px-2 py-0.5 border border-indigo-300 rounded-xs shadow-2xs">
+                                            <Award className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                                            {displayVal}
+                                          </span>
+                                        );
+                                      }
+                                      return <span className="italic text-slate-400 font-medium">No tiene</span>;
+                                    })()}
+                                  </div>
+                                  <div className="text-slate-600 flex flex-wrap items-center gap-1.5 pt-0.5">
                                     <span className="font-bold text-slate-800">Apoyo Tecnológico:</span>{" "}
-                                    <code className="font-mono text-slate-900 bg-slate-50 px-1 py-0.5 border border-slate-100">
-                                      {act.supportTech}
-                                    </code>
-                                  </p>
+                                    {(!act.supportTech || act.supportTech.toLowerCase().trim() === "no tiene" || act.supportTech.toLowerCase().trim() === "no aplica" || act.supportTech.toLowerCase().trim() === "ninguno") ? (
+                                      <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs uppercase tracking-wider">
+                                        <X className="w-3 h-3 text-slate-500" />
+                                        No tiene (Actividad Manual / Presencial)
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-extrabold text-amber-950 bg-amber-100/90 px-2 py-0.5 border border-amber-300 rounded-xs shadow-2xs">
+                                        <Server className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                        {act.supportTech}
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-slate-600">
                                     <span className="font-bold text-slate-800">Insumos de Información:</span> {act.infoInputs}
                                   </p>
@@ -3515,7 +3747,37 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   type="text"
                   required
                   value={actForm.name}
-                  onChange={(e) => setActForm({ ...actForm, name: e.target.value })}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    const autoVal = autoDetectJCIForFicha(newName, actForm.description, getActiveJciCatalog());
+                    
+                    // Automate JCI detection if user hasn't typed a completely custom manual non-auto attribute
+                    const currentJci = actForm.jciAttribute || "";
+                    const isAutoOrEmpty =
+                      !currentJci.trim() ||
+                      currentJci === "No tiene" ||
+                      currentJci.startsWith("IPSG.") ||
+                      currentJci.startsWith("ACC.") ||
+                      currentJci.startsWith("AOP.") ||
+                      currentJci.startsWith("COP.") ||
+                      currentJci.startsWith("MMU.") ||
+                      currentJci.startsWith("PCI.") ||
+                      currentJci.startsWith("MOI.") ||
+                      currentJci.startsWith("SQE.") ||
+                      currentJci.startsWith("FMS.") ||
+                      currentJci.startsWith("GLD.") ||
+                      currentJci.startsWith("PFR.") ||
+                      currentJci.startsWith("PFE.") ||
+                      currentJci.startsWith("QPS.") ||
+                      currentJci.startsWith("IPSG") ||
+                      currentJci === "No aplica";
+
+                    setActForm({
+                      ...actForm,
+                      name: newName,
+                      jciAttribute: isAutoOrEmpty ? autoVal : currentJci
+                    });
+                  }}
                   placeholder="Ej. Verificar Arribo y Documentación (verbo en infinitivo)"
                   className="w-full px-3 py-2 border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-slate-900 font-medium"
                 />
@@ -3557,32 +3819,448 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                 </p>
               </div>
 
-              {/* Apoyo Tecnológico */}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block font-bold text-slate-800">Apoyo Tecnológico</label>
-                  <span className="text-[10px] text-slate-500">Sistema / Módulo Informático</span>
+              {/* Apoyo Tecnológico (SIH Búsqueda, Listbox & Checkboxes Match) */}
+              <div className="space-y-3 border border-slate-300 bg-slate-50/80 p-4 shadow-xs">
+                <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2.5 gap-2">
+                  <label className="block font-extrabold text-slate-900 flex items-center gap-1.5 text-xs uppercase tracking-wider">
+                    <Server className="w-4 h-4 text-amber-500 shrink-0" />
+                    Apoyo Tecnológico (Catálogo SIH)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSihSelectedCode("NO_TIENE");
+                        setActForm((prev) => ({ ...prev, supportTech: "No tiene" }));
+                      }}
+                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold text-[10px] uppercase border border-slate-400 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      title="Marcar esta actividad como presencial/manual sin sistema informático"
+                    >
+                      <X className="w-3 h-3 text-slate-600" />
+                      <span>Marcar "No tiene" (Manual / Presencial)</span>
+                    </button>
+                    <span className="text-[10px] font-mono font-bold text-slate-600 bg-slate-200/80 px-2 py-0.5 border border-slate-300">
+                      Búsqueda & Match Institucional
+                    </span>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  required
-                  value={actForm.supportTech}
-                  onChange={(e) => setActForm({ ...actForm, supportTech: e.target.value })}
-                  placeholder="Ej. Módulo de Compras del ERP SAP, Sistema WMS, Ficha Clínica HIS"
-                  className={`w-full px-3 py-2 border bg-slate-50/50 text-slate-800 focus:outline-none ${
-                    hasTechForbidden ? "border-amber-400 bg-amber-50/30" : "border-slate-200 focus:border-slate-900"
-                  }`}
-                />
-                {hasTechForbidden ? (
-                  <p className="mt-1 text-[11px] text-amber-800 font-medium flex items-center gap-1 bg-amber-50 p-1.5 border border-amber-200">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                    <strong>Regla Ficha:</strong> No debe ir Office / Drive / Mail / Hardware / Equipamiento. Utiliza el módulo o sistema de software correspondiente.
-                  </p>
-                ) : (
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    * No debe ir Office / Drive / Mail / Hardware / Equipamiento.
-                  </p>
+
+                {/* BUSCADOR Y FILTROS SIH */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={sihSearchTerm}
+                        onChange={(e) => setSihSearchTerm(e.target.value)}
+                        placeholder="Buscar por código, nombre (ej. Traslados, 1.4.4), área o funcionalidad..."
+                        className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-slate-950 shadow-2xs"
+                      />
+                      {sihSearchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setSihSearchTerm("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <select
+                      value={sihSelectedArea}
+                      onChange={(e) => setSihSelectedArea(e.target.value)}
+                      className="px-2.5 py-2 text-xs font-medium bg-white border border-slate-300 text-slate-800 focus:outline-none max-w-[160px] truncate cursor-pointer"
+                    >
+                      <option value="ALL">Todas las Áreas</option>
+                      {OFFICIAL_SIH_CATEGORIES.map((cat) => (
+                        <option key={cat.code} value={cat.name}>
+                          {cat.code} {cat.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={sihSelectedStatus}
+                      onChange={(e) => setSihSelectedStatus(e.target.value)}
+                      className="px-2.5 py-2 text-xs font-medium bg-white border border-slate-300 text-slate-800 focus:outline-none max-w-[140px] truncate cursor-pointer"
+                    >
+                      <option value="ALL">Todos los Estados</option>
+                      <option value="SOPORTADO">Soportado</option>
+                      <option value="EN_IMPLEMENTACION">En Implementación</option>
+                      <option value="BRECHA">Brecha / Requerido</option>
+                    </select>
+                  </div>
+
+                  {/* LISTBOX SELECTOR DIRECTO */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-700 shrink-0">Selección Rápida:</span>
+                    <select
+                      value={sihSelectedCode}
+                      onChange={(e) => handleSihSelectChange(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-slate-950 shadow-2xs cursor-pointer"
+                    >
+                      <option value="">-- Seleccionar Sistema de Información SIH --</option>
+                      <option value="NO_TIENE">🚫 [NO TIENE] Actividad Manual / Presencial (sin software)</option>
+                      {getActiveSihCatalog()
+                        .filter((sys) =>
+                          systemMatchesQuery(sys, sihSearchTerm) &&
+                          (sihSelectedArea === "ALL" || sys.area === sihSelectedArea) &&
+                          (sihSelectedStatus === "ALL" || sys.supportStatus === sihSelectedStatus)
+                        )
+                        .map((sys) => (
+                          <option key={sys.id} value={sys.code}>
+                            [{sys.code}] {sys.name} ({sys.supportStatus || "SOPORTADO"}) — {sys.area}
+                          </option>
+                        ))}
+                      <option value="CUSTOM">-- Texto Libre / Ingreso Manual --</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* CHECKBOXES DE MATCH: Sistema de Información y Funcionalidades */}
+                {sihSelectedCode && sihSelectedCode !== "CUSTOM" && (
+                  <div className="bg-amber-50/70 p-3 border border-amber-300 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="block text-[10px] font-extrabold text-amber-950 uppercase tracking-wider flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 text-amber-600" />
+                        Opciones de Generación Match (Ficha de Actividad):
+                      </span>
+                      <span className="text-[10px] font-mono text-amber-800 font-bold">
+                        Sistema Activo: [{sihSelectedCode}]
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-5 text-xs font-bold">
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-slate-900 bg-white px-2.5 py-1.5 border border-amber-200 hover:border-amber-400">
+                        <input
+                          type="checkbox"
+                          checked={sihMatchOptionSystem}
+                          onChange={(e) => handleMatchToggleSystem(e.target.checked)}
+                          className="w-4 h-4 rounded-none border-slate-400 text-slate-950 focus:ring-slate-950 cursor-pointer"
+                        />
+                        <span>Sistema de Información</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-slate-900 bg-white px-2.5 py-1.5 border border-amber-200 hover:border-amber-400">
+                        <input
+                          type="checkbox"
+                          checked={sihMatchOptionFeatures}
+                          onChange={(e) => handleMatchToggleFeatures(e.target.checked)}
+                          className="w-4 h-4 rounded-none border-slate-400 text-slate-950 focus:ring-slate-950 cursor-pointer"
+                        />
+                        <span>Funcionalidades</span>
+                      </label>
+                    </div>
+                  </div>
                 )}
+
+                {/* TARJETAS DEL CATÁLOGO SIH COINCIDENTES (Resultados de Búsqueda) */}
+                {(() => {
+                  const matchingSystems = getActiveSihCatalog().filter(
+                    (sys) =>
+                      systemMatchesQuery(sys, sihSearchTerm) &&
+                      (sihSelectedArea === "ALL" || sys.area === sihSelectedArea) &&
+                      (sihSelectedStatus === "ALL" || sys.supportStatus === sihSelectedStatus)
+                  );
+
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 px-1">
+                        <span>Resultados del Catálogo ({matchingSystems.length}):</span>
+                        {sihSearchTerm && (
+                          <span className="font-mono text-slate-500">
+                            Filtro: "{sihSearchTerm}"
+                          </span>
+                        )}
+                      </div>
+
+                      {matchingSystems.length === 0 ? (
+                        <div className="p-4 bg-white border border-slate-200 text-center text-xs text-slate-500 font-medium">
+                          No se encontraron sistemas que coincidan con "{sihSearchTerm}". Intente con otra palabra clave (ej. Traslados, 1.4.4, Ficha).
+                        </div>
+                      ) : (
+                        <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                          {matchingSystems.map((sys) => {
+                            const isSelected = sihSelectedCode === sys.code;
+                            return (
+                              <div
+                                key={sys.id}
+                                onClick={() => handleSihSelectChange(sys.code)}
+                                className={`p-3 border transition-all cursor-pointer select-none ${
+                                  isSelected
+                                    ? "bg-amber-50/90 border-amber-500 ring-2 ring-amber-300 shadow-xs"
+                                    : "bg-white border-slate-200 hover:border-slate-400 hover:bg-slate-50/80"
+                                }`}
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-black text-xs px-2 py-0.5 bg-slate-900 text-white">
+                                      {sys.code}
+                                    </span>
+                                    <span className="font-bold text-xs text-slate-900">
+                                      {sys.name}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 text-[10px]">
+                                    <span className={`px-2 py-0.5 font-bold uppercase ${
+                                      sys.supportStatus === "SOPORTADO" || !sys.supportStatus
+                                        ? "bg-emerald-100 text-emerald-950 border border-emerald-300"
+                                        : sys.supportStatus === "EN_IMPLEMENTACION"
+                                        ? "bg-blue-100 text-blue-950 border border-blue-300"
+                                        : "bg-amber-100 text-amber-950 border border-amber-300"
+                                    }`}>
+                                      {sys.supportStatus === "SOPORTADO" || !sys.supportStatus
+                                        ? "Soportado"
+                                        : sys.supportStatus === "EN_IMPLEMENTACION"
+                                        ? "En Implementación"
+                                        : "Brecha"}
+                                    </span>
+
+                                    <button
+                                      type="button"
+                                      className={`px-2 py-0.5 font-bold text-[10px] uppercase border cursor-pointer ${
+                                        isSelected
+                                          ? "bg-slate-950 text-white border-slate-950"
+                                          : "bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200"
+                                      }`}
+                                    >
+                                      {isSelected ? "Seleccionado" : "Vincular"}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <p className="text-[11px] text-slate-600 line-clamp-2 mb-1.5 font-normal">
+                                  {sys.objective}
+                                </p>
+
+                                {sys.features && sys.features.length > 0 && (
+                                  <div className="text-[10px] text-slate-500 bg-slate-100/70 p-2 border border-slate-200/80 space-y-0.5">
+                                    <span className="font-bold text-slate-700 block">Funcionalidades:</span>
+                                    <ul className="list-disc list-inside space-y-0.5">
+                                      {sys.features.slice(0, 3).map((feat, fIdx) => (
+                                        <li key={fIdx} className="truncate">{feat}</li>
+                                      ))}
+                                      {sys.features.length > 3 && (
+                                        <li className="font-semibold text-slate-700 italic list-none pt-0.5">
+                                          + {sys.features.length - 3} funcionalidades adicionales
+                                        </li>
+                                      )}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* CAMPO DE TEXTO DE APOYO TECNOLÓGICO RESULTANTE */}
+                <div className="pt-2 border-t border-slate-200">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                      Valor Asignado a Ficha (Apoyo Tecnológico):
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">Editable</span>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={actForm.supportTech}
+                    onChange={(e) => setActForm({ ...actForm, supportTech: e.target.value })}
+                    placeholder="Ej. 1.4.4 - Traslados de pacientes | Funcionalidades: Solicitud interna de camilleros..."
+                    className={`w-full px-3 py-2 border bg-white text-slate-950 font-semibold text-xs focus:outline-none ${
+                      hasTechForbidden ? "border-amber-400 bg-amber-50/30" : "border-slate-300 focus:border-slate-950"
+                    }`}
+                  />
+                  {hasTechForbidden ? (
+                    <p className="mt-1 text-[11px] text-amber-800 font-medium flex items-center gap-1 bg-amber-50 p-1.5 border border-amber-200">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                      <strong>Regla Ficha:</strong> No debe ir Office / Drive / Mail / Hardware / Equipamiento. Utiliza el módulo o sistema de software correspondiente o marca "No tiene".
+                    </p>
+                  ) : actForm.supportTech && actForm.supportTech.toLowerCase().trim() === "no tiene" ? (
+                    <p className="mt-1.5 text-[11px] text-slate-700 font-medium flex items-center justify-between bg-slate-100 p-2 border border-slate-300">
+                      <span className="flex items-center gap-1.5 font-bold text-slate-900">
+                        <X className="w-3.5 h-3.5 text-slate-500" />
+                        Actividad clasificada sin software ("No tiene").
+                      </span>
+                      <span className="text-[10px] text-slate-500 italic">
+                        Ej: Desplazar hacia unidad de origen (Actividad manual/presencial)
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      * No debe ir Office / Drive / Mail / Hardware / Equipamiento. Seleccione un sistema de software o marque "No tiene" para actividades presenciales/manuales.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* ATRIBUTO JCI (JOINT COMMISSION INTERNATIONAL) */}
+              <div className="bg-indigo-50/50 border border-indigo-200 p-4 space-y-3.5 rounded-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200 pb-2.5">
+                  <div>
+                    <label className="font-extrabold text-indigo-950 flex items-center gap-2 text-xs uppercase tracking-wider">
+                      <Award className="w-4 h-4 text-indigo-600" />
+                      Atributo JCI (Joint Commission International)
+                    </label>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Identificación automática del código y elemento medible JCI en función del nombre de la ficha. Modificable manualmente si es necesario.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const autoVal = autoDetectJCIForFicha(actForm.name, actForm.description, getActiveJciCatalog());
+                        setActForm((prev) => ({ ...prev, jciAttribute: autoVal }));
+                      }}
+                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold shadow-2xs flex items-center gap-1 cursor-pointer"
+                      title="Detectar automáticamente según el nombre de la ficha"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Auto-detectar JCI
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setJciSelectedCode("NO_APLICA");
+                        setActForm((prev) => ({ ...prev, jciAttribute: "No aplica" }));
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-300 shadow-2xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5 text-slate-500" />
+                      Marcar "No aplica JCI"
+                    </button>
+                  </div>
+                </div>
+
+                {/* FILTROS Y BÚSQUEDA JCI */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                      Buscador Estándares JCI:
+                    </label>
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={jciSearchTerm}
+                        onChange={(e) => setJciSearchTerm(e.target.value)}
+                        placeholder="Buscar JCI (ej. IPSG.1, identificación, caídas...)..."
+                        className="w-full pl-8 pr-2 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                      Filtrar por Capítulo:
+                    </label>
+                    <select
+                      value={jciSelectedChapter}
+                      onChange={(e) => setJciSelectedChapter(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 cursor-pointer truncate"
+                    >
+                      <option value="ALL">Todos los Capítulos JCI</option>
+                      {OFFICIAL_JCI_CATEGORIES.map((cat) => (
+                        <option key={cat.code} value={cat.code}>
+                          [{cat.code}] {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* LISTBOX SELECCIÓN RÁPIDA JCI */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-indigo-950 shrink-0">Selección Rápida JCI:</span>
+                    <select
+                      value={jciSelectedCode}
+                      onChange={(e) => handleJciSelectChange(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs font-bold border border-indigo-300 bg-white text-indigo-950 focus:outline-none focus:border-indigo-600 shadow-2xs cursor-pointer"
+                    >
+                      <option value="">-- Seleccionar Estándar JCI --</option>
+                      <option value="NO_APLICA">🚫 [NO APLICA] Sin vinculación con Estándar JCI</option>
+                      {getActiveJciCatalog()
+                        .filter((std) =>
+                          jciMatchesQuery(std, jciSearchTerm) &&
+                          (jciSelectedChapter === "ALL" || std.code.startsWith(jciSelectedChapter) || std.chapter.includes(jciSelectedChapter))
+                        )
+                        .map((std) => (
+                          <option key={std.id} value={std.code}>
+                            [{std.code}] {std.name} — {std.chapter.split(" ")[0]}
+                          </option>
+                        ))}
+                      <option value="CUSTOM">-- Texto Libre / Ingreso Manual --</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* CHECKBOXES MATCH JCI */}
+                {jciSelectedCode && jciSelectedCode !== "CUSTOM" && jciSelectedCode !== "NO_APLICA" && (
+                  <div className="bg-white p-3 border border-indigo-200 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="block text-[10px] font-extrabold text-indigo-950 uppercase tracking-wider flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 text-indigo-600" />
+                        Opciones de Generación Match JCI:
+                      </span>
+                      <span className="text-[10px] font-mono text-indigo-800 font-bold">
+                        Estándar Activo: [{jciSelectedCode}]
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-5 text-xs font-bold">
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-slate-900 bg-indigo-50/50 px-2.5 py-1.5 border border-indigo-200 hover:border-indigo-400">
+                        <input
+                          type="checkbox"
+                          checked={jciMatchOptionStandard}
+                          onChange={(e) => handleMatchToggleJciStandard(e.target.checked)}
+                          className="w-4 h-4 rounded-none border-slate-400 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                        />
+                        <span>Código y Nombre del Estándar</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-slate-900 bg-indigo-50/50 px-2.5 py-1.5 border border-indigo-200 hover:border-indigo-400">
+                        <input
+                          type="checkbox"
+                          checked={jciMatchOptionElements}
+                          onChange={(e) => handleMatchToggleJciElements(e.target.checked)}
+                          className="w-4 h-4 rounded-none border-slate-400 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                        />
+                        <span>Elementos Medibles JCI</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* CAMPO DE TEXTO DE ATRIBUTO JCI RESULTANTE */}
+                <div className="pt-2 border-t border-indigo-200">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[11px] font-bold text-indigo-950 uppercase tracking-wider">
+                      Valor Asignado a Ficha (Atributo JCI):
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">Opcional</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={actForm.jciAttribute || ""}
+                    onChange={(e) => setActForm({ ...actForm, jciAttribute: e.target.value })}
+                    placeholder="Ej. IPSG.1 - Identificación Correcta de Pacientes | Elementos Medibles: Identificación con 2 identificadores..."
+                    className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-950 font-semibold text-xs focus:outline-none focus:border-indigo-600"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    * El atributo JCI solo se mostrará en la tarjeta de la ficha cuando esté expresamente vinculado.
+                  </p>
+                </div>
               </div>
 
               {/* Insumos de Información */}

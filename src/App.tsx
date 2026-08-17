@@ -4,6 +4,8 @@ import { BLANK_PROCESS_PRESET } from "./presets";
 import ProcessSelector from "./components/ProcessSelector";
 import FrameworkDocViewer from "./components/FrameworkDocViewer";
 import ProcessSimulator from "./components/ProcessSimulator";
+import SIHModule from "./components/SIHModule";
+import JCIModule from "./components/JCIModule";
 import UserManager from "./components/UserManager";
 import { autoSaveProcessToCloud, syncUserProfile, subscribeToUserProfile, UserProfile, DEFAULT_ADMIN_PERMISSIONS, DEFAULT_ANALYST_PERMISSIONS } from "./firebaseSync";
 import { auth, getUserRole, loginWithGoogle, logout, UserRole, AppUser, getStoredSessionUser, setStoredSessionUser } from "./firebase";
@@ -11,7 +13,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import {
   FileText, PlayCircle, BarChart2, Settings, ShieldAlert, Cloud, Loader2, CheckCircle2, AlertCircle,
   LogOut, ShieldCheck, User as UserIcon, Lock, Key, ArrowRight, Library, Sparkles, Check,
-  AlertTriangle, Mail, Users
+  AlertTriangle, Mail, Users, Server, Award
 } from "lucide-react";
 
 export default function App() {
@@ -22,7 +24,7 @@ export default function App() {
   const [showUserManager, setShowUserManager] = useState(false);
 
   const [currentProcess, setCurrentProcess] = useState<ProcessDefinition>(BLANK_PROCESS_PRESET);
-  const [activeView, setActiveView] = useState<"doc" | "kpis" | "simulator">("doc");
+  const [activeView, setActiveView] = useState<"doc" | "kpis" | "simulator" | "sih" | "jci">("doc");
   const [apiHealth, setApiHealth] = useState({ healthy: false, loading: true });
   const [autoSyncState, setAutoSyncState] = useState<{
     status: "idle" | "saving" | "synced" | "error";
@@ -398,45 +400,78 @@ export default function App() {
           </div>
         ) : (
           <>
-            <div className="border-b border-slate-200 flex flex-wrap gap-2">
-              {canAccessDoc && (
-                <button
-                  onClick={() => setActiveView("doc")}
-                  className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
-                    activeView === "doc"
-                      ? "border-slate-900 text-slate-900 font-black"
-                      : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  1. Documentación
-                </button>
-              )}
-              {canAccessKpis && (
-                <button
-                  onClick={() => setActiveView("kpis")}
-                  className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
-                    activeView === "kpis"
-                      ? "border-slate-900 text-slate-900 font-black"
-                      : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <BarChart2 className="w-4 h-4" />
-                  2. KPIs Dashboard
-                </button>
-              )}
-              {canAccessSim && (
-                <button
-                  onClick={() => setActiveView("simulator")}
-                  className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
-                    activeView === "simulator"
-                      ? "border-slate-900 text-slate-900 font-black"
-                      : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <PlayCircle className="w-4 h-4" />
-                  3. Simulador
-                </button>
+            <div className="border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {canAccessDoc && (
+                  <button
+                    onClick={() => setActiveView("doc")}
+                    className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
+                      activeView === "doc"
+                        ? "border-slate-900 text-slate-900 font-black"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    1. Documentación
+                  </button>
+                )}
+                {canAccessKpis && (
+                  <button
+                    onClick={() => setActiveView("kpis")}
+                    className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
+                      activeView === "kpis"
+                        ? "border-slate-900 text-slate-900 font-black"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <BarChart2 className="w-4 h-4" />
+                    2. KPIs Dashboard
+                  </button>
+                )}
+                {canAccessSim && (
+                  <button
+                    onClick={() => setActiveView("simulator")}
+                    className={`px-5 py-3 text-xs font-bold tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 -mb-[2px] cursor-pointer ${
+                      activeView === "simulator"
+                        ? "border-slate-900 text-slate-900 font-black"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <PlayCircle className="w-4 h-4" />
+                    3. Simulador
+                  </button>
+                )}
+              </div>
+
+              {/* MÓDULOS GLOBALES SIH Y JCI - SOLO ADMINISTRADOR */}
+              {isAdmin && (
+                <div className="flex flex-wrap items-center gap-2 py-1.5 border-l border-slate-200 pl-4 sm:ml-auto">
+                  <button
+                    onClick={() => setActiveView("sih")}
+                    className={`px-3.5 py-2 text-xs font-extrabold tracking-wide transition-all flex items-center gap-2 border shadow-2xs cursor-pointer ${
+                      activeView === "sih"
+                        ? "bg-slate-950 text-white border-slate-950 shadow-sm ring-2 ring-amber-400/60"
+                        : "bg-white text-slate-800 border-slate-300 hover:border-slate-900 hover:bg-slate-50"
+                    }`}
+                    title="Acceso exclusivo para Administrador: Catálogo General e Institucional de Sistemas de Información Hospitalarios (SIH)"
+                  >
+                    <Server className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>SIH (Apoyo Tecnológico)</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveView("jci")}
+                    className={`px-3.5 py-2 text-xs font-extrabold tracking-wide transition-all flex items-center gap-2 border shadow-2xs cursor-pointer ${
+                      activeView === "jci"
+                        ? "bg-slate-950 text-white border-slate-950 shadow-sm ring-2 ring-indigo-400/60"
+                        : "bg-white text-slate-800 border-slate-300 hover:border-slate-900 hover:bg-slate-50"
+                    }`}
+                    title="Acceso exclusivo para Administrador: Catálogo de Estándares JCI (Joint Commission International)"
+                  >
+                    <Award className="w-4 h-4 text-indigo-500 shrink-0" />
+                    <span>JCI (Acreditación)</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -465,6 +500,48 @@ export default function App() {
                   onProcessChange={(updated) => setCurrentProcess(updated)}
                   viewMode="simulator"
                 />
+              )}
+
+              {activeView === "sih" && (
+                isAdmin ? (
+                  <SIHModule
+                    currentProcess={currentProcess}
+                    onProcessChange={(updated) => setCurrentProcess(updated)}
+                    userRole={userRole}
+                  />
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 p-8 text-center space-y-3">
+                    <ShieldAlert className="w-10 h-10 text-amber-600 mx-auto" />
+                    <h3 className="text-base font-black text-amber-950 uppercase tracking-tight">Acceso Restringido al Módulo Global SIH</h3>
+                    <p className="text-xs text-amber-800 max-w-md mx-auto leading-relaxed">
+                      El Módulo Global del Catálogo SIH (Carga de archivos Word, Exportación e Ingreso de nuevos sistemas) está reservado exclusivamente para usuarios con rol <strong className="font-bold">Administrador</strong>.
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      Para vincular o editar el Apoyo Tecnológico en una Ficha de Actividad, diríjase a la sección <strong className="text-slate-900 font-bold">1. Documentación</strong> y edite la ficha correspondiente.
+                    </p>
+                  </div>
+                )
+              )}
+
+              {activeView === "jci" && (
+                isAdmin ? (
+                  <JCIModule
+                    currentProcess={currentProcess}
+                    onProcessChange={(updated) => setCurrentProcess(updated)}
+                    userRole={userRole}
+                  />
+                ) : (
+                  <div className="bg-indigo-50 border border-indigo-200 p-8 text-center space-y-3">
+                    <ShieldAlert className="w-10 h-10 text-indigo-600 mx-auto" />
+                    <h3 className="text-base font-black text-indigo-950 uppercase tracking-tight">Acceso Restringido al Módulo Global JCI</h3>
+                    <p className="text-xs text-indigo-800 max-w-md mx-auto leading-relaxed">
+                      El Módulo Global de Acreditación JCI (Joint Commission International) está reservado exclusivamente para usuarios con rol <strong className="font-bold">Administrador</strong>.
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      Para vincular o editar el Atributo JCI en una Ficha de Actividad, diríjase a la sección <strong className="text-slate-900 font-bold">1. Documentación</strong> y edite la ficha correspondiente.
+                    </p>
+                  </div>
+                )
               )}
             </div>
           </>
