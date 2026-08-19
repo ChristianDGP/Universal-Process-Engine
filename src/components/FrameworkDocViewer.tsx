@@ -6,7 +6,7 @@ import { ensureProcessSubprocessKpis } from "../lib/processTemplateGenerator";
 import { OFFICIAL_SIH_CATEGORIES, INITIAL_SIH_CATALOG } from "../data/sihCatalogPreset";
 import { systemMatchesQuery } from "../lib/sihUtils";
 import { OFFICIAL_JCI_CATEGORIES, INITIAL_JCI_CATALOG } from "../data/jciCatalogPreset";
-import { jciMatchesQuery, autoDetectJCIForFicha } from "../lib/jciUtils";
+import { jciMatchesQuery, autoDetectJCIForFicha, autoDetectJCISupportType } from "../lib/jciUtils";
 import {
   FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
@@ -861,7 +861,10 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
     formula: "",
     periodicity: "Monthly",
     targetRange: "",
-    otherRanges: ""
+    otherRanges: "",
+    isJciLinked: false,
+    jciStandard: "",
+    jciSupportType: "PROCESO"
   });
 
   // Handler: Move Activity Up/Down
@@ -1788,7 +1791,10 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                         formula: "(EntregablesConformes / TotalProcesados) * 100",
                         periodicity: "Monthly",
                         targetRange: ">= 95%",
-                        otherRanges: "< 90%"
+                        otherRanges: "< 90%",
+                        isJciLinked: false,
+                        jciStandard: "",
+                        jciSupportType: "PROCESO"
                       });
                       setKpiModalOpen(true);
                     }}
@@ -1814,7 +1820,18 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                               type="button"
                               onClick={() => {
                                 setEditingKpiId(kpi.id);
-                                setKpiForm(kpi);
+                                setKpiForm({
+                                  id: kpi.id,
+                                  name: kpi.name,
+                                  description: kpi.description,
+                                  formula: kpi.formula,
+                                  periodicity: kpi.periodicity,
+                                  targetRange: kpi.targetRange,
+                                  otherRanges: kpi.otherRanges,
+                                  isJciLinked: kpi.isJciLinked ?? false,
+                                  jciStandard: kpi.jciStandard ?? "",
+                                  jciSupportType: (kpi.jciSupportType === "DOCUMENTAL" ? "DOCUMENTO" : kpi.jciSupportType === "PROCESAL" ? "PROCESO" : kpi.jciSupportType === "SISTEMICO" ? "SISTEMA" : kpi.jciSupportType) ?? "PROCESO"
+                                });
                                 setKpiModalOpen(true);
                               }}
                               className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
@@ -1836,7 +1853,38 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       </div>
                     </div>
                     <h5 className="font-bold text-slate-900 text-sm mt-3">{kpi.name}</h5>
-                    <p className="text-xs text-slate-600 mt-2 leading-relaxed h-12 overflow-y-auto">
+
+                    {/* JCI & SOPORTE BADGES */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {kpi.isJciLinked || (kpi.jciStandard && kpi.jciStandard.trim() !== "") ? (
+                        <span className="inline-flex items-center gap-1 font-mono text-[10px] font-extrabold text-indigo-950 bg-indigo-100 px-2 py-0.5 border border-indigo-300 rounded-xs shadow-2xs">
+                          <Award className="w-3 h-3 text-indigo-700 shrink-0" />
+                          JCI: {kpi.jciStandard || "Asociado a JCI"}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 border border-slate-200 rounded-xs">
+                          JCI: No Asociado
+                        </span>
+                      )}
+
+                      {(kpi.jciSupportType === "DOCUMENTO" || kpi.jciSupportType === "DOCUMENTAL") && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 border border-blue-200 rounded-xs" title="Soporte: Contenido en Documento / Protocolo institucional">
+                          📄 Documento
+                        </span>
+                      )}
+                      {(kpi.jciSupportType === "PROCESO" || kpi.jciSupportType === "PROCESAL" || (!kpi.jciSupportType && kpi.isJciLinked)) && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-900 bg-teal-50 px-1.5 py-0.5 border border-teal-200 rounded-xs" title="Soporte: Contenido en Proceso / Flujo Operativo">
+                          🔄 Proceso
+                        </span>
+                      )}
+                      {(kpi.jciSupportType === "SISTEMA" || kpi.jciSupportType === "SISTEMICO") && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-950 bg-amber-50 px-1.5 py-0.5 border border-amber-300 rounded-xs" title="Soporte: Contenido en Sistema / Software SIH">
+                          💻 Sistema (SIH)
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-600 mt-2.5 leading-relaxed h-12 overflow-y-auto">
                       {kpi.description}
                     </p>
                     
@@ -1908,6 +1956,42 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           if (canViewSec4) {
             numSec4 = isSingleModule ? "1.0." : `${++mainCounter}.`;
           }
+
+          // Calculate all unique SIPOC inputs (I) separated by comma
+          const sipocInputsList = Array.from(
+            new Set(
+              process.subprocesses
+                .flatMap((sub) => {
+                  const firstActInput = sub.activities && sub.activities.length > 0 && sub.activities[0].infoInputs ? sub.activities[0].infoInputs : "";
+                  const sipocInputs = sub.sipoc && sub.sipoc.length > 0 ? sub.sipoc.map((s) => s.inputs) : [];
+                  return [firstActInput, ...sipocInputs];
+                })
+                .map((i) => (i || "").trim())
+                .filter((i) => i.length > 0 && i !== "Insumo inicial del subproceso")
+            )
+          );
+
+          // Calculate all unique SIPOC outputs (O) separated by comma
+          const sipocOutputsList = Array.from(
+            new Set(
+              process.subprocesses
+                .flatMap((sub) => {
+                  const lastActResult = sub.activities && sub.activities.length > 0 && sub.activities[sub.activities.length - 1].result ? sub.activities[sub.activities.length - 1].result : "";
+                  const sipocOutputs = sub.sipoc && sub.sipoc.length > 0 ? sub.sipoc.map((s) => s.outputs) : [];
+                  return [lastActResult, ...sipocOutputs];
+                })
+                .map((o) => (o || "").trim())
+                .filter((o) => o.length > 0 && o !== "Resultado final del subproceso")
+            )
+          );
+
+          const displayProcessInputs = sipocInputsList.length > 0
+            ? sipocInputsList.join(", ")
+            : (process.processInputs || process.scopeStart || "No definidos");
+
+          const displayProcessOutputs = sipocOutputsList.length > 0
+            ? sipocOutputsList.join(", ")
+            : (process.processOutputs || process.scopeEnd || "No definidos");
 
           return (
           <div className="space-y-12 animate-fadeIn max-w-none">
@@ -2021,130 +2105,6 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       </p>
                     </div>
                   </div>
-                </div>
-              </section>
-            )}
-
-            {/* 3. Ficha del Proceso */}
-            {canViewSec3 && (
-              <section className="space-y-4">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-500" />
-                    {numSec3} Ficha Descriptiva del Proceso
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    {(isAdmin || docPerms.riskMatrix.edit) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingRiskIndex(null);
-                          setRiskForm("");
-                          setRiskModalOpen(true);
-                        }}
-                        className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1 shadow-2xs"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Agregar Riesgo</span>
-                      </button>
-                    )}
-                    {(isAdmin || docPerms.fce.edit) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGeneralForm({
-                            name: process.name || "",
-                            description: process.description || "",
-                            responsibleRole: process.responsibleRole || "",
-                            processOwner: process.processOwner || "",
-                            scopeStart: process.scopeStart || "",
-                            scopeEnd: process.scopeEnd || "",
-                            suppliers: process.suppliers || "",
-                            customers: process.customers || "",
-                            processInputs: process.processInputs || "",
-                            processOutputs: process.processOutputs || ""
-                          });
-                          setGeneralModalOpen(true);
-                        }}
-                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                        <span>Editar Ficha Descriptiva</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="border border-slate-200 overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <tbody>
-                      <tr className="border-b border-slate-200">
-                        <td className="p-3 bg-slate-50 font-bold text-slate-700 w-1/4">Nombre del Proceso</td>
-                        <td className="p-3 text-slate-800 font-bold">{process.name}</td>
-                      </tr>
-                      <tr className="border-b border-slate-200">
-                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Responsable del Proceso</td>
-                        <td className="p-3 text-slate-800 font-medium">{process.responsibleRole}</td>
-                      </tr>
-                      <tr className="border-b border-slate-200">
-                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Dueño del Proceso</td>
-                        <td className="p-3 text-slate-800 font-medium">{process.processOwner}</td>
-                      </tr>
-                      <tr className="border-b border-slate-200">
-                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Entradas del Proceso</td>
-                        <td className="p-3 text-slate-800 font-medium">{process.scopeStart || process.processInputs}</td>
-                      </tr>
-                      <tr className="border-b border-slate-200">
-                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Resultados / Entregables</td>
-                        <td className="p-3 text-slate-800 font-medium">{process.scopeEnd || process.processOutputs}</td>
-                      </tr>
-                      <tr className="border-b border-slate-200">
-                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Proveedores / Relaciones</td>
-                        <td className="p-3 text-slate-600">{process.suppliers}</td>
-                      </tr>
-                      <tr className="border-b border-slate-200">
-                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Usuarios / Destinatarios</td>
-                        <td className="p-3 text-slate-600">{process.customers}</td>
-                      </tr>
-                      {(isAdmin || docPerms.riskMatrix.view) && (
-                        <tr>
-                          <td className="p-3 bg-slate-50 font-bold text-slate-700">Riesgos Identificados</td>
-                          <td className="p-3 text-slate-600">
-                            <ul className="space-y-1.5">
-                              {process.risks.map((risk, i) => (
-                                <li key={i} className="flex items-center justify-between group bg-slate-50/60 p-1.5 border border-slate-100 rounded">
-                                  <span className="text-xs text-slate-800 font-medium">&bull; {risk}</span>
-                                  {(isAdmin || docPerms.riskMatrix.edit) && (
-                                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setEditingRiskIndex(i);
-                                          setRiskForm(risk);
-                                          setRiskModalOpen(true);
-                                        }}
-                                        className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
-                                        title="Editar Riesgo"
-                                      >
-                                        <Edit2 className="w-3 h-3" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteRisk(i)}
-                                        className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
-                                        title="Eliminar Riesgo"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    </div>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
                 </div>
               </section>
             )}
@@ -3227,6 +3187,130 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
             </section>
           )}
 
+            {/* 3. Ficha Descriptiva del Proceso */}
+            {canViewSec3 && (
+              <section className="space-y-4" id="section-3">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-500" />
+                    {numSec3} Ficha Descriptiva del Proceso
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    {(isAdmin || docPerms.riskMatrix.edit) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRiskIndex(null);
+                          setRiskForm("");
+                          setRiskModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1 shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Agregar Riesgo</span>
+                      </button>
+                    )}
+                    {(isAdmin || docPerms.fce.edit) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGeneralForm({
+                            name: process.name || "",
+                            description: process.description || "",
+                            responsibleRole: process.responsibleRole || "",
+                            processOwner: process.processOwner || "",
+                            scopeStart: process.scopeStart || "",
+                            scopeEnd: process.scopeEnd || "",
+                            suppliers: process.suppliers || "",
+                            customers: process.customers || "",
+                            processInputs: process.processInputs || displayProcessInputs,
+                            processOutputs: process.processOutputs || displayProcessOutputs
+                          });
+                          setGeneralModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Editar Ficha Descriptiva</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <tbody>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700 w-1/4">Nombre del Proceso</td>
+                        <td className="p-3 text-slate-800 font-bold">{process.name}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Responsable del Proceso</td>
+                        <td className="p-3 text-slate-800 font-medium">{process.responsibleRole}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Dueño del Proceso</td>
+                        <td className="p-3 text-slate-800 font-medium">{process.processOwner}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Entradas del Proceso</td>
+                        <td className="p-3 text-slate-800 font-medium">{displayProcessInputs}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Resultados / Entregables</td>
+                        <td className="p-3 text-slate-800 font-medium">{displayProcessOutputs}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Proveedores / Relaciones</td>
+                        <td className="p-3 text-slate-600">{process.suppliers}</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="p-3 bg-slate-50 font-bold text-slate-700">Usuarios / Destinatarios</td>
+                        <td className="p-3 text-slate-600">{process.customers}</td>
+                      </tr>
+                      {(isAdmin || docPerms.riskMatrix.view) && (
+                        <tr>
+                          <td className="p-3 bg-slate-50 font-bold text-slate-700">Riesgos Identificados</td>
+                          <td className="p-3 text-slate-600">
+                            <ul className="space-y-1.5">
+                              {process.risks.map((risk, i) => (
+                                <li key={i} className="flex items-center justify-between group bg-slate-50/60 p-1.5 border border-slate-100 rounded">
+                                  <span className="text-xs text-slate-800 font-medium">&bull; {risk}</span>
+                                  {(isAdmin || docPerms.riskMatrix.edit) && (
+                                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingRiskIndex(i);
+                                          setRiskForm(risk);
+                                          setRiskModalOpen(true);
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 rounded"
+                                        title="Editar Riesgo"
+                                      >
+                                        <Edit2 className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteRisk(i)}
+                                        className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                        title="Eliminar Riesgo"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
             {/* 3.5. Matriz SIPOC */}
             {canViewSec35 && (
               <section className="space-y-4" id="section-3-5">
@@ -3574,17 +3658,40 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                           ? act.jciAttribute
                                           : autoDetectJCIForFicha(act.name, act.description, getActiveJciCatalog());
 
-                                      if (
+                                      const hasJci =
                                         displayVal &&
                                         displayVal.trim() !== "" &&
                                         displayVal.toLowerCase().trim() !== "no aplica" &&
-                                        displayVal.toLowerCase().trim() !== "no tiene"
-                                      ) {
+                                        displayVal.toLowerCase().trim() !== "no tiene";
+
+                                      if (hasJci) {
+                                        const support =
+                                          act.jciSupportType && act.jciSupportType !== "NO_TIENE"
+                                            ? act.jciSupportType
+                                            : autoDetectJCISupportType(act.name, act.description, act.supportTech);
+
                                         return (
-                                          <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-extrabold text-indigo-950 bg-indigo-100/90 px-2 py-0.5 border border-indigo-300 rounded-xs shadow-2xs">
-                                            <Award className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
-                                            {displayVal}
-                                          </span>
+                                          <div className="inline-flex flex-wrap items-center gap-1.5">
+                                            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-extrabold text-indigo-950 bg-indigo-100/90 px-2 py-0.5 border border-indigo-300 rounded-xs shadow-2xs">
+                                              <Award className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                                              {displayVal}
+                                            </span>
+                                            {(support === "DOCUMENTO" || support === "DOCUMENTAL") && (
+                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 border border-blue-200 rounded-xs" title="Soporte: Contenido en Documento / Protocolo institucional">
+                                                📄 Documento
+                                              </span>
+                                            )}
+                                            {(support === "PROCESO" || support === "PROCESAL") && (
+                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-900 bg-teal-50 px-1.5 py-0.5 border border-teal-200 rounded-xs" title="Soporte: Contenido en Proceso / Flujo Operativo">
+                                                🔄 Proceso
+                                              </span>
+                                            )}
+                                            {(support === "SISTEMA" || support === "SISTEMICO") && (
+                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-950 bg-amber-50 px-1.5 py-0.5 border border-amber-300 rounded-xs" title="Soporte: Contenido en Sistema / Software SIH">
+                                                💻 Sistema (SIH)
+                                              </span>
+                                            )}
+                                          </div>
                                         );
                                       }
                                       return <span className="italic text-slate-400 font-medium">No tiene</span>;
@@ -4260,6 +4367,65 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   <p className="mt-1 text-[10px] text-slate-500">
                     * El atributo JCI solo se mostrará en la tarjeta de la ficha cuando esté expresamente vinculado.
                   </p>
+                </div>
+
+                {/* TIPO DE SOPORTE DE CUMPLIMIENTO JCI */}
+                <div className="pt-2 border-t border-indigo-200">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[11px] font-bold text-indigo-950 uppercase tracking-wider">
+                      Tipo de Soporte de Cumplimiento JCI:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const supp = autoDetectJCISupportType(actForm.name, actForm.description, actForm.supportTech);
+                        setActForm((prev) => ({ ...prev, jciSupportType: supp }));
+                      }}
+                      className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer"
+                      title="Sugerir soporte según actividad y apoyo tecnológico"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Sugerir Soporte
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActForm({ ...actForm, jciSupportType: "DOCUMENTO" })}
+                      className={`p-2 border text-left rounded-xs transition-all cursor-pointer ${
+                        actForm.jciSupportType === "DOCUMENTO" || actForm.jciSupportType === "DOCUMENTAL"
+                          ? "bg-blue-600 text-white border-blue-700 font-bold shadow-xs"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-xs flex items-center gap-1">📄 Documento</div>
+                      <div className="text-[10px] opacity-80 mt-0.5 truncate">Norma / Política</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActForm({ ...actForm, jciSupportType: "PROCESO" })}
+                      className={`p-2 border text-left rounded-xs transition-all cursor-pointer ${
+                        actForm.jciSupportType === "PROCESO" || actForm.jciSupportType === "PROCESAL" || (!actForm.jciSupportType && actForm.jciAttribute && actForm.jciAttribute !== "No tiene" && actForm.jciAttribute !== "No aplica")
+                          ? "bg-teal-700 text-white border-teal-800 font-bold shadow-xs"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-xs flex items-center gap-1">🔄 Proceso</div>
+                      <div className="text-[10px] opacity-80 mt-0.5 truncate">Flujo Operativo</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActForm({ ...actForm, jciSupportType: "SISTEMA" })}
+                      className={`p-2 border text-left rounded-xs transition-all cursor-pointer ${
+                        actForm.jciSupportType === "SISTEMA" || actForm.jciSupportType === "SISTEMICO"
+                          ? "bg-amber-600 text-white border-amber-700 font-bold shadow-xs"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-xs flex items-center gap-1">💻 Sistema</div>
+                      <div className="text-[10px] opacity-80 mt-0.5 truncate">Sistema SIH</div>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -5277,6 +5443,179 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                     placeholder="Ej. < 90%"
                     className="w-full px-3 py-2 border border-slate-200 bg-rose-50/40 text-slate-800 focus:outline-none focus:border-rose-600"
                   />
+                </div>
+              </div>
+
+              {/* SECCIÓN JCI & TIPO DE SOPORTE */}
+              <div className="bg-indigo-50/60 border border-indigo-200 p-4 space-y-3.5 rounded-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200/80 pb-2">
+                  <div>
+                    <label className="font-extrabold text-indigo-950 flex items-center gap-1.5 text-xs uppercase tracking-wider">
+                      <Award className="w-4 h-4 text-indigo-700 shrink-0" />
+                      Vinculación con Acreditación JCI
+                    </label>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Indique si este indicador evalúa el cumplimiento de estándares Joint Commission International.
+                    </p>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 border border-indigo-300 hover:border-indigo-500 shadow-2xs">
+                    <input
+                      type="checkbox"
+                      checked={!!kpiForm.isJciLinked}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const detectedStd = checked && !kpiForm.jciStandard
+                          ? autoDetectJCIForFicha(kpiForm.name, kpiForm.description, getActiveJciCatalog())
+                          : kpiForm.jciStandard;
+                        const detectedSupp = checked && (!kpiForm.jciSupportType || kpiForm.jciSupportType === "NO_TIENE")
+                          ? autoDetectJCISupportType(kpiForm.name, kpiForm.description)
+                          : (kpiForm.jciSupportType || "PROCESAL");
+                        setKpiForm({
+                          ...kpiForm,
+                          isJciLinked: checked,
+                          jciStandard: checked ? (detectedStd === "No tiene" ? "" : detectedStd) : "",
+                          jciSupportType: checked ? detectedSupp : kpiForm.jciSupportType
+                        });
+                      }}
+                      className="w-4 h-4 rounded-none text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-indigo-950 select-none">
+                      {kpiForm.isJciLinked ? "✅ Asociado a JCI" : "No Asociado a JCI"}
+                    </span>
+                  </label>
+                </div>
+
+                {kpiForm.isJciLinked && (
+                  <div className="space-y-3 animate-fadeIn">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[11px] font-bold text-slate-800 uppercase">
+                          Estándar JCI Asociado:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const detected = autoDetectJCIForFicha(kpiForm.name, kpiForm.description, getActiveJciCatalog());
+                            if (detected && detected !== "No tiene") {
+                              setKpiForm((prev) => ({ ...prev, jciStandard: detected }));
+                            }
+                          }}
+                          className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer"
+                          title="Auto-detectar estándar según nombre y fórmula del KPI"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Auto-detectar Estándar
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <select
+                          value={
+                            getActiveJciCatalog().some((s) => kpiForm.jciStandard?.includes(s.code))
+                              ? getActiveJciCatalog().find((s) => kpiForm.jciStandard?.includes(s.code))?.code
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const code = e.target.value;
+                            if (code) {
+                              const std = getActiveJciCatalog().find((s) => s.code === code);
+                              if (std) {
+                                setKpiForm((prev) => ({
+                                  ...prev,
+                                  jciStandard: `${std.code} - ${std.name}`
+                                }));
+                              }
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white border border-indigo-300 text-indigo-950 focus:outline-none focus:border-indigo-600"
+                        >
+                          <option value="">-- Seleccionar de catálogo JCI --</option>
+                          {getActiveJciCatalog().map((std) => (
+                            <option key={std.id} value={std.code}>
+                              [{std.code}] {std.name} — {std.chapter.split(" ")[0]}
+                            </option>
+                          ))}
+                        </select>
+
+                        <input
+                          type="text"
+                          value={kpiForm.jciStandard || ""}
+                          onChange={(e) => setKpiForm({ ...kpiForm, jciStandard: e.target.value })}
+                          placeholder="Ej. IPSG.1 - Identificación Correcta de Pacientes"
+                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 font-semibold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TIPO DE SOPORTE DEL INDICADOR (Documental, Procesal, Sistémico) */}
+                <div className="pt-2 border-t border-indigo-200/80">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                      Tipo de Soporte de Cumplimiento:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const supp = autoDetectJCISupportType(kpiForm.name, kpiForm.description);
+                        setKpiForm((prev) => ({ ...prev, jciSupportType: supp }));
+                      }}
+                      className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer"
+                      title="Sugerir soporte según fórmula y descripción"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Sugerir Soporte
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setKpiForm({ ...kpiForm, jciSupportType: "DOCUMENTO" })}
+                      className={`p-2.5 border text-left rounded-xs transition-all cursor-pointer ${
+                        kpiForm.jciSupportType === "DOCUMENTO" || kpiForm.jciSupportType === "DOCUMENTAL"
+                          ? "bg-blue-600 text-white border-blue-700 font-bold shadow-xs"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-xs flex items-center gap-1">📄 Documento</div>
+                      <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
+                        Adherencia a norma, política o documento formal
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setKpiForm({ ...kpiForm, jciSupportType: "PROCESO" })}
+                      className={`p-2.5 border text-left rounded-xs transition-all cursor-pointer ${
+                        kpiForm.jciSupportType === "PROCESO" || kpiForm.jciSupportType === "PROCESAL" || !kpiForm.jciSupportType
+                          ? "bg-teal-700 text-white border-teal-800 font-bold shadow-xs"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-xs flex items-center gap-1">🔄 Proceso</div>
+                      <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
+                        Tiempos, SLA y ejecución de actividades
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setKpiForm({ ...kpiForm, jciSupportType: "SISTEMA" })}
+                      className={`p-2.5 border text-left rounded-xs transition-all cursor-pointer ${
+                        kpiForm.jciSupportType === "SISTEMA" || kpiForm.jciSupportType === "SISTEMICO"
+                          ? "bg-amber-600 text-white border-amber-700 font-bold shadow-xs"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-xs flex items-center gap-1">💻 Sistema</div>
+                      <div className="text-[10px] opacity-80 mt-0.5 leading-tight">
+                        Registros automáticos y extracción SIH
+                      </div>
+                    </button>
+                  </div>
                 </div>
               </div>
 

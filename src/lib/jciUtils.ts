@@ -265,3 +265,50 @@ export function autoDetectJCIForFicha(
   return "No tiene";
 }
 
+/**
+ * Automatically detects the compliance support type (Documento, Proceso, Sistema)
+ * for a JCI standard, activity, or KPI based on context and tech support.
+ */
+export function autoDetectJCISupportType(
+  name: string,
+  description: string = "",
+  supportTech: string = ""
+): "DOCUMENTO" | "PROCESO" | "SISTEMA" {
+  const fullText = normalizeText(`${name} ${description} ${supportTech}`);
+
+  if (
+    fullText.includes("sistema") ||
+    fullText.includes("software") ||
+    fullText.includes("sih") ||
+    fullText.includes("his") ||
+    fullText.includes("erp") ||
+    fullText.includes("registro electronico") ||
+    fullText.includes("trakcare") ||
+    fullText.includes("base de datos") ||
+    fullText.includes("extraccion automatica") ||
+    (supportTech &&
+      supportTech.toLowerCase().trim() !== "no tiene" &&
+      supportTech.toLowerCase().trim() !== "no aplica" &&
+      !supportTech.toLowerCase().includes("manual") &&
+      !supportTech.toLowerCase().includes("presencial"))
+  ) {
+    return "SISTEMA";
+  }
+
+  if (
+    fullText.includes("documento") ||
+    fullText.includes("politica") ||
+    fullText.includes("protocolo") ||
+    fullText.includes("guia") ||
+    fullText.includes("instructivo") ||
+    fullText.includes("adherencia") ||
+    fullText.includes("consentimiento informado") ||
+    fullText.includes("auditoria de ficha") ||
+    fullText.includes("vigencia")
+  ) {
+    return "DOCUMENTO";
+  }
+
+  return "PROCESO";
+}
+

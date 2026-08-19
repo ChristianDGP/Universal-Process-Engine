@@ -47,7 +47,10 @@ export function generateFallbackProcess(processName: string, descriptionContext:
         formula: "([Número de solicitudes atendidas en SLA] / [Número total de solicitudes recibidas en periodo determinado]) * 100",
         periodicity: "Monthly",
         targetRange: ">= 92%",
-        otherRanges: "< 85%"
+        otherRanges: "< 85%",
+        isJciLinked: true,
+        jciStandard: "IPSG.2 - Mejora de la Comunicación Efectiva y Oportunidad",
+        jciSupportType: "PROCESO"
       },
       {
         id: "KPI-02",
@@ -56,7 +59,10 @@ export function generateFallbackProcess(processName: string, descriptionContext:
         formula: "([Número de solicitudes sin reproceso ni observaciones] / [Número total de solicitudes procesadas en periodo determinado]) * 100",
         periodicity: "Monthly",
         targetRange: ">= 88%",
-        otherRanges: "< 80%"
+        otherRanges: "< 80%",
+        isJciLinked: true,
+        jciStandard: "MOI.1 - Gestión de la Información y Calidad de Registros",
+        jciSupportType: "SISTEMA"
       },
       {
         id: "KPI-03",
@@ -65,7 +71,9 @@ export function generateFallbackProcess(processName: string, descriptionContext:
         formula: "([Puntaje total de satisfacción obtenido] / [Puntaje máximo de evaluación posible]) * 100",
         periodicity: "Quarterly",
         targetRange: ">= 90%",
-        otherRanges: "< 75%"
+        otherRanges: "< 75%",
+        isJciLinked: false,
+        jciSupportType: "DOCUMENTO"
       }
     ],
     subprocesses: [

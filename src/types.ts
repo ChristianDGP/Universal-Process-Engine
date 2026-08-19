@@ -3,9 +3,12 @@ export interface KPIDefinition {
   name: string;
   description: string;
   formula: string; // Exact mathematical expression, e.g., "(ApprovedPurchases / TotalRequests) * 100"
-  periodicity: "Daily" | "Weekly" | "Monthly" | "Quarterly";
+  periodicity: "Daily" | "Weekly" | "Monthly" | "Quarterly" | "Annual";
   targetRange: string; // Satisfactorio condition, e.g., ">= 95%"
   otherRanges: string; // Insatisfactorio condition, e.g., "< 90%"
+  isJciLinked?: boolean; // Indicates whether KPI is linked to JCI accreditation
+  jciStandard?: string; // e.g. "[IPSG.1] Identificación Correcta de Pacientes"
+  jciSupportType?: "DOCUMENTO" | "PROCESO" | "SISTEMA" | "DOCUMENTAL" | "PROCESAL" | "SISTEMICO" | "NO_TIENE"; // 📄 Documento, 🔄 Proceso, 💻 Sistema
 }
 
 export interface ProcessGlossaryItem {
@@ -32,6 +35,7 @@ export interface ActivityFicha {
   variants: string; // Edge cases, exception paths
   responsibleRole?: string; // Participant actor / role
   jciAttribute?: string; // Joint Commission International (JCI) accreditation standard / goal
+  jciSupportType?: "DOCUMENTO" | "PROCESO" | "SISTEMA" | "DOCUMENTAL" | "PROCESAL" | "SISTEMICO" | "NO_TIENE"; // 📄 Documento, 🔄 Proceso, 💻 Sistema
 }
 
 export interface SubprocessDefinition {
