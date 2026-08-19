@@ -7,6 +7,8 @@ import { OFFICIAL_SIH_CATEGORIES, INITIAL_SIH_CATALOG } from "../data/sihCatalog
 import { systemMatchesQuery } from "../lib/sihUtils";
 import { OFFICIAL_JCI_CATEGORIES, INITIAL_JCI_CATALOG } from "../data/jciCatalogPreset";
 import { jciMatchesQuery, autoDetectJCIForFicha, autoDetectJCISupportType } from "../lib/jciUtils";
+import SihCatalogPickerModal from "./SihCatalogPickerModal";
+import JciCatalogPickerModal from "./JciCatalogPickerModal";
 import {
   FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
@@ -601,6 +603,8 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
   // Activity Ficha Editing State
   const [editingAct, setEditingAct] = useState<{ subIndex: string; actIndex: string } | null>(null);
   const [actModalOpen, setActModalOpen] = useState(false);
+  const [sihPickerModalOpen, setSihPickerModalOpen] = useState(false);
+  const [jciPickerModalOpen, setJciPickerModalOpen] = useState(false);
   const [actForm, setActForm] = useState<ActivityFicha>({
     index: "",
     name: "",
@@ -3926,252 +3930,73 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                 </p>
               </div>
 
-              {/* Apoyo Tecnológico (SIH Búsqueda, Listbox & Checkboxes Match) */}
-              <div className="space-y-3 border border-slate-300 bg-slate-50/80 p-4 shadow-xs">
-                <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2.5 gap-2">
-                  <label className="block font-extrabold text-slate-900 flex items-center gap-1.5 text-xs uppercase tracking-wider">
-                    <Server className="w-4 h-4 text-amber-500 shrink-0" />
-                    Apoyo Tecnológico (Catálogo SIH)
-                  </label>
+              {/* Apoyo Tecnológico (Catálogo SIH - Módulo Integrado) */}
+              <div className="border border-slate-300 bg-slate-50/90 p-3.5 space-y-3 rounded-xs shadow-2xs">
+                <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-500 text-slate-950 rounded-xs">
+                      <Server className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <label className="block font-black text-slate-900 text-xs uppercase tracking-wider">
+                        Apoyo Tecnológico (Catálogo SIH)
+                      </label>
+                      <p className="text-[10px] text-slate-500">Módulo institucional de software y sistemas hospitalarios</p>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSihPickerModalOpen(true)}
+                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                      title="Abrir módulo para explorar catálogo de sistemas SIH y seleccionar funcionalidades"
+                    >
+                      <Server className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Explorar y Seleccionar SIH</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
                         setSihSelectedCode("NO_TIENE");
                         setActForm((prev) => ({ ...prev, supportTech: "No tiene" }));
                       }}
-                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold text-[10px] uppercase border border-slate-400 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                      title="Marcar esta actividad como presencial/manual sin sistema informático"
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-300 rounded-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      title="Marcar esta actividad como manual/presencial sin sistema"
                     >
-                      <X className="w-3 h-3 text-slate-600" />
-                      <span>Marcar "No tiene" (Manual / Presencial)</span>
+                      <X className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Marcar "No tiene"</span>
                     </button>
-                    <span className="text-[10px] font-mono font-bold text-slate-600 bg-slate-200/80 px-2 py-0.5 border border-slate-300">
-                      Búsqueda & Match Institucional
-                    </span>
                   </div>
                 </div>
 
-                {/* BUSCADOR Y FILTROS SIH */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={sihSearchTerm}
-                        onChange={(e) => setSihSearchTerm(e.target.value)}
-                        placeholder="Buscar por código, nombre (ej. Traslados, 1.4.4), área o funcionalidad..."
-                        className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-slate-950 shadow-2xs"
-                      />
-                      {sihSearchTerm && (
-                        <button
-                          type="button"
-                          onClick={() => setSihSearchTerm("")}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                {/* VISUAL STATUS DISPLAY OF ASSIGNED SIH */}
+                <div className="bg-white p-2.5 border border-slate-200 rounded-xs">
+                  <div className="flex items-center justify-between text-[11px] mb-1">
+                    <span className="font-bold text-slate-700">Estado Actual de Apoyo Tecnológico:</span>
+                    {actForm.supportTech && actForm.supportTech.toLowerCase().trim() !== "no tiene" && (
+                      <span className="font-mono text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 border border-amber-200">
+                        Sistema Vinculado
+                      </span>
+                    )}
+                  </div>
+                  {(!actForm.supportTech || actForm.supportTech.toLowerCase().trim() === "no tiene") ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 border border-slate-200 rounded-xs">
+                      <X className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span>Actividad clasificada como manual / presencial (sin software).</span>
                     </div>
-
-                    <select
-                      value={sihSelectedArea}
-                      onChange={(e) => setSihSelectedArea(e.target.value)}
-                      className="px-2.5 py-2 text-xs font-medium bg-white border border-slate-300 text-slate-800 focus:outline-none max-w-[160px] truncate cursor-pointer"
-                    >
-                      <option value="ALL">Todas las Áreas</option>
-                      {OFFICIAL_SIH_CATEGORIES.map((cat) => (
-                        <option key={cat.code} value={cat.name}>
-                          {cat.code} {cat.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={sihSelectedStatus}
-                      onChange={(e) => setSihSelectedStatus(e.target.value)}
-                      className="px-2.5 py-2 text-xs font-medium bg-white border border-slate-300 text-slate-800 focus:outline-none max-w-[140px] truncate cursor-pointer"
-                    >
-                      <option value="ALL">Todos los Estados</option>
-                      <option value="SOPORTADO">Soportado</option>
-                      <option value="EN_IMPLEMENTACION">En Implementación</option>
-                      <option value="BRECHA">Brecha / Requerido</option>
-                    </select>
-                  </div>
-
-                  {/* LISTBOX SELECTOR DIRECTO */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-slate-700 shrink-0">Selección Rápida:</span>
-                    <select
-                      value={sihSelectedCode}
-                      onChange={(e) => handleSihSelectChange(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-slate-950 shadow-2xs cursor-pointer"
-                    >
-                      <option value="">-- Seleccionar Sistema de Información SIH --</option>
-                      <option value="NO_TIENE">🚫 [NO TIENE] Actividad Manual / Presencial (sin software)</option>
-                      {getActiveSihCatalog()
-                        .filter((sys) =>
-                          systemMatchesQuery(sys, sihSearchTerm) &&
-                          (sihSelectedArea === "ALL" || sys.area === sihSelectedArea) &&
-                          (sihSelectedStatus === "ALL" || sys.supportStatus === sihSelectedStatus)
-                        )
-                        .map((sys) => (
-                          <option key={sys.id} value={sys.code}>
-                            [{sys.code}] {sys.name} ({sys.supportStatus || "SOPORTADO"}) — {sys.area}
-                          </option>
-                        ))}
-                      <option value="CUSTOM">-- Texto Libre / Ingreso Manual --</option>
-                    </select>
-                  </div>
+                  ) : (
+                    <div className="flex items-start gap-2 text-xs text-slate-900 bg-amber-50/60 p-2 border border-amber-200 rounded-xs font-semibold">
+                      <Server className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span className="leading-snug">{actForm.supportTech}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* CHECKBOXES DE MATCH: Sistema de Información y Funcionalidades */}
-                {sihSelectedCode && sihSelectedCode !== "CUSTOM" && (
-                  <div className="bg-amber-50/70 p-3 border border-amber-300 space-y-2 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="block text-[10px] font-extrabold text-amber-950 uppercase tracking-wider flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5 text-amber-600" />
-                        Opciones de Generación Match (Ficha de Actividad):
-                      </span>
-                      <span className="text-[10px] font-mono text-amber-800 font-bold">
-                        Sistema Activo: [{sihSelectedCode}]
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-5 text-xs font-bold">
-                      <label className="flex items-center gap-2 cursor-pointer select-none text-slate-900 bg-white px-2.5 py-1.5 border border-amber-200 hover:border-amber-400">
-                        <input
-                          type="checkbox"
-                          checked={sihMatchOptionSystem}
-                          onChange={(e) => handleMatchToggleSystem(e.target.checked)}
-                          className="w-4 h-4 rounded-none border-slate-400 text-slate-950 focus:ring-slate-950 cursor-pointer"
-                        />
-                        <span>Sistema de Información</span>
-                      </label>
-
-                      <label className="flex items-center gap-2 cursor-pointer select-none text-slate-900 bg-white px-2.5 py-1.5 border border-amber-200 hover:border-amber-400">
-                        <input
-                          type="checkbox"
-                          checked={sihMatchOptionFeatures}
-                          onChange={(e) => handleMatchToggleFeatures(e.target.checked)}
-                          className="w-4 h-4 rounded-none border-slate-400 text-slate-950 focus:ring-slate-950 cursor-pointer"
-                        />
-                        <span>Funcionalidades</span>
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                {/* TARJETAS DEL CATÁLOGO SIH COINCIDENTES (Resultados de Búsqueda) */}
-                {(() => {
-                  const matchingSystems = getActiveSihCatalog().filter(
-                    (sys) =>
-                      systemMatchesQuery(sys, sihSearchTerm) &&
-                      (sihSelectedArea === "ALL" || sys.area === sihSelectedArea) &&
-                      (sihSelectedStatus === "ALL" || sys.supportStatus === sihSelectedStatus)
-                  );
-
-                  return (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 px-1">
-                        <span>Resultados del Catálogo ({matchingSystems.length}):</span>
-                        {sihSearchTerm && (
-                          <span className="font-mono text-slate-500">
-                            Filtro: "{sihSearchTerm}"
-                          </span>
-                        )}
-                      </div>
-
-                      {matchingSystems.length === 0 ? (
-                        <div className="p-4 bg-white border border-slate-200 text-center text-xs text-slate-500 font-medium">
-                          No se encontraron sistemas que coincidan con "{sihSearchTerm}". Intente con otra palabra clave (ej. Traslados, 1.4.4, Ficha).
-                        </div>
-                      ) : (
-                        <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                          {matchingSystems.map((sys) => {
-                            const isSelected = sihSelectedCode === sys.code;
-                            return (
-                              <div
-                                key={sys.id}
-                                onClick={() => handleSihSelectChange(sys.code)}
-                                className={`p-3 border transition-all cursor-pointer select-none ${
-                                  isSelected
-                                    ? "bg-amber-50/90 border-amber-500 ring-2 ring-amber-300 shadow-xs"
-                                    : "bg-white border-slate-200 hover:border-slate-400 hover:bg-slate-50/80"
-                                }`}
-                              >
-                                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono font-black text-xs px-2 py-0.5 bg-slate-900 text-white">
-                                      {sys.code}
-                                    </span>
-                                    <span className="font-bold text-xs text-slate-900">
-                                      {sys.name}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5 text-[10px]">
-                                    <span className={`px-2 py-0.5 font-bold uppercase ${
-                                      sys.supportStatus === "SOPORTADO" || !sys.supportStatus
-                                        ? "bg-emerald-100 text-emerald-950 border border-emerald-300"
-                                        : sys.supportStatus === "EN_IMPLEMENTACION"
-                                        ? "bg-blue-100 text-blue-950 border border-blue-300"
-                                        : "bg-amber-100 text-amber-950 border border-amber-300"
-                                    }`}>
-                                      {sys.supportStatus === "SOPORTADO" || !sys.supportStatus
-                                        ? "Soportado"
-                                        : sys.supportStatus === "EN_IMPLEMENTACION"
-                                        ? "En Implementación"
-                                        : "Brecha"}
-                                    </span>
-
-                                    <button
-                                      type="button"
-                                      className={`px-2 py-0.5 font-bold text-[10px] uppercase border cursor-pointer ${
-                                        isSelected
-                                          ? "bg-slate-950 text-white border-slate-950"
-                                          : "bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200"
-                                      }`}
-                                    >
-                                      {isSelected ? "Seleccionado" : "Vincular"}
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <p className="text-[11px] text-slate-600 line-clamp-2 mb-1.5 font-normal">
-                                  {sys.objective}
-                                </p>
-
-                                {sys.features && sys.features.length > 0 && (
-                                  <div className="text-[10px] text-slate-500 bg-slate-100/70 p-2 border border-slate-200/80 space-y-0.5">
-                                    <span className="font-bold text-slate-700 block">Funcionalidades:</span>
-                                    <ul className="list-disc list-inside space-y-0.5">
-                                      {sys.features.slice(0, 3).map((feat, fIdx) => (
-                                        <li key={fIdx} className="truncate">{feat}</li>
-                                      ))}
-                                      {sys.features.length > 3 && (
-                                        <li className="font-semibold text-slate-700 italic list-none pt-0.5">
-                                          + {sys.features.length - 3} funcionalidades adicionales
-                                        </li>
-                                      )}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* CAMPO DE TEXTO DE APOYO TECNOLÓGICO RESULTANTE */}
-                <div className="pt-2 border-t border-slate-200">
+                {/* RESULT ATTRIBUTE INPUT */}
+                <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wider">
-                      Valor Asignado a Ficha (Apoyo Tecnológico):
+                      Valor Asignado al Atributo (Apoyo Tecnológico):
                     </label>
                     <span className="text-[10px] text-slate-500 font-mono">Editable</span>
                   </div>
@@ -4181,212 +4006,121 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                     value={actForm.supportTech}
                     onChange={(e) => setActForm({ ...actForm, supportTech: e.target.value })}
                     placeholder="Ej. 1.4.4 - Traslados de pacientes | Funcionalidades: Solicitud interna de camilleros..."
-                    className={`w-full px-3 py-2 border bg-white text-slate-950 font-semibold text-xs focus:outline-none ${
+                    className={`w-full px-3 py-2 border bg-white text-slate-950 font-semibold text-xs focus:outline-none rounded-xs ${
                       hasTechForbidden ? "border-amber-400 bg-amber-50/30" : "border-slate-300 focus:border-slate-950"
                     }`}
                   />
                   {hasTechForbidden ? (
                     <p className="mt-1 text-[11px] text-amber-800 font-medium flex items-center gap-1 bg-amber-50 p-1.5 border border-amber-200">
                       <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                      <strong>Regla Ficha:</strong> No debe ir Office / Drive / Mail / Hardware / Equipamiento. Utiliza el módulo o sistema de software correspondiente o marca "No tiene".
-                    </p>
-                  ) : actForm.supportTech && actForm.supportTech.toLowerCase().trim() === "no tiene" ? (
-                    <p className="mt-1.5 text-[11px] text-slate-700 font-medium flex items-center justify-between bg-slate-100 p-2 border border-slate-300">
-                      <span className="flex items-center gap-1.5 font-bold text-slate-900">
-                        <X className="w-3.5 h-3.5 text-slate-500" />
-                        Actividad clasificada sin software ("No tiene").
-                      </span>
-                      <span className="text-[10px] text-slate-500 italic">
-                        Ej: Desplazar hacia unidad de origen (Actividad manual/presencial)
-                      </span>
+                      <strong>Regla Ficha:</strong> No debe ir Office / Drive / Mail / Hardware / Equipamiento. Utilice el módulo SIH o marque "No tiene".
                     </p>
                   ) : (
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      * No debe ir Office / Drive / Mail / Hardware / Equipamiento. Seleccione un sistema de software o marque "No tiene" para actividades presenciales/manuales.
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      * Puede ajustar el texto directamente o utilizar el botón <strong>Explorar y Seleccionar SIH</strong> para cargar el módulo del catálogo.
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* ATRIBUTO JCI (JOINT COMMISSION INTERNATIONAL) */}
-              <div className="bg-indigo-50/50 border border-indigo-200 p-4 space-y-3.5 rounded-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200 pb-2.5">
-                  <div>
-                    <label className="font-extrabold text-indigo-950 flex items-center gap-2 text-xs uppercase tracking-wider">
-                      <Award className="w-4 h-4 text-indigo-600" />
-                      Atributo JCI (Joint Commission International)
-                    </label>
-                    <p className="text-[11px] text-slate-600 mt-0.5">
-                      Identificación automática del código y elemento medible JCI en función del nombre de la ficha. Modificable manualmente si es necesario.
-                    </p>
+              {/* Atributo JCI (Joint Commission International - Módulo Integrado) */}
+              <div className="border border-indigo-200 bg-indigo-50/40 p-3.5 space-y-3 rounded-xs shadow-2xs">
+                <div className="flex flex-wrap justify-between items-center border-b border-indigo-200 pb-2 gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-indigo-600 text-white rounded-xs">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <label className="block font-black text-indigo-950 text-xs uppercase tracking-wider">
+                        Atributo JCI (Joint Commission International)
+                      </label>
+                      <p className="text-[10px] text-slate-500">Módulo de estándares internacionales, elementos medibles y tipo de soporte</p>
+                    </div>
                   </div>
-
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setJciPickerModalOpen(true)}
+                      className="px-3 py-1.5 bg-indigo-900 hover:bg-indigo-800 text-white font-bold text-xs rounded-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                      title="Abrir módulo para explorar catálogo de estándares JCI, requisitos y elementos medibles"
+                    >
+                      <Award className="w-3.5 h-3.5 text-indigo-300" />
+                      <span>Explorar y Seleccionar JCI</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
                         const autoVal = autoDetectJCIForFicha(actForm.name, actForm.description, getActiveJciCatalog());
-                        setActForm((prev) => ({ ...prev, jciAttribute: autoVal }));
+                        const autoSupp = autoDetectJCISupportType(actForm.name, actForm.description, actForm.supportTech);
+                        setActForm((prev) => ({ ...prev, jciAttribute: autoVal, jciSupportType: autoSupp }));
                       }}
-                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold shadow-2xs flex items-center gap-1 cursor-pointer"
-                      title="Detectar automáticamente según el nombre de la ficha"
+                      className="px-2.5 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-950 font-semibold text-xs border border-indigo-300 rounded-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      title="Detectar automáticamente estándar JCI y soporte según nombre y descripción"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      Auto-detectar JCI
+                      <RefreshCw className="w-3 h-3 text-indigo-700" />
+                      <span>Auto-detectar</span>
                     </button>
-
                     <button
                       type="button"
                       onClick={() => {
                         setJciSelectedCode("NO_APLICA");
                         setActForm((prev) => ({ ...prev, jciAttribute: "No aplica" }));
                       }}
-                      className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-300 shadow-2xs flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-300 rounded-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                     >
                       <X className="w-3.5 h-3.5 text-slate-500" />
-                      Marcar "No aplica JCI"
+                      <span>Marcar "No aplica"</span>
                     </button>
                   </div>
                 </div>
 
-                {/* FILTROS Y BÚSQUEDA JCI */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-                      Buscador Estándares JCI:
-                    </label>
-                    <div className="relative">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={jciSearchTerm}
-                        onChange={(e) => setJciSearchTerm(e.target.value)}
-                        placeholder="Buscar JCI (ej. IPSG.1, identificación, caídas...)..."
-                        className="w-full pl-8 pr-2 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-                      Filtrar por Capítulo:
-                    </label>
-                    <select
-                      value={jciSelectedChapter}
-                      onChange={(e) => setJciSelectedChapter(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 cursor-pointer truncate"
-                    >
-                      <option value="ALL">Todos los Capítulos JCI</option>
-                      {OFFICIAL_JCI_CATEGORIES.map((cat) => (
-                        <option key={cat.code} value={cat.code}>
-                          [{cat.code}] {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* LISTBOX SELECCIÓN RÁPIDA JCI */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-indigo-950 shrink-0">Selección Rápida JCI:</span>
-                    <select
-                      value={jciSelectedCode}
-                      onChange={(e) => handleJciSelectChange(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs font-bold border border-indigo-300 bg-white text-indigo-950 focus:outline-none focus:border-indigo-600 shadow-2xs cursor-pointer"
-                    >
-                      <option value="">-- Seleccionar Estándar JCI --</option>
-                      <option value="NO_APLICA">🚫 [NO APLICA] Sin vinculación con Estándar JCI</option>
-                      {getActiveJciCatalog()
-                        .filter((std) =>
-                          jciMatchesQuery(std, jciSearchTerm) &&
-                          (jciSelectedChapter === "ALL" || std.code.startsWith(jciSelectedChapter) || std.chapter.includes(jciSelectedChapter))
-                        )
-                        .map((std) => (
-                          <option key={std.id} value={std.code}>
-                            [{std.code}] {std.name} — {std.chapter.split(" ")[0]}
-                          </option>
-                        ))}
-                      <option value="CUSTOM">-- Texto Libre / Ingreso Manual --</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* CHECKBOXES MATCH JCI */}
-                {jciSelectedCode && jciSelectedCode !== "CUSTOM" && jciSelectedCode !== "NO_APLICA" && (
-                  <div className="bg-white p-3 border border-indigo-200 space-y-2 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="block text-[10px] font-extrabold text-indigo-950 uppercase tracking-wider flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5 text-indigo-600" />
-                        Opciones de Generación Match JCI:
+                {/* VISUAL STATUS DISPLAY OF ASSIGNED JCI */}
+                <div className="bg-white p-2.5 border border-indigo-200 rounded-xs">
+                  <div className="flex items-center justify-between text-[11px] mb-1">
+                    <span className="font-bold text-slate-700">Estado Actual de Acreditación JCI:</span>
+                    {actForm.jciAttribute && actForm.jciAttribute.toLowerCase().trim() !== "no aplica" && actForm.jciAttribute.toLowerCase().trim() !== "no tiene" && (
+                      <span className="font-mono text-[10px] text-indigo-700 font-bold bg-indigo-50 px-1.5 py-0.2 border border-indigo-200">
+                        Estándar Vinculado
                       </span>
-                      <span className="text-[10px] font-mono text-indigo-800 font-bold">
-                        Estándar Activo: [{jciSelectedCode}]
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-5 text-xs font-bold">
-                      <label className="flex items-center gap-2 cursor-pointer select-none text-slate-900 bg-indigo-50/50 px-2.5 py-1.5 border border-indigo-200 hover:border-indigo-400">
-                        <input
-                          type="checkbox"
-                          checked={jciMatchOptionStandard}
-                          onChange={(e) => handleMatchToggleJciStandard(e.target.checked)}
-                          className="w-4 h-4 rounded-none border-slate-400 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
-                        />
-                        <span>Código y Nombre del Estándar</span>
-                      </label>
-
-                      <label className="flex items-center gap-2 cursor-pointer select-none text-slate-900 bg-indigo-50/50 px-2.5 py-1.5 border border-indigo-200 hover:border-indigo-400">
-                        <input
-                          type="checkbox"
-                          checked={jciMatchOptionElements}
-                          onChange={(e) => handleMatchToggleJciElements(e.target.checked)}
-                          className="w-4 h-4 rounded-none border-slate-400 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
-                        />
-                        <span>Elementos Medibles JCI</span>
-                      </label>
-                    </div>
+                    )}
                   </div>
-                )}
-
-                {/* CAMPO DE TEXTO DE ATRIBUTO JCI RESULTANTE */}
-                <div className="pt-2 border-t border-indigo-200">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-[11px] font-bold text-indigo-950 uppercase tracking-wider">
-                      Valor Asignado a Ficha (Atributo JCI):
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">Opcional</span>
-                  </div>
-                  <input
-                    type="text"
-                    value={actForm.jciAttribute || ""}
-                    onChange={(e) => setActForm({ ...actForm, jciAttribute: e.target.value })}
-                    placeholder="Ej. IPSG.1 - Identificación Correcta de Pacientes | Elementos Medibles: Identificación con 2 identificadores..."
-                    className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-950 font-semibold text-xs focus:outline-none focus:border-indigo-600"
-                  />
-                  <p className="mt-1 text-[10px] text-slate-500">
-                    * El atributo JCI solo se mostrará en la tarjeta de la ficha cuando esté expresamente vinculado.
-                  </p>
+                  {(!actForm.jciAttribute || actForm.jciAttribute.toLowerCase().trim() === "no aplica" || actForm.jciAttribute.toLowerCase().trim() === "no tiene") ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 border border-slate-200 rounded-xs">
+                      <X className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span>Sin vinculación directa con Estándar JCI ("No aplica").</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex items-start gap-2 text-xs text-indigo-950 bg-indigo-50/70 p-2 border border-indigo-200 rounded-xs font-semibold">
+                        <Award className="w-4 h-4 text-indigo-700 shrink-0 mt-0.5" />
+                        <span className="leading-snug">{actForm.jciAttribute}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs pt-0.5">
+                        <span className="text-slate-600 font-bold text-[11px]">Soporte Actual:</span>
+                        {actForm.jciSupportType === "DOCUMENTO" || actForm.jciSupportType === "DOCUMENTAL" ? (
+                          <span className="inline-flex items-center gap-1 font-bold text-blue-900 bg-blue-50 px-2 py-0.5 border border-blue-200 text-[10px]">
+                            📄 Documento (Norma / Política institucional)
+                          </span>
+                        ) : actForm.jciSupportType === "SISTEMA" || actForm.jciSupportType === "SISTEMICO" ? (
+                          <span className="inline-flex items-center gap-1 font-bold text-amber-950 bg-amber-50 px-2 py-0.5 border border-amber-300 text-[10px]">
+                            💻 Sistema (Soporte SIH)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 font-bold text-teal-900 bg-teal-50 px-2 py-0.5 border border-teal-200 text-[10px]">
+                            🔄 Proceso (Flujo Operativo)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* TIPO DE SOPORTE DE CUMPLIMIENTO JCI */}
-                <div className="pt-2 border-t border-indigo-200">
+                {/* TIPO DE SOPORTE JCI SELECTOR BUTTONS */}
+                <div>
                   <div className="flex justify-between items-center mb-1.5">
                     <label className="block text-[11px] font-bold text-indigo-950 uppercase tracking-wider">
                       Tipo de Soporte de Cumplimiento JCI:
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const supp = autoDetectJCISupportType(actForm.name, actForm.description, actForm.supportTech);
-                        setActForm((prev) => ({ ...prev, jciSupportType: supp }));
-                      }}
-                      className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer"
-                      title="Sugerir soporte según actividad y apoyo tecnológico"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      Sugerir Soporte
-                    </button>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <button
@@ -4426,6 +4160,26 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       <div className="text-[10px] opacity-80 mt-0.5 truncate">Sistema SIH</div>
                     </button>
                   </div>
+                </div>
+
+                {/* RESULT ATTRIBUTE INPUT */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[11px] font-bold text-indigo-950 uppercase tracking-wider">
+                      Valor Asignado al Atributo (JCI):
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">Editable</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={actForm.jciAttribute || ""}
+                    onChange={(e) => setActForm({ ...actForm, jciAttribute: e.target.value })}
+                    placeholder="Ej. IPSG.1 - Identificación Correcta de Pacientes | Elementos Medibles: Identificación con 2 identificadores..."
+                    className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-950 font-semibold text-xs focus:outline-none focus:border-indigo-600 rounded-xs"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    * Puede ajustar el texto directamente o utilizar el botón <strong>Explorar y Seleccionar JCI</strong> para abrir el catálogo con todos los elementos medibles.
+                  </p>
                 </div>
               </div>
 
@@ -6028,6 +5782,40 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           </div>
         );
       })()}
+
+      {/* SIH CATALOG PICKER MODAL */}
+      <SihCatalogPickerModal
+        isOpen={sihPickerModalOpen}
+        onClose={() => setSihPickerModalOpen(false)}
+        currentValue={actForm.supportTech}
+        onApply={(resultText, selectedSystem) => {
+          setActForm((prev) => ({ ...prev, supportTech: resultText }));
+          if (selectedSystem) {
+            setSihSelectedCode(selectedSystem.code);
+          }
+        }}
+      />
+
+      {/* JCI CATALOG PICKER MODAL */}
+      <JciCatalogPickerModal
+        isOpen={jciPickerModalOpen}
+        onClose={() => setJciPickerModalOpen(false)}
+        currentValue={actForm.jciAttribute || ""}
+        currentSupportType={actForm.jciSupportType}
+        activityName={actForm.name}
+        activityDescription={actForm.description}
+        supportTech={actForm.supportTech}
+        onApply={(resultText, supportType, selectedStandard) => {
+          setActForm((prev) => ({
+            ...prev,
+            jciAttribute: resultText,
+            jciSupportType: supportType
+          }));
+          if (selectedStandard) {
+            setJciSelectedCode(selectedStandard.code);
+          }
+        }}
+      />
 
       {/* NATIVE IN-PAGE CONFIRM MODAL */}
       {confirmModal?.isOpen && (
