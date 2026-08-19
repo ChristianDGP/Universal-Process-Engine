@@ -4,14 +4,19 @@ import { OFFICIAL_SIH_CATEGORIES, INITIAL_SIH_CATALOG } from "../data/sihCatalog
 import { systemMatchesQuery } from "../lib/sihUtils";
 import {
   Server, Search, X, Check, Filter, Layers, CheckCircle2,
-  AlertCircle, ChevronRight, Cpu, ArrowRight, Sparkles, BookOpen
+  AlertCircle, ChevronRight, ChevronDown, ChevronUp, Cpu, ArrowRight, Sparkles, BookOpen, Plus, Trash2
 } from "lucide-react";
+
+export interface SelectedSihSystemConfig {
+  code: string;
+  selectedFeatures: string[];
+}
 
 interface SihCatalogPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentValue: string;
-  onApply: (resultText: string, selectedSystem?: SIHSystem | null) => void;
+  onApply: (resultText: string, selectedSystems?: SIHSystem[]) => void;
 }
 
 const STORAGE_KEY = "sih_catalog_state_v1";
@@ -41,71 +46,98 @@ export default function SihCatalogPickerModal({
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState<string>("");
 
-  // Selected system state
-  const [selectedCode, setSelectedCode] = useState<string>("");
+  // Multiple selection state
+  const [selectedConfigs, setSelectedConfigs] = useState<SelectedSihSystemConfig[]>([]);
+  const [expandedSystems, setExpandedSystems] = useState<Record<string, boolean>>({});
+
+  // Format options
   const [includeSystemName, setIncludeSystemName] = useState<boolean>(true);
   const [includeFeatures, setIncludeFeatures] = useState<boolean>(true);
   const [includeStatus, setIncludeStatus] = useState<boolean>(false);
   const [customResultText, setCustomResultText] = useState<string>(currentValue || "");
+  const [isManualEdit, setIsManualEdit] = useState<boolean>(false);
 
-  // On open, attempt to pre-select based on currentValue
+  // Helper: Build consolidated result string
+  const buildResultText = (
+    configs: SelectedSihSystemConfig[],
+    incName: boolean,
+    incFeats: boolean,
+    incStat: boolean
+  ): string => {
+    if (configs.length === 0) {
+      return "No tiene";
+    }
+
+    const segments = configs.map((cfg) => {
+      const sys = catalog.find((s) => s.code === cfg.code);
+      if (!sys) return cfg.code;
+
+      let part = incName ? `${sys.code} - ${sys.name}` : sys.code;
+
+      if (incStat && sys.supportStatus) {
+        part += ` [${sys.supportStatus}]`;
+      }
+
+      if (incFeats && cfg.selectedFeatures.length > 0) {
+        const featStr = cfg.selectedFeatures.join("; ");
+        part = `${part} | Funcionalidades: ${featStr}`;
+      }
+
+      return part;
+    });
+
+    return segments.join(" ; ");
+  };
+
+  // On open, parse and initialize multiple systems from currentValue
   useEffect(() => {
     if (isOpen) {
+      setIsManualEdit(false);
       setCustomResultText(currentValue || "");
-      if (!currentValue || currentValue.toLowerCase().trim() === "no tiene") {
-        setSelectedCode(currentValue?.toLowerCase().trim() === "no tiene" ? "NO_TIENE" : "");
+
+      if (!currentValue || currentValue.toLowerCase().trim() === "no tiene" || currentValue.toLowerCase().trim() === "no aplica" || currentValue.toLowerCase().trim() === "ninguno") {
+        setSelectedConfigs([]);
       } else {
         const valLower = currentValue.toLowerCase();
-        const matched = catalog.find(
-          (sys) =>
-            valLower.includes(`[${sys.code.toLowerCase()}]`) ||
-            valLower.includes(sys.code.toLowerCase()) ||
-            valLower.includes(sys.name.toLowerCase())
-        );
-        if (matched) {
-          setSelectedCode(matched.code);
-          setSelectedArea(matched.area || "ALL");
-          setIncludeFeatures(valLower.includes("funcionalidades") || valLower.includes("módulo"));
-        } else {
-          setSelectedCode("");
-        }
+        const matchedConfigs: SelectedSihSystemConfig[] = [];
+
+        catalog.forEach((sys) => {
+          const codeLower = sys.code.toLowerCase();
+          if (valLower.includes(`[${codeLower}]`) || valLower.includes(codeLower) || valLower.includes(sys.name.toLowerCase())) {
+            // Find which features are in text if any, or default to all
+            const matchedFeats: string[] = [];
+            if (sys.features && sys.features.length > 0) {
+              sys.features.forEach((feat) => {
+                if (valLower.includes(feat.toLowerCase().slice(0, 15))) {
+                  matchedFeats.push(feat);
+                }
+              });
+              if (matchedFeats.length === 0) {
+                // Default to all features
+                matchedFeats.push(...sys.features);
+              }
+            }
+
+            matchedConfigs.push({
+              code: sys.code,
+              selectedFeatures: matchedFeats
+            });
+          }
+        });
+
+        setSelectedConfigs(matchedConfigs);
+        setIncludeFeatures(valLower.includes("funcionalidades") || valLower.includes("módulo"));
       }
     }
   }, [isOpen, currentValue, catalog]);
 
-  // Selected system object
-  const activeSystem = useMemo(() => {
-    if (!selectedCode || selectedCode === "NO_TIENE" || selectedCode === "CUSTOM") return null;
-    return catalog.find((s) => s.code === selectedCode || s.id === selectedCode) || null;
-  }, [selectedCode, catalog]);
-
-  // Generate formatted text whenever selection or options change
+  // Sync customResultText whenever selection or options change (unless manually typed)
   useEffect(() => {
-    if (selectedCode === "NO_TIENE") {
-      setCustomResultText("No tiene");
-      return;
+    if (!isManualEdit) {
+      const generated = buildResultText(selectedConfigs, includeSystemName, includeFeatures, includeStatus);
+      setCustomResultText(generated);
     }
-    if (!activeSystem) {
-      return;
-    }
-
-    let text = "";
-    if (includeSystemName) {
-      text = `${activeSystem.code} - ${activeSystem.name}`;
-      if (includeStatus && activeSystem.supportStatus) {
-        text += ` [${activeSystem.supportStatus}]`;
-      }
-    }
-
-    if (includeFeatures && activeSystem.features && activeSystem.features.length > 0) {
-      const featSample = activeSystem.features.slice(0, 3).join("; ");
-      text = text ? `${text} | Funcionalidades: ${featSample}` : `Funcionalidades: ${featSample}`;
-    }
-
-    if (text) {
-      setCustomResultText(text);
-    }
-  }, [selectedCode, activeSystem, includeSystemName, includeFeatures, includeStatus]);
+  }, [selectedConfigs, includeSystemName, includeFeatures, includeStatus, isManualEdit]);
 
   // Filtered systems list
   const filteredSystems = useMemo(() => {
@@ -128,24 +160,101 @@ export default function SihCatalogPickerModal({
 
   if (!isOpen) return null;
 
-  const handleApply = () => {
-    onApply(customResultText.trim(), activeSystem);
+  // Toggle selection of system
+  const handleToggleSystem = (sys: SIHSystem) => {
+    setIsManualEdit(false);
+    setSelectedConfigs((prev) => {
+      const exists = prev.some((c) => c.code === sys.code);
+      if (exists) {
+        return prev.filter((c) => c.code !== sys.code);
+      } else {
+        return [
+          ...prev,
+          {
+            code: sys.code,
+            selectedFeatures: sys.features ? [...sys.features] : []
+          }
+        ];
+      }
+    });
+  };
+
+  // Toggle a single feature for a system
+  const handleToggleFeature = (sys: SIHSystem, feature: string) => {
+    setIsManualEdit(false);
+    setSelectedConfigs((prev) => {
+      const existingCfg = prev.find((c) => c.code === sys.code);
+      if (!existingCfg) {
+        return [
+          ...prev,
+          {
+            code: sys.code,
+            selectedFeatures: [feature]
+          }
+        ];
+      }
+
+      const hasFeat = existingCfg.selectedFeatures.includes(feature);
+      const updatedFeats = hasFeat
+        ? existingCfg.selectedFeatures.filter((f) => f !== feature)
+        : [...existingCfg.selectedFeatures, feature];
+
+      return prev.map((c) => (c.code === sys.code ? { ...c, selectedFeatures: updatedFeats } : c));
+    });
+  };
+
+  // Select all features for a system
+  const handleSelectAllFeatures = (sys: SIHSystem) => {
+    setIsManualEdit(false);
+    setSelectedConfigs((prev) => {
+      const existing = prev.find((c) => c.code === sys.code);
+      const allFeats = sys.features ? [...sys.features] : [];
+      if (!existing) {
+        return [...prev, { code: sys.code, selectedFeatures: allFeats }];
+      }
+      return prev.map((c) => (c.code === sys.code ? { ...c, selectedFeatures: allFeats } : c));
+    });
+  };
+
+  // Clear all features for a system
+  const handleClearFeatures = (sysCode: string) => {
+    setIsManualEdit(false);
+    setSelectedConfigs((prev) =>
+      prev.map((c) => (c.code === sysCode ? { ...c, selectedFeatures: [] } : c))
+    );
+  };
+
+  // Remove a system from selection
+  const handleRemoveSystem = (sysCode: string) => {
+    setIsManualEdit(false);
+    setSelectedConfigs((prev) => prev.filter((c) => c.code !== sysCode));
+  };
+
+  // Mark No tiene
+  const handleSelectNoTiene = () => {
+    setSelectedConfigs([]);
+    setCustomResultText("No tiene");
+    setIsManualEdit(false);
+    onApply("No tiene", []);
     onClose();
   };
 
-  const handleSelectNoTiene = () => {
-    setSelectedCode("NO_TIENE");
-    setCustomResultText("No tiene");
-    onApply("No tiene", null);
+  // Apply selection
+  const handleApply = () => {
+    const selectedSystemsList = selectedConfigs
+      .map((cfg) => catalog.find((s) => s.code === cfg.code))
+      .filter((s): s is SIHSystem => Boolean(s));
+
+    onApply(customResultText.trim(), selectedSystemsList);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-60 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-white border border-slate-300 w-full max-w-6xl h-[92vh] max-h-[850px] flex flex-col shadow-2xl overflow-hidden rounded-xs">
+    <div className="fixed inset-0 z-60 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white border border-slate-300 w-full max-w-7xl h-[94vh] max-h-[900px] flex flex-col shadow-2xl overflow-hidden rounded-xs">
         
         {/* MODAL HEADER */}
-        <div className="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0 border-b border-slate-800">
+        <div className="p-3.5 sm:p-4 bg-slate-900 text-white flex justify-between items-center shrink-0 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-amber-500 text-slate-950 rounded-xs shadow-xs">
               <Server className="w-5 h-5" />
@@ -153,14 +262,14 @@ export default function SihCatalogPickerModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-sm sm:text-base tracking-wide text-white">
-                  Módulo de Selección: Catálogo SIH (Sistemas de Información)
+                  Módulo de Selección Múltiple: Catálogo de Sistemas Informáticos Hospitalarios (SIH)
                 </h3>
                 <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">
-                  {catalog.length} Sistemas Disponibles
+                  Selección de 1 o más Sistemas SIH
                 </span>
               </div>
               <p className="text-[11px] text-slate-300 mt-0.5">
-                Despliegue estructurado de sistemas, módulos y funcionalidades para apoyo tecnológico de la actividad
+                Navegue por el ecosistema de software y seleccione los sistemas y sus funcionalidades específicas asociadas a la actividad
               </p>
             </div>
           </div>
@@ -173,16 +282,16 @@ export default function SihCatalogPickerModal({
           </button>
         </div>
 
-        {/* TOP TOOLBAR: CATEGORY PILLS & FILTERS */}
-        <div className="bg-slate-100 border-b border-slate-200 p-3 shrink-0 space-y-2.5">
-          {/* CATEGORY TABS */}
+        {/* TOP TOOLBAR: AREA PILLS & SEARCH */}
+        <div className="bg-slate-100/90 border-b border-slate-200 p-2.5 sm:p-3 shrink-0 space-y-2">
+          {/* AREA CATEGORY TABS */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             <button
               type="button"
               onClick={() => setSelectedArea("ALL")}
               className={`px-3 py-1.5 font-bold rounded-xs shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
                 selectedArea === "ALL"
-                  ? "bg-slate-900 text-white shadow-xs"
+                  ? "bg-amber-600 text-white shadow-xs"
                   : "bg-white text-slate-700 hover:bg-slate-200 border border-slate-300"
               }`}
             >
@@ -192,29 +301,27 @@ export default function SihCatalogPickerModal({
             </button>
 
             {OFFICIAL_SIH_CATEGORIES.map((cat) => {
-              const isCatSelected = selectedArea === cat.name;
+              const isAreaSelected = selectedArea === cat.name;
               const count = countPerArea[cat.name] || 0;
               return (
                 <button
-                  key={cat.code}
+                  key={cat.code || cat.name}
                   type="button"
                   onClick={() => setSelectedArea(cat.name)}
                   className={`px-2.5 py-1.5 font-bold rounded-xs shrink-0 transition-all cursor-pointer text-[11px] flex items-center gap-1 ${
-                    isCatSelected
-                      ? "bg-amber-600 text-white shadow-xs border border-amber-700"
-                      : "bg-white text-slate-700 hover:bg-slate-200 border border-slate-300"
+                    isAreaSelected
+                      ? "bg-slate-900 text-amber-400 shadow-xs border border-slate-950"
+                      : "bg-white text-slate-700 hover:bg-amber-50 border border-slate-300"
                   }`}
-                  title={`${cat.code} ${cat.name}`}
                 >
-                  <span className="font-mono font-black">{cat.code}</span>
-                  <span className="max-w-[140px] truncate">{cat.name}</span>
+                  <span>{cat.name}</span>
                   <span className="text-[10px] opacity-75 font-mono">({count})</span>
                 </button>
               );
             })}
           </div>
 
-          {/* SEARCH AND SECONDARY FILTERS */}
+          {/* SEARCH AND FILTER STATUS */}
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 flex-1 min-w-[280px]">
               <div className="relative flex-1">
@@ -223,8 +330,8 @@ export default function SihCatalogPickerModal({
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Búsqueda rápida por nombre, código (ej. 1.4.4, Traslados), funcionalidad o proveedor..."
-                  className="w-full pl-9 pr-8 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-slate-950 shadow-2xs"
+                  placeholder="Buscar por código (ej. SIH-01), nombre (ej. Trackcare), o funcionalidad (ej. recetas, agenda)..."
+                  className="w-full pl-9 pr-8 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-amber-600 shadow-2xs"
                 />
                 {searchTerm && (
                   <button
@@ -237,49 +344,51 @@ export default function SihCatalogPickerModal({
                 )}
               </div>
 
+              {/* SUPPORT STATUS FILTER */}
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-2.5 py-1.5 text-xs font-bold bg-white border border-slate-300 text-slate-800 focus:outline-none cursor-pointer"
+                className="px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-800 focus:outline-none focus:border-amber-600 shadow-2xs rounded-xs"
               >
                 <option value="ALL">Todos los Estados</option>
-                <option value="SOPORTADO">Soportado</option>
-                <option value="EN_IMPLEMENTACION">En Implementación</option>
-                <option value="BRECHA">Brecha / Requerido</option>
+                <option value="SOPORTADO">🟢 Soportado / Operativo</option>
+                <option value="EN_IMPLEMENTACION">🟡 En Implementación</option>
+                <option value="BRECHA">🔴 Brecha / Pendiente</option>
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSelectNoTiene}
-                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-900 text-xs font-bold border border-slate-400 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                title="Marcar como actividad presencial/manual sin software"
-              >
-                <X className="w-3.5 h-3.5 text-slate-600" />
-                <span>Marcar "No tiene" (Manual / Presencial)</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSelectNoTiene}
+              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border border-slate-300 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs rounded-xs"
+            >
+              <X className="w-3.5 h-3.5 text-slate-500" />
+              <span>Marcar "No tiene" (Actividad Manual)</span>
+            </button>
           </div>
         </div>
 
-        {/* MAIN BODY: CATALOG CARDS ON LEFT, SELECTION CONFIG & RESULT PREVIEW ON RIGHT */}
+        {/* MAIN BODY: CATALOG CARDS ON LEFT, MULTI-SELECTION AND RESULT PREVIEW ON RIGHT */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           
-          {/* LEFT PANE: EXPANSIVE CATALOG OF SYSTEMS */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+          {/* LEFT PANE: EXPANSIVE CATALOG OF SIH SYSTEMS WITH CHECKBOXES & SELECTABLE FEATURES */}
+          <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 bg-slate-50/50">
             <div className="flex items-center justify-between text-xs font-bold text-slate-700 border-b border-slate-200 pb-1.5">
-              <span>Sistemas en Catálogo ({filteredSystems.length}):</span>
+              <span className="flex items-center gap-1.5">
+                <span>Catálogo SIH ({filteredSystems.length}):</span>
+                <span className="text-amber-950 bg-amber-100 px-2 py-0.2 rounded-xs text-[11px] font-mono border border-amber-300">
+                  {selectedConfigs.length} seleccionado(s)
+                </span>
+              </span>
               <span className="text-[11px] text-slate-500 font-normal">
-                Haga clic sobre un sistema para seleccionarlo e inspeccionar sus funcionalidades
+                Marque la casilla de cada sistema para agregarlo al apoyo tecnológico
               </span>
             </div>
 
             {filteredSystems.length === 0 ? (
               <div className="p-8 text-center bg-white border border-slate-200 text-slate-500 text-xs space-y-2">
-                <AlertCircle className="w-6 h-6 mx-auto text-slate-400" />
+                <AlertCircle className="w-6 h-6 mx-auto text-amber-500" />
                 <p className="font-semibold text-slate-700">No se encontraron sistemas con los filtros aplicados.</p>
-                <p className="text-[11px]">Intente limpiar el buscador o seleccionar otra área del menú superior.</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -287,7 +396,7 @@ export default function SihCatalogPickerModal({
                     setSelectedArea("ALL");
                     setSelectedStatus("ALL");
                   }}
-                  className="px-3 py-1 bg-slate-900 text-white text-xs font-bold mt-2"
+                  className="px-3 py-1 bg-slate-900 text-white text-xs font-bold mt-2 rounded-xs"
                 >
                   Restablecer Filtros
                 </button>
@@ -295,102 +404,155 @@ export default function SihCatalogPickerModal({
             ) : (
               <div className="grid grid-cols-1 gap-3">
                 {filteredSystems.map((sys) => {
-                  const isSelected = selectedCode === sys.code;
+                  const selectedConfig = selectedConfigs.find((c) => c.code === sys.code);
+                  const isSelected = Boolean(selectedConfig);
+                  const selectedFeatCount = selectedConfig ? selectedConfig.selectedFeatures.length : 0;
+                  const totalFeats = sys.features ? sys.features.length : 0;
+
                   return (
                     <div
                       key={sys.id || sys.code}
-                      onClick={() => setSelectedCode(sys.code)}
-                      className={`p-3.5 border transition-all cursor-pointer select-none rounded-xs ${
+                      className={`p-3.5 border transition-all select-none rounded-xs ${
                         isSelected
-                          ? "bg-amber-50/95 border-amber-500 ring-2 ring-amber-400 shadow-md"
-                          : "bg-white border-slate-200 hover:border-slate-400 hover:bg-slate-50/80 shadow-2xs"
+                          ? "bg-amber-50/90 border-amber-500 ring-2 ring-amber-400 shadow-md"
+                          : "bg-white border-slate-200 hover:border-amber-300 hover:bg-amber-50/20 shadow-2xs"
                       }`}
                     >
-                      {/* CARD HEADER */}
+                      {/* CARD HEADER WITH MULTI-SELECT CHECKBOX */}
                       <div className="flex flex-wrap items-start justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-xs px-2.5 py-0.5 bg-slate-900 text-white rounded-xs">
-                            {sys.code}
-                          </span>
-                          <h4 className="font-extrabold text-sm text-slate-900">
+                        <div className="flex items-center gap-2.5 flex-1 min-w-[200px]">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSystem(sys)}
+                              className="w-4 h-4 text-amber-600 rounded-none focus:ring-amber-600 cursor-pointer"
+                            />
+                            <span className="font-mono font-black text-xs px-2.5 py-0.5 bg-slate-900 text-amber-400 rounded-xs">
+                              {sys.code}
+                            </span>
+                          </label>
+                          <h4
+                            onClick={() => handleToggleSystem(sys)}
+                            className="font-extrabold text-sm text-slate-900 cursor-pointer hover:text-amber-900"
+                          >
                             {sys.name}
                           </h4>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-xs border ${
-                              sys.supportStatus === "SOPORTADO" || !sys.supportStatus
-                                ? "bg-emerald-100 text-emerald-950 border-emerald-300"
-                                : sys.supportStatus === "EN_IMPLEMENTACION"
-                                ? "bg-blue-100 text-blue-950 border-blue-300"
-                                : "bg-amber-100 text-amber-950 border-amber-300"
-                            }`}
-                          >
-                            {sys.supportStatus === "SOPORTADO" || !sys.supportStatus
-                              ? "Soportado"
-                              : sys.supportStatus === "EN_IMPLEMENTACION"
-                              ? "En Implementación"
-                              : "Brecha"}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          {/* SUPPORT STATUS BADGE */}
+                          {sys.supportStatus === "SOPORTADO" && (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 border border-emerald-200 rounded-xs">
+                              🟢 Soportado
+                            </span>
+                          )}
+                          {sys.supportStatus === "EN_IMPLEMENTACION" && (
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 border border-amber-300 rounded-xs">
+                              🟡 En Implementación
+                            </span>
+                          )}
+                          {sys.supportStatus === "BRECHA" && (
+                            <span className="text-[10px] font-bold text-rose-800 bg-rose-50 px-2 py-0.5 border border-rose-200 rounded-xs">
+                              🔴 Brecha / Pendiente
+                            </span>
+                          )}
+
+                          {isSelected && (
+                            <span className="text-[10px] font-mono font-bold bg-amber-200/80 text-amber-950 px-2 py-0.5 border border-amber-300 rounded-xs">
+                              {selectedFeatCount}/{totalFeats} Funcionalidades
+                            </span>
+                          )}
 
                           <button
                             type="button"
-                            className={`px-2.5 py-0.5 text-[10px] font-black uppercase rounded-xs transition-colors ${
+                            onClick={() => handleToggleSystem(sys)}
+                            className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-xs transition-colors cursor-pointer flex items-center gap-1 ${
                               isSelected
-                                ? "bg-slate-950 text-white"
-                                : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300"
+                                ? "bg-amber-600 text-white hover:bg-amber-700"
+                                : "bg-amber-50 text-amber-950 hover:bg-amber-100 border border-amber-300"
                             }`}
                           >
-                            {isSelected ? "✓ Seleccionado" : "Seleccionar"}
+                            {isSelected ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>Seleccionado</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3 h-3" />
+                                <span>Añadir</span>
+                              </>
+                            )}
                           </button>
                         </div>
                       </div>
 
                       {/* AREA BADGE */}
                       <div className="text-[10px] text-slate-500 font-semibold mb-2 flex items-center gap-1.5">
-                        <span className="text-slate-700 font-bold">Área:</span>
-                        <span className="bg-slate-100 px-1.5 py-0.2 border border-slate-200">{sys.area}</span>
-                        {sys.providerVendor && (
-                          <>
-                            <span className="text-slate-300">•</span>
-                            <span className="text-slate-700 font-bold">Proveedor/Sistema:</span>
-                            <span className="text-slate-600 italic">{sys.providerVendor}</span>
-                          </>
-                        )}
+                        <span className="text-slate-700 font-bold">Área Funcional:</span>
+                        <span className="bg-slate-100 text-slate-800 px-1.5 py-0.2 border border-slate-200 font-medium">
+                          {sys.area}
+                        </span>
                       </div>
 
-                      {/* OBJECTIVE */}
+                      {/* DESCRIPTION */}
                       <p className="text-xs text-slate-700 leading-relaxed mb-2.5">
-                        {sys.objective}
+                        {sys.description}
                       </p>
 
-                      {/* FEATURES LIST */}
+                      {/* FEATURES WITH INDIVIDUAL CHECKBOXES */}
                       {sys.features && sys.features.length > 0 && (
-                        <div className="bg-slate-100/80 p-2.5 border border-slate-200/90 text-xs space-y-1 rounded-xs">
-                          <span className="font-bold text-slate-800 text-[11px] block flex items-center gap-1">
-                            <Cpu className="w-3 h-3 text-amber-600" />
-                            Funcionalidades del Sistema ({sys.features.length}):
-                          </span>
-                          <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11px]">
-                            {sys.features.map((feat, idx) => (
-                              <li key={idx} className="leading-snug">
-                                {feat}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* INTEGRATIONS */}
-                      {sys.integrations && sys.integrations.length > 0 && (
-                        <div className="mt-2 text-[11px] text-slate-600 flex flex-wrap items-center gap-1">
-                          <span className="font-bold text-slate-700">Integración:</span>
-                          {sys.integrations.map((integ, iIdx) => (
-                            <span key={iIdx} className="bg-slate-200/80 text-slate-800 px-1.5 py-0.5 rounded-xs text-[10px]">
-                              {integ}
+                        <div className="bg-amber-50/70 p-2.5 border border-amber-200 text-xs space-y-1.5 rounded-xs">
+                          <div className="flex items-center justify-between text-amber-950 text-[11px] font-bold">
+                            <span className="flex items-center gap-1">
+                              <Cpu className="w-3.5 h-3.5 text-amber-600" />
+                              Funcionalidades y Módulos ({sys.features.length}):
                             </span>
-                          ))}
+
+                            <div className="flex items-center gap-2 text-[10px]">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectAllFeatures(sys)}
+                                className="text-amber-900 hover:underline font-bold cursor-pointer"
+                              >
+                                Todas
+                              </button>
+                              <span>|</span>
+                              <button
+                                type="button"
+                                onClick={() => handleClearFeatures(sys.code)}
+                                className="text-slate-600 hover:underline font-medium cursor-pointer"
+                              >
+                                Ninguna
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-0.5">
+                            {sys.features.map((feat, idx) => {
+                              const isFeatChecked =
+                                selectedConfig?.selectedFeatures.includes(feat) || false;
+                              return (
+                                <label
+                                  key={idx}
+                                  className={`flex items-start gap-2 p-1.5 rounded-xs cursor-pointer text-[11px] transition-colors ${
+                                    isFeatChecked
+                                      ? "bg-amber-100/90 text-amber-950 font-medium border border-amber-300"
+                                      : "hover:bg-amber-100/40 text-slate-700 border border-transparent"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isFeatChecked}
+                                    onChange={() => handleToggleFeature(sys, feat)}
+                                    className="w-3.5 h-3.5 mt-0.5 text-amber-600 rounded-none focus:ring-amber-600 cursor-pointer"
+                                  />
+                                  <span className="leading-snug flex-1">{feat}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -400,117 +562,233 @@ export default function SihCatalogPickerModal({
             )}
           </div>
 
-          {/* RIGHT PANE: SELECTION & OUTPUT PREVIEW PANEL */}
-          <div className="w-full md:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-300 flex flex-col p-4 shrink-0 shadow-lg justify-between space-y-3">
-            <div className="space-y-3 overflow-y-auto">
+          {/* RIGHT PANE: ITEM-BY-ITEM MULTI-SELECTION LIST & OUTPUT PREVIEW PANEL */}
+          <div className="w-full md:w-[420px] bg-white border-t md:border-t-0 md:border-l border-slate-300 flex flex-col p-3.5 sm:p-4 shrink-0 shadow-lg justify-between space-y-3 overflow-hidden">
+            <div className="space-y-3 overflow-y-auto pr-1">
+              
+              {/* PANEL HEADER */}
               <div className="border-b border-slate-200 pb-2">
-                <h4 className="font-black text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  Configuración del Atributo
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    Valor Resultado (Apoyo Tecnológico)
+                  </h4>
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-slate-900 text-amber-400 rounded-xs">
+                    {selectedConfigs.length} Sistema(s)
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Personalice la información que se trasladará a la Ficha de Actividad
+                  Visualización y gestión detallada de los sistemas SIH seleccionados
                 </p>
               </div>
 
-              {/* ACTIVE SYSTEM PREVIEW CARD */}
-              {activeSystem ? (
-                <div className="bg-amber-50/80 border border-amber-300 p-3 rounded-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-black text-xs bg-slate-950 text-white px-2 py-0.5 rounded-xs">
-                      {activeSystem.code}
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 border border-emerald-200">
-                      {activeSystem.supportStatus || "SOPORTADO"}
-                    </span>
+              {/* LIST OF SELECTED SYSTEMS */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                  <span>Sistemas Seleccionados ({selectedConfigs.length}):</span>
+                  {selectedConfigs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedConfigs([]);
+                        setIsManualEdit(false);
+                      }}
+                      className="text-[10px] text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer font-bold"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Limpiar Todo
+                    </button>
+                  )}
+                </div>
+
+                {selectedConfigs.length === 0 ? (
+                  <div className="bg-slate-50 border border-dashed border-slate-300 p-4 rounded-xs text-center text-xs text-slate-500 space-y-1">
+                    <Server className="w-6 h-6 mx-auto text-amber-500" />
+                    <p className="font-bold text-slate-700">Ningún sistema seleccionado</p>
+                    <p className="text-[11px] text-slate-500">
+                      Marque 1 o más sistemas del catálogo a la izquierda.
+                    </p>
                   </div>
-                  <h5 className="font-bold text-xs text-slate-900">
-                    {activeSystem.name}
-                  </h5>
-                  <p className="text-[11px] text-slate-600 line-clamp-3">
-                    {activeSystem.objective}
-                  </p>
-                </div>
-              ) : selectedCode === "NO_TIENE" ? (
-                <div className="bg-slate-100 border border-slate-300 p-3 rounded-xs space-y-1 text-xs">
-                  <div className="font-bold text-slate-900 flex items-center gap-1">
-                    <X className="w-4 h-4 text-slate-600" />
-                    Actividad Manual / Presencial
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {selectedConfigs.map((cfg) => {
+                      const sys = catalog.find((s) => s.code === cfg.code);
+                      const isExpanded = expandedSystems[cfg.code] || false;
+                      const featCount = cfg.selectedFeatures.length;
+                      const totalFeats = sys?.features?.length || 0;
+
+                      return (
+                        <div
+                          key={cfg.code}
+                          className="p-2.5 bg-amber-50/90 border border-amber-300 rounded-xs space-y-1.5 shadow-2xs"
+                        >
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                              <span className="font-mono font-black text-[11px] bg-slate-900 text-amber-400 px-1.5 py-0.5 rounded-xs shrink-0">
+                                {cfg.code}
+                              </span>
+                              <span className="font-bold text-xs text-slate-900 truncate">
+                                {sys?.name || cfg.code}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSystem(cfg.code)}
+                              className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                              title="Quitar este sistema"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* SUB-BAR WITH FEATURE BADGE & TOGGLE */}
+                          <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-amber-200/70">
+                            <span className="text-amber-950 font-bold">
+                              {featCount > 0 ? `${featCount}/${totalFeats} funcionalidades` : "Sin funcionalidades seleccionadas"}
+                            </span>
+
+                            {totalFeats > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedSystems((prev) => ({
+                                    ...prev,
+                                    [cfg.code]: !prev[cfg.code]
+                                  }))
+                                }
+                                className="text-amber-900 hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <span>Ocultar funcionalidades</span>
+                                    <ChevronUp className="w-3 h-3" />
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Ver funcionalidades</span>
+                                    <ChevronDown className="w-3 h-3" />
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* EXPANDED FEATURES FOR THIS SYSTEM */}
+                          {isExpanded && sys?.features && (
+                            <div className="bg-white p-2 border border-amber-200 space-y-1 rounded-xs text-[10px] mt-1">
+                              {sys.features.map((feat, fIdx) => {
+                                const checked = cfg.selectedFeatures.includes(feat);
+                                return (
+                                  <label
+                                    key={fIdx}
+                                    className="flex items-start gap-1.5 cursor-pointer hover:bg-slate-50 p-0.5 rounded-xs"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => handleToggleFeature(sys, feat)}
+                                      className="w-3 h-3 mt-0.5 text-amber-600 rounded-none focus:ring-amber-600 cursor-pointer"
+                                    />
+                                    <span className={checked ? "text-amber-950 font-medium leading-tight" : "text-slate-500 leading-tight"}>
+                                      {feat}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <p className="text-[11px] text-slate-600">
-                    La actividad quedará catalogada con "No tiene", indicando que no requiere software informático.
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-slate-50 border border-dashed border-slate-300 p-4 rounded-xs text-center text-xs text-slate-500">
-                  <Server className="w-6 h-6 mx-auto text-slate-400 mb-1" />
-                  <p className="font-bold text-slate-700">Ningún sistema seleccionado</p>
-                  <p className="text-[11px] mt-0.5">Seleccione un sistema del catálogo a la izquierda.</p>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* FORMAT OPTIONS CHECKBOXES */}
-              {activeSystem && (
-                <div className="space-y-2 pt-1">
-                  <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block">
-                    Elementos a incluir en el resultado:
-                  </span>
-                  
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer bg-slate-50 p-2 border border-slate-200 rounded-xs hover:bg-slate-100">
+              <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                <span className="text-[10px] font-bold text-slate-900 uppercase tracking-wider block">
+                  Formato del Texto Resultado:
+                </span>
+                
+                <div className="space-y-1">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer bg-slate-50 p-1.5 border border-slate-200 rounded-xs hover:bg-slate-100">
                     <input
                       type="checkbox"
                       checked={includeSystemName}
-                      onChange={(e) => setIncludeSystemName(e.target.checked)}
-                      className="w-4 h-4 text-slate-950 focus:ring-slate-950"
+                      onChange={(e) => {
+                        setIncludeSystemName(e.target.checked);
+                        setIsManualEdit(false);
+                      }}
+                      className="w-3.5 h-3.5 text-amber-600 focus:ring-amber-600 cursor-pointer"
                     />
-                    <span>Código y Nombre del Sistema</span>
+                    <span className="text-[11px]">Código y Nombre del Sistema</span>
                   </label>
 
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer bg-slate-50 p-2 border border-slate-200 rounded-xs hover:bg-slate-100">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer bg-slate-50 p-1.5 border border-slate-200 rounded-xs hover:bg-slate-100">
                     <input
                       type="checkbox"
                       checked={includeFeatures}
-                      onChange={(e) => setIncludeFeatures(e.target.checked)}
-                      className="w-4 h-4 text-slate-950 focus:ring-slate-950"
+                      onChange={(e) => {
+                        setIncludeFeatures(e.target.checked);
+                        setIsManualEdit(false);
+                      }}
+                      className="w-3.5 h-3.5 text-amber-600 focus:ring-amber-600 cursor-pointer"
                     />
-                    <span>Funcionalidades Clave</span>
+                    <span className="text-[11px]">Funcionalidades Seleccionadas</span>
                   </label>
 
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer bg-slate-50 p-2 border border-slate-200 rounded-xs hover:bg-slate-100">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer bg-slate-50 p-1.5 border border-slate-200 rounded-xs hover:bg-slate-100">
                     <input
                       type="checkbox"
                       checked={includeStatus}
-                      onChange={(e) => setIncludeStatus(e.target.checked)}
-                      className="w-4 h-4 text-slate-950 focus:ring-slate-950"
+                      onChange={(e) => {
+                        setIncludeStatus(e.target.checked);
+                        setIsManualEdit(false);
+                      }}
+                      className="w-3.5 h-3.5 text-amber-600 focus:ring-amber-600 cursor-pointer"
                     />
-                    <span>Estado del Soporte ([SOPORTADO])</span>
+                    <span className="text-[11px]">Estado del Sistema (Soportado / Brecha)</span>
                   </label>
                 </div>
-              )}
+              </div>
 
               {/* RESULT TEXT PREVIEW */}
-              <div className="pt-2">
+              <div className="pt-1 border-t border-slate-200">
                 <div className="flex justify-between items-center mb-1">
                   <label className="block text-[11px] font-bold text-slate-900 uppercase tracking-wider">
-                    Valor Resultado (Apoyo Tecnológico):
+                    Texto Resultado Consolidado:
                   </label>
-                  <span className="text-[10px] text-slate-500 font-mono">Editable</span>
+                  {isManualEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsManualEdit(false);
+                        setCustomResultText(buildResultText(selectedConfigs, includeSystemName, includeFeatures, includeStatus));
+                      }}
+                      className="text-[10px] text-amber-700 hover:underline font-bold cursor-pointer"
+                    >
+                      Regenerar desde selección
+                    </button>
+                  )}
                 </div>
                 <textarea
                   rows={3}
                   value={customResultText}
-                  onChange={(e) => setCustomResultText(e.target.value)}
-                  placeholder="Seleccione un sistema o ingrese el texto deseado..."
-                  className="w-full p-2.5 text-xs font-semibold bg-white border border-slate-300 text-slate-950 focus:outline-none focus:border-slate-950 rounded-xs"
+                  onChange={(e) => {
+                    setCustomResultText(e.target.value);
+                    setIsManualEdit(true);
+                  }}
+                  placeholder="Seleccione uno o más sistemas para componer el valor de Apoyo Tecnológico..."
+                  className="w-full p-2.5 text-xs font-semibold bg-white border border-slate-300 text-slate-950 focus:outline-none focus:border-amber-600 rounded-xs"
                 />
                 <p className="text-[10px] text-slate-500 mt-1">
-                  * Este texto será asignado directamente al campo <strong>Apoyo Tecnológico</strong> de la ficha.
+                  * Este texto será asignado al campo <strong>Apoyo Tecnológico</strong> de la ficha.
                 </p>
               </div>
             </div>
 
             {/* MODAL BOTTOM ACTIONS */}
-            <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
+            <div className="pt-2 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={onClose}
@@ -522,10 +800,10 @@ export default function SihCatalogPickerModal({
                 type="button"
                 onClick={handleApply}
                 disabled={!customResultText.trim()}
-                className="px-5 py-2 bg-slate-950 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-black rounded-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-black rounded-xs flex items-center gap-1.5 shadow-md cursor-pointer"
               >
                 <Check className="w-4 h-4" />
-                <span>Aplicar a la Ficha</span>
+                <span>Aplicar a la Ficha ({selectedConfigs.length})</span>
               </button>
             </div>
           </div>

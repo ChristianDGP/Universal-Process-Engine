@@ -5788,10 +5788,10 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
         isOpen={sihPickerModalOpen}
         onClose={() => setSihPickerModalOpen(false)}
         currentValue={actForm.supportTech}
-        onApply={(resultText, selectedSystem) => {
+        onApply={(resultText, selectedSystems) => {
           setActForm((prev) => ({ ...prev, supportTech: resultText }));
-          if (selectedSystem) {
-            setSihSelectedCode(selectedSystem.code);
+          if (Array.isArray(selectedSystems) && selectedSystems.length > 0) {
+            setSihSelectedCode(selectedSystems[0].code);
           }
         }}
       />
@@ -5805,14 +5805,14 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
         activityName={actForm.name}
         activityDescription={actForm.description}
         supportTech={actForm.supportTech}
-        onApply={(resultText, supportType, selectedStandard) => {
+        onApply={(resultText, supportType, selectedStandards) => {
           setActForm((prev) => ({
             ...prev,
             jciAttribute: resultText,
             jciSupportType: supportType
           }));
-          if (selectedStandard) {
-            setJciSelectedCode(selectedStandard.code);
+          if (Array.isArray(selectedStandards) && selectedStandards.length > 0) {
+            setJciSelectedCode(selectedStandards[0].code);
           }
         }}
       />
