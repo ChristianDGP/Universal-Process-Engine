@@ -823,15 +823,25 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     code: "1.6.4",
     area: "Gestión de la Información",
     name: "Gestión OIRS",
-    objective: "Herramienta de atención ciudadana para canalizar reclamos, sugerencias, consultas y felicitaciones garantizando respuestas oportunas.",
+    objective: "Constituye una herramienta o medio de atención por medio de la cual las personas acceden e interactúan con el hospital, garantizando su derecho a informarse, sugerir y reclamar, para contribuir a la conformación de un Gobierno moderno y al servicio de los ciudadanos.",
     supportStatus: "SOPORTADO",
     providerVendor: "Plataforma OIRS / MINSAL",
     features: [
-      "Ingreso de reclamos, sugerencias, consultas y felicitaciones.",
-      "Tracking de tiempos de respuesta con semáforo de alerta.",
-      "Integración con la plataforma OIRS del MINSAL."
+      "Permite el ingreso de consultas, felicitaciones, reclamos, sugerencias, por parte de cualquier ciudadano que haya sido atendido o no por la institución.",
+      "Permita ingresar los datos del solicitante (Tipo de persona (natural, jurídica), Fecha de requerimiento, Nombres, sexo, fecha de nacimiento, domicilio, teléfonos de contacto, correos electrónicos, institución que origina el requerimiento, tipo de requerimiento, permitir describir el requerimiento y adjuntar archivos.",
+      "Permitir actualizar base de contactabilidad OIRS y datos demográficos de los solicitantes.",
+      "Permitir facilidades interculturales (Por ejemplo, manejo de traductores para español - Creole).",
+      "Permite que operadores de OIRS capturen solicitudes ciudadanas, las califiquen y deriven a instituciones competentes para su respuesta.",
+      "Permitir que usuarios de la institución derivada tomen casos de atención.",
+      "Permitir Clasificar áreas responsivas al interior del hospital de tal forma de agrupar los reclamos y en general los tipos de interacciones para derivarlas de manera rápida y simple a los responsables de dar respuesta.",
+      "Permitir tracking de tiempo por cada solicitud, grupo de solicitudes y totales por cada etapa definida, así como tiempos máximos de permanencia en cada una de ellas, generando semáforos de alerta y alarmas ante atrasos en las respuestas a las consultas ciudadanas.",
+      "Permitir internamente un workflow de tracking de respuesta para que las áreas responsables de responder el requerimiento ciudadano, puedan ingresar digitalmente su respuesta y documentos soportantes.",
+      "Permitir que el workflow de respuesta pueda derivar a quien corresponda alertas de demoras de respuesta, si se ha superado los rangos de tiempos de respuesta definidos para cada requerimiento o solicitud ciudadana.",
+      "Permitir envíos automáticos de respuestas al ciudadano mediante correo electrónico y/o facilitar la generación de respuestas, para su envío mediante correo certificado.",
+      "Obtener informes y consultas por tipo de requerimiento, localidad, participantes, institución, fecha, y usuario de atención.",
+      "Disponer de un sistema para tomar encuestas de satisfacción, mediante dispositivos móviles como tabletas u otros medios electrónicos, permitir tabular los resultados, disponer de mecanismos de difusión de los resultados (mails particulares, masivos, tableros-pantallas) y disponer de herramientas estadísticas descriptivas y que permitan realizar inferencias."
     ],
-    integrations: ["Sistema OIRS MINSAL."]
+    integrations: ["Sistema OIRS MINSAL, Gestión de Calidad, Ficha Clínica Electrónica, Oficina de Partes / Gestor Documental."]
   },
   {
     id: "SIH-1.6.5",
