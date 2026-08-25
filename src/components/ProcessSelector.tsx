@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ProcessDefinition } from "../types";
+import { ProcessDefinition, ReferenceDocument, JCIStandard, SIHSystem } from "../types";
 import { PRESETS, BLANK_PROCESS_PRESET } from "../presets";
-import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff, Zap, ShieldAlert, Lock, FolderTree, Layers, Tag, Filter } from "lucide-react";
+import { Sparkles, Loader2, BookmarkPlus, Library, Trash2, Download, Upload, Check, X, BookOpen, FileText, RotateCcw, Search, ChevronDown, HardDrive, Database, ShieldCheck, FileDown, FileUp, AlertTriangle, RefreshCw, Cloud, CloudCheck, CloudOff, Zap, ShieldAlert, Lock, FolderTree, Layers, Tag, Filter, Award, Server, Plus } from "lucide-react";
 import { subscribeToCloudProcesses, saveProcessToCloud, deleteProcessFromCloud, bulkSyncProcessesToCloud, SavedProcessEntry, UserPermissions } from "../firebaseSync";
 import { generateFallbackProcess } from "../lib/processTemplateGenerator";
+import { buildProcessFromReferences } from "../lib/referenceProcessBuilder";
+import { getStoredReferenceDocuments, saveStoredReferenceDocuments } from "../lib/referenceDocUtils";
+import { INITIAL_JCI_CATALOG } from "../data/jciCatalogPreset";
+import { INITIAL_SIH_CATALOG } from "../data/sihCatalogPreset";
+import { ReferenceDocumentsModal } from "./ReferenceDocumentsModal";
+import JciCatalogPickerModal from "./JciCatalogPickerModal";
+import SihCatalogPickerModal from "./SihCatalogPickerModal";
 import { UserRole } from "../firebase";
 import {
   TaxonomyItem,
@@ -72,6 +79,15 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [restoreMode, setRestoreMode] = useState<"merge" | "replace">("merge");
   const [adminMsg, setAdminMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Reference Documents, JCI and SIH builder state
+  const [refDocs, setRefDocs] = useState<ReferenceDocument[]>(() => getStoredReferenceDocuments());
+  const [showRefDocsModal, setShowRefDocsModal] = useState<boolean>(false);
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [selectedJciStandards, setSelectedJciStandards] = useState<JCIStandard[]>([]);
+  const [showJciModal, setShowJciModal] = useState<boolean>(false);
+  const [selectedSihSystems, setSelectedSihSystems] = useState<SIHSystem[]>([]);
+  const [showSihModal, setShowSihModal] = useState<boolean>(false);
 
   // Taxonomy & Structure State
   const [taxonomy, setTaxonomy] = useState<TaxonomyItem[]>(() => getStoredTaxonomy());
@@ -674,7 +690,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
     "Finalizando Arquitectura de Base de Datos y Código de Negocio..."
   ];
 
-  const handleGenerate = async (e: React.FormEvent) => {
+  const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customName.trim() || !customContext.trim()) {
       setError("Debe ingresar tanto el Nombre del Proceso como el Contexto o Alcance Operativo para poder generar el modelo TO-BE.");
@@ -683,34 +699,26 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
 
     setLoading(true);
     setError(null);
-    setLoadingStep(0);
-
-    const interval = setInterval(() => {
-      setLoadingStep((prev) => (prev + 1) % loadingMessages.length);
-    }, 2800);
 
     try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          processName: customName.trim(),
-          descriptionContext: customContext.trim()
-        })
+      // 1. Gather selected reference documents
+      const chosenDocs = refDocs.filter((d) => selectedDocIds.includes(d.id));
+      
+      // 2. Build process from JCI, SIH and Reference Documents
+      const generatedProcess = buildProcessFromReferences({
+        processName: customName.trim(),
+        descriptionContext: customContext.trim(),
+        selectedReferenceDocuments: chosenDocs,
+        selectedJciStandards: selectedJciStandards.length > 0 ? selectedJciStandards : INITIAL_JCI_CATALOG.slice(0, 5),
+        selectedSihSystems: selectedSihSystems.length > 0 ? selectedSihSystems : INITIAL_SIH_CATALOG.slice(0, 5)
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Error al generar el proceso mediante la Inteligencia Artificial.");
-      }
-
-      const generatedProcess: ProcessDefinition = await response.json();
       if (!generatedProcess || !generatedProcess.name || !generatedProcess.subprocesses) {
-        throw new Error("El modelo generado por la IA no devolvió la estructura completa esperada.");
+        throw new Error("No se pudo construir la estructura completa esperada del proceso.");
       }
 
       onProcessSelect(generatedProcess);
-      setSaveSuccessMsg(`¡Proceso "${generatedProcess.name}" generado exitosamente mediante IA!`);
+      setSaveSuccessMsg(`¡Proceso "${generatedProcess.name}" generado exitosamente a partir de referencias institucionales, JCI y SIH!`);
       setTimeout(() => setSaveSuccessMsg(null), 5000);
       setCustomName("");
       setCustomContext("");
@@ -718,14 +726,8 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
       sessionStorage.removeItem("upe_custom_context_draft");
     } catch (err: any) {
       console.error(err);
-      const errMsg = err.message || "No se pudo conectar con el servidor de IA.";
-      setError(
-        errMsg.includes("GEMINI_API_KEY") || errMsg.includes("Inteligencia Artificial") || errMsg.includes("HTML") || errMsg.includes("404")
-          ? `${errMsg} (Nota: Recuerde presionar "Redeploy" en Vercel para aplicar los cambios en las variables de entorno. También puede usar el botón de abajo para generar la plantilla sin esperar a la IA).`
-          : errMsg
-      );
+      setError(err.message || "Error al construir el proceso.");
     } finally {
-      clearInterval(interval);
       setLoading(false);
     }
   };
@@ -1386,7 +1388,7 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2 flex items-center">
-                Modelar Nuevo Proceso
+                Modelar Nuevo Proceso TO-BE
                 <span className="text-rose-600 font-bold ml-1">*</span>
               </label>
               <input
@@ -1416,24 +1418,94 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full md:w-auto px-6 py-2.5 bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                className="w-full md:w-auto px-6 py-2.5 bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Sparkles className="w-4 h-4 text-amber-400 fill-amber-400" />
                 )}
-                Generar Proceso TO-BE
+                Construir Proceso desde Referencias
               </button>
             </div>
+          </div>
+
+          {/* Reference Document, JCI & SIH Linkage Bar */}
+          <div className="bg-slate-50 border border-slate-200 p-3 rounded-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                Referencias Institucionales:
+              </span>
+
+              {/* 1. Reference Docs Button */}
+              <button
+                type="button"
+                onClick={() => setShowRefDocsModal(true)}
+                className={`px-2.5 py-1.5 border rounded-xs font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs ${
+                  selectedDocIds.length > 0
+                    ? "bg-indigo-900 text-white border-indigo-900"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                }`}
+                title="Cargar y seleccionar documentos de referencia institucional (Papers, Manuales, Guías Clínicas, Normas Técnicas)"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                <span>
+                  {selectedDocIds.length > 0
+                    ? `📚 ${selectedDocIds.length} Doc(s) Seleccionado(s)`
+                    : `📚 Documentos / Papers (${refDocs.length})`}
+                </span>
+              </button>
+
+              {/* 2. JCI Standards Button */}
+              <button
+                type="button"
+                onClick={() => setShowJciModal(true)}
+                className={`px-2.5 py-1.5 border rounded-xs font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs ${
+                  selectedJciStandards.length > 0
+                    ? "bg-indigo-900 text-white border-indigo-900"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                }`}
+                title="Vincular estándares y elementos medibles de Joint Commission International"
+              >
+                <Award className="w-3.5 h-3.5 text-indigo-400" />
+                <span>
+                  {selectedJciStandards.length > 0
+                    ? `🏆 ${selectedJciStandards.length} Estándar(es) JCI`
+                    : "🏆 Catálogo JCI (Auto / Selección)"}
+                </span>
+              </button>
+
+              {/* 3. SIH Systems Button */}
+              <button
+                type="button"
+                onClick={() => setShowSihModal(true)}
+                className={`px-2.5 py-1.5 border rounded-xs font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs ${
+                  selectedSihSystems.length > 0
+                    ? "bg-amber-600 text-white border-amber-600"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                }`}
+                title="Vincular sistemas y módulos del Catálogo SIH Hospitalario"
+              >
+                <Server className="w-3.5 h-3.5 text-amber-300" />
+                <span>
+                  {selectedSihSystems.length > 0
+                    ? `💻 ${selectedSihSystems.length} Sistema(s) SIH`
+                    : "💻 Catálogo SIH (Auto / Selección)"}
+                </span>
+              </button>
+            </div>
+
+            <span className="text-[11px] text-slate-500 font-medium italic">
+              Generación 100% determinística y estructurada basada en tus documentos y normativas.
+            </span>
           </div>
 
           {loading && (
             <div className="bg-slate-50 border border-slate-100 p-4 flex items-center gap-3 animate-pulse">
               <Loader2 className="w-5 h-5 text-slate-900 animate-spin" />
               <div className="text-xs text-slate-600 font-medium">
-                <span className="text-slate-900 font-semibold mr-1">Paso {loadingStep + 1} de {loadingMessages.length}:</span>
-                {loadingMessages[loadingStep]}
+                <span className="text-slate-900 font-semibold mr-1">Construyendo proceso TO-BE institucional:</span>
+                Estructurando actividades a partir de las referencias, normas JCI y catálogo SIH...
               </div>
             </div>
           )}
@@ -2248,6 +2320,45 @@ export default function ProcessSelector({ currentProcess, onProcessSelect, userR
           </div>
         </div>
       )}
+
+      {/* REFERENCE DOCUMENTS MODAL (Manuals, Technical Norms, Papers) */}
+      <ReferenceDocumentsModal
+        isOpen={showRefDocsModal}
+        onClose={() => setShowRefDocsModal(false)}
+        referenceDocuments={refDocs}
+        onDocumentsChange={(updatedDocs) => {
+          setRefDocs(updatedDocs);
+          saveStoredReferenceDocuments(updatedDocs);
+        }}
+        selectedDocIds={selectedDocIds}
+        onSelectDoc={(docId) => {
+          setSelectedDocIds((prev) =>
+            prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
+          );
+        }}
+      />
+
+      {/* JCI STANDARDS PICKER MODAL FOR PROCESS GENERATION */}
+      <JciCatalogPickerModal
+        isOpen={showJciModal}
+        onClose={() => setShowJciModal(false)}
+        currentValue={selectedJciStandards.map((s) => `${s.code} - ${s.title}`).join(" || ")}
+        onApply={(resultText, supportType, selectedStandards) => {
+          setSelectedJciStandards(selectedStandards);
+          setShowJciModal(false);
+        }}
+      />
+
+      {/* SIH SYSTEMS PICKER MODAL FOR PROCESS GENERATION */}
+      <SihCatalogPickerModal
+        isOpen={showSihModal}
+        onClose={() => setShowSihModal(false)}
+        currentValue={selectedSihSystems.map((s) => `${s.code} - ${s.name}`).join(" || ")}
+        onApply={(resultText, selectedSystems) => {
+          setSelectedSihSystems(selectedSystems);
+          setShowSihModal(false);
+        }}
+      />
 
       {/* NATIVE IN-PAGE CONFIRM MODAL */}
       {confirmModal?.isOpen && (

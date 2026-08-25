@@ -875,5 +875,24 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
       "Indicadores de complejidad, estancia media e índice de uso de recursos."
     ],
     integrations: ["Ficha Clínica, Ficha de Urgencia, Hospitalizados."]
+  },
+  {
+    id: "SIH-1.6.8",
+    code: "1.6.8",
+    area: "Gestión de la Información",
+    name: "Interoperabilidad y Middleware Regional (HL7 / FHIR)",
+    objective: "Garantizar el intercambio seguro y estandarizado de datos clínicos y administrativos entre los sistemas del hospital y la red del Servicio de Salud mediante estándares HL7 v2, HL7 FHIR R4 y CDA.",
+    supportStatus: "SOPORTADO",
+    providerVendor: "Motor de Integración / FHIR Server",
+    features: [
+      "Motor de transformación y mensajería en tiempo real HL7 v2 (ADT, ORM, ORU, MDM).",
+      "Servidor FHIR R4 para intercambio interoperable de recursos clínicos (Patient, Encounter, Condition, MedicationRequest).",
+      "Bitácora de auditoría y monitoreo de colas de mensajes con reintento automático.",
+      "Seguridad de transporte con TLS 1.3, autenticación OAuth 2.0 / Mutual TLS y validación de esquemas."
+    ],
+    integrations: [
+      "Ficha Clínica Electrónica, LIS Laboratorio, RIS/PACS, Registro Civil, FONASA, MINSAL (RND, SIGTE)."
+    ],
+    legalConsiderations: "Ley 20.584, Ley 19.628 de Protección de Datos Personales y Guías de Interoperabilidad MINSAL."
   }
 ];
