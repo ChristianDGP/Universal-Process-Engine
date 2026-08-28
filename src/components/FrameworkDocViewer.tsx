@@ -604,6 +604,17 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
   const [editingAct, setEditingAct] = useState<{ subIndex: string; actIndex: string } | null>(null);
   const [actModalOpen, setActModalOpen] = useState(false);
   const [sihPickerModalOpen, setSihPickerModalOpen] = useState(false);
+  const [sihTargetDirectActivity, setSihTargetDirectActivity] = useState<{
+    subIdx: number;
+    actIdx: number;
+    initialTech: string;
+  } | null>(null);
+
+  const handleOpenSihForActivityDirect = (subIdx: number, actIdx: number, currentTech: string) => {
+    setSihTargetDirectActivity({ subIdx, actIdx, initialTech: currentTech });
+    setSihPickerModalOpen(true);
+  };
+
   const [jciPickerModalOpen, setJciPickerModalOpen] = useState(false);
   const [actForm, setActForm] = useState<ActivityFicha>({
     index: "",
@@ -3604,7 +3615,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                           </p>
 
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
-                            {sub.activities.map((act) => (
+                            {sub.activities.map((act, aIdx) => (
                               <div key={act.index} className="bg-white border border-slate-200 p-4 space-y-3 relative group hover:border-slate-400 transition-colors shadow-xs">
                                 <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                                   <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5">
@@ -3701,9 +3712,14 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                               </span>
                                             )}
                                             {(support === "SISTEMA" || support === "SISTEMICO") && (
-                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-950 bg-amber-50 px-1.5 py-0.5 border border-amber-300 rounded-xs" title="Soporte: Contenido en Sistema / Software SIH">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenSihForActivityDirect(sIdx, aIdx, act.supportTech || "")}
+                                                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-950 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 border border-amber-300 rounded-xs cursor-pointer transition-colors"
+                                                title="Soporte: Contenido en Sistema / Software SIH. Haga clic para ver catálogo SIH"
+                                              >
                                                 💻 Sistema (SIH)
-                                              </span>
+                                              </button>
                                             )}
                                           </div>
                                         );
@@ -3714,15 +3730,25 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                   <div className="text-slate-600 flex flex-wrap items-center gap-1.5 pt-0.5">
                                     <span className="font-bold text-slate-800">Apoyo Tecnológico:</span>{" "}
                                     {(!act.supportTech || act.supportTech.toLowerCase().trim() === "no tiene" || act.supportTech.toLowerCase().trim() === "no aplica" || act.supportTech.toLowerCase().trim() === "ninguno") ? (
-                                      <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs uppercase tracking-wider">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenSihForActivityDirect(sIdx, aIdx, "")}
+                                        className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 border border-slate-300 rounded-xs uppercase tracking-wider cursor-pointer transition-colors"
+                                        title="Haga clic para ver el catálogo SIH y asignar sistema"
+                                      >
                                         <X className="w-3 h-3 text-slate-500" />
                                         No tiene (Actividad Manual / Presencial)
-                                      </span>
+                                      </button>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-extrabold text-amber-950 bg-amber-100/90 px-2 py-0.5 border border-amber-300 rounded-xs shadow-2xs">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenSihForActivityDirect(sIdx, aIdx, act.supportTech || "")}
+                                        className="inline-flex items-center gap-1.5 font-mono text-[11px] font-extrabold text-amber-950 bg-amber-100/90 hover:bg-amber-200/90 px-2 py-0.5 border border-amber-300 rounded-xs shadow-2xs cursor-pointer transition-all hover:scale-101 text-left"
+                                        title="Haga clic para ver la ficha técnica y seleccionar funcionalidades del sistema SIH"
+                                      >
                                         <Server className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                         {act.supportTech}
-                                      </span>
+                                      </button>
                                     )}
                                   </div>
                                   <p className="text-slate-600">
@@ -5796,10 +5822,24 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
       {/* SIH CATALOG PICKER MODAL */}
       <SihCatalogPickerModal
         isOpen={sihPickerModalOpen}
-        onClose={() => setSihPickerModalOpen(false)}
-        currentValue={actForm.supportTech}
+        onClose={() => {
+          setSihPickerModalOpen(false);
+          setSihTargetDirectActivity(null);
+        }}
+        currentValue={sihTargetDirectActivity ? sihTargetDirectActivity.initialTech : actForm.supportTech}
         onApply={(resultText, selectedSystems) => {
-          setActForm((prev) => ({ ...prev, supportTech: resultText }));
+          if (sihTargetDirectActivity) {
+            const { subIdx, actIdx } = sihTargetDirectActivity;
+            const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+            if (updated.subprocesses?.[subIdx]?.activities?.[actIdx]) {
+              updated.subprocesses[subIdx].activities[actIdx].supportTech = resultText;
+            }
+            const synced = syncProcessModel(updated);
+            if (onProcessChange) onProcessChange(synced);
+            setSihTargetDirectActivity(null);
+          } else {
+            setActForm((prev) => ({ ...prev, supportTech: resultText }));
+          }
           if (Array.isArray(selectedSystems) && selectedSystems.length > 0) {
             setSihSelectedCode(selectedSystems[0].code);
           }

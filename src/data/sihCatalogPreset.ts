@@ -92,7 +92,7 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     name: "Gestión de la demanda",
     objective: "Administrar las solicitudes de interconsultas y derivaciones GES y NoGES. Gestionar la pertinencia clínica, listas de espera, priorización y trazabilidad desde el ingreso hasta el egreso.",
     supportStatus: "EN_IMPLEMENTACION",
-    providerVendor: "Módulo Lista de Espera / SIDRA",
+    providerVendor: "Sistema de Lista de Espera / SIDRA",
     features: [
       "Recibir referencias GES y NoGES desde el sistema de referencia y contrarreferencia y ficha clínica.",
       "Evaluación del coordinador de la especialidad sobre pertinencia clínica de la derivación.",
@@ -216,7 +216,7 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     name: "Prequirúrgico",
     objective: "Gestionar el proceso prequirúrgico del paciente con indicación de cirugía, pronóstico de fecha de intervención y control de requisitos.",
     supportStatus: "BRECHA",
-    providerVendor: "Módulo Prequirúrgico / Pabellones",
+    providerVendor: "Sistema Prequirúrgico / Pabellones",
     features: [
       "Consulta y priorización de lista de espera quirúrgica No GES (SIGTE).",
       "Actualización de salidas de lista quirúrgica (intervenciones realizadas, renuncias).",
@@ -588,15 +588,34 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     code: "1.4.4",
     area: "Apoyo Logístico",
     name: "Traslados de pacientes",
-    objective: "Administrar solicitudes y movimientos internos de pacientes en camillas, sillas de ruedas o carritos dentro del recinto hospitalario.",
+    objective: "Gestionar y coordinar los traslados internos de pacientes en camilla, silla de ruedas o a pie, asignando recursos, camilleros y equipamiento, registrando trazabilidad de tiempos, origen y destino.",
     supportStatus: "SOPORTADO",
-    providerVendor: "Gestor de Traslados Internos",
+    providerVendor: "Gestor de Flota y traslados de pacientes",
     features: [
-      "Solicitud interna de camilleros desde Ficha Clínica o Servicios.",
-      "Control de estado y disponibilidad de sillas de ruedas y camillas.",
-      "Trazabilidad de origen, destino y tiempos del traslado."
+      "Solicitud de traslados de pacientes en camilla, silla de ruedas o a pie por personal clínico autorizado.",
+      "Control y asignación eficiente de recursos (camilleros, camillas, sillas de ruedas y accesorios de soporte).",
+      "Asignación automática o manual de solicitudes al personal de traslado según disponibilidad, cercanía y prioridad clínica.",
+      "Seguimiento y trazabilidad en tiempo real del estado del traslado (solicitado, asignado, en curso, finalizado, cancelado).",
+      "Registro de tiempos de respuesta, traslados y entrega para auditoría y control de calidad asistencial.",
+      "Integración bidireccional con Ficha Clínica Electrónica, Urgencias, Pabellones Quirúrgicos y Hospitalización.",
+      "Gestión de traslados programados y de urgencia con categorización de prioridad clínica.",
+      "Notificaciones y alertas móviles o en estaciones de enfermería sobre el avance del traslado.",
+      "Registro de incidentes, retrasos o novedades ocurridas durante el transporte del paciente.",
+      "Reportes e indicadores de gestión operativa (tiempos promedio, demanda por servicio, productividad por camillero).",
+      "Manejo de requerimientos especiales (aislamiento de contacto/gotitas, oxígeno, monitoreo continuo, acompañamiento clínico).",
+      "Control de inventario y estado operativo de camillas, sillas de ruedas y equipamiento de traslado.",
+      "Trazabilidad de entrega y recepción conforme en la unidad de destino con confirmación digital.",
+      "Georreferenciación o ubicación por balizas/zonas dentro del recinto hospitalario."
     ],
-    integrations: ["Ficha Clínica, Urgencias, Hospitalizados, Morgue."]
+    integrations: [
+      "Atención Ambulatoria y Agenda",
+      "Atención Hospitalizados",
+      "Atención de urgencias",
+      "Ficha Clínica electrónica",
+      "Gestión de camas",
+      "Pabellones Quirúrgicos",
+      "Gestión de fallecidos"
+    ]
   },
   {
     id: "SIH-1.4.5",
@@ -605,7 +624,7 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     name: "Gestión de fallecidos",
     objective: "Gestionar la trazabilidad del paciente fallecido desde la constatación médica, traslado a morgue, ubicación en cámara y entrega a familiares o SML.",
     supportStatus: "SOPORTADO",
-    providerVendor: "Módulo Morgue / Fallecidos",
+    providerVendor: "Sistema de Custodia y Fallecidos",
     features: [
       "Generación de solicitud de traslado a morgue con correlativo único.",
       "Alertas de bioseguridad por fallecimiento a causa de enfermedades infecciosas.",
@@ -686,7 +705,7 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     name: "Abastecimiento - Solicitudes y Gestión de compra",
     objective: "Gestionar el proceso de compras e interacciones con Mercado Público / ChileCompra y CENABAS desde la solicitud de pedido hasta la orden de compra.",
     supportStatus: "SOPORTADO",
-    providerVendor: "Módulo de Compras ERP / Mercado Público",
+    providerVendor: "Sistema de Compras ERP / Mercado Público",
     features: [
       "Solicitudes de pedido centralizadas y descentralizadas por centro de costo.",
       "Generación e integración de órdenes de compra con Mercado Público (ChileCompra).",
@@ -720,7 +739,7 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     supportStatus: "SOPORTADO",
     providerVendor: "SIRH / Gestión de Personas",
     features: [
-      "Módulo de organigrama, cargos y personal permanente/reemplazo.",
+      "Organigrama, cargos y personal permanente/reemplazo.",
       "Marcaje de asistencia digital (reloj digital, huella).",
       "Integración con el sistema SIRH del estado.",
       "Prevención de riesgos y carpetas de capacitación."
@@ -734,7 +753,7 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     name: "Finanzas - Presupuesto",
     objective: "Facilitar la formulación y control presupuestario de recursos operacionales e inversión integrados con los sistemas del Estado (SIGFE).",
     supportStatus: "SOPORTADO",
-    providerVendor: "Módulo Presupuestario / SIGFE",
+    providerVendor: "Sistema Presupuestario / SIGFE",
     features: [
       "Control presupuestario por centro de costo e ítem de gasto.",
       "Integración automática con registros del sistema SIGFE.",
@@ -868,7 +887,7 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     name: "Gestión de Proyectos",
     objective: "Gestionar proyectos de inversión y desarrollo hospitalario, carta Gantt, paquetes de trabajo, hitos, control presupuestario y vinculación con compras y abastecimiento.",
     supportStatus: "EN_IMPLEMENTACION",
-    providerVendor: "Módulo Gestión de Proyectos",
+    providerVendor: "Sistema de Gestión de Proyectos",
     features: [
       "Carta Gantt interactiva con control de avances, ruta crítica e hitos de entrega.",
       "Generación de lista de materiales (BOM) y compras asociadas a cada proyecto.",
