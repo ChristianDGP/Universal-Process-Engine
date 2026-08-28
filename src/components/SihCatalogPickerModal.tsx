@@ -191,8 +191,20 @@ export default function SihCatalogPickerModal({
                 }
               });
               if (matchedFeats.length === 0) {
-                // Default to all features
-                matchedFeats.push(...sys.features);
+                if (activityName) {
+                  const { matchedFeatures, hasMatch } = matchFeaturesForActivity(
+                    activityName,
+                    activityDescription,
+                    sys.features
+                  );
+                  if (hasMatch) {
+                    matchedFeats.push(...matchedFeatures);
+                  } else {
+                    matchedFeats.push(...sys.features);
+                  }
+                } else {
+                  matchedFeats.push(...sys.features);
+                }
               }
             }
 

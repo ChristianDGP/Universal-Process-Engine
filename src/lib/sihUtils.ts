@@ -155,15 +155,7 @@ export function standardizeSihSupportTech(rawText: string, catalog?: SIHSystem[]
   const matchedSys = findSihSystemByText(trimmed, activeCatalog);
 
   if (matchedSys) {
-    // Check if there are specific features preserved in rawText
-    let featurePart = "";
-    if (trimmed.includes("| Funcionalidades:")) {
-      featurePart = trimmed.substring(trimmed.indexOf("| Funcionalidades:"));
-    } else if (trimmed.includes("|")) {
-      featurePart = trimmed.substring(trimmed.indexOf("|"));
-    }
-
-    return `SIH - ${matchedSys.code} ${matchedSys.name}${featurePart ? ` ${featurePart}` : ""}`;
+    return `SIH - ${matchedSys.code} ${matchedSys.name}`;
   }
 
   if (trimmed.startsWith("SIH - ")) {
@@ -196,7 +188,12 @@ export function matchFeaturesForActivity(
 
   const actNorm = normalizeText(`${activityName} ${activityDesc || ""}`);
   
-  const stopWords = new Set(["para", "esta", "este", "como", "con", "del", "las", "los", "una", "uno", "por", "sobre", "entre", "hacia", "hasta"]);
+  const stopWords = new Set([
+    "para", "esta", "este", "como", "con", "del", "las", "los", "una", "uno",
+    "por", "sobre", "entre", "hacia", "hasta", "mediante", "traves", "segun",
+    "actividad", "proceso", "paso", "ficha", "modulo"
+  ]);
+
   const actWords = actNorm
     .split(/\s+/)
     .map((w) => w.trim())
@@ -206,8 +203,17 @@ export function matchFeaturesForActivity(
 
   features.forEach((feat) => {
     const featNorm = normalizeText(feat);
-    // Check if significant words match or key functional terms overlap
-    const wordOverlap = actWords.filter((w) => featNorm.includes(w));
+    // Check if significant action or entity words match or overlap
+    const wordOverlap = actWords.filter((w) => {
+      if (featNorm.includes(w)) return true;
+      // Stemming checks for Spanish action verbs (e.g. registrar -> registr, solicitud -> solicit)
+      if (w.length >= 5) {
+        const stem = w.slice(0, -2);
+        if (featNorm.includes(stem)) return true;
+      }
+      return false;
+    });
+
     if (wordOverlap.length > 0) {
       matchedFeatures.push(feat);
     }

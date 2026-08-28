@@ -3790,26 +3790,28 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                            const matchedSys = findSihSystemByText(stdTech, sihCatalog);
                                            if (matchedSys) {
                                              const matchInfo = matchFeaturesForActivity(act.name, act.description, matchedSys.features);
-                                             if (matchInfo.hasMatch) {
-                                               return (
-                                                 <span
-                                                   className="inline-flex items-center gap-1 font-sans text-[10px] font-bold text-emerald-900 bg-emerald-100/90 px-2 py-0.5 border border-emerald-300 rounded-xs shadow-2xs"
-                                                   title={`Funcionalidad alineada con la ficha "${act.name}": ${matchInfo.matchedFeatures[0]}`}
-                                                 >
-                                                   <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                                                   <span>Funcionalidad: {matchInfo.matchedFeatures[0]}</span>
-                                                 </span>
-                                               );
-                                             }
-                                             return (
-                                               <span
-                                                 className="inline-flex items-center gap-1 font-sans text-[10px] font-black text-rose-900 bg-rose-100 px-2 py-0.5 border border-rose-300 rounded-xs shadow-2xs animate-pulse"
-                                                 title={`BRECHA FUNCIONAL: El sistema SIH ${matchedSys.code} no cuenta con una funcionalidad específica para "${act.name}"`}
-                                               >
-                                                 <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
-                                                 <span>BRECHA FUNCIONAL</span>
-                                               </span>
-                                             );
+                                                                                           if (matchInfo.hasMatch) {
+                                                const featText = matchInfo.matchedFeatures[0];
+                                                const displayText = featText.length > 55 ? featText.slice(0, 52) + "..." : featText;
+                                                return (
+                                                  <span
+                                                    className="inline-flex items-center gap-1.5 font-sans text-[10px] font-bold text-emerald-950 bg-emerald-100/95 px-2 py-0.5 border border-emerald-300 rounded-xs shadow-2xs"
+                                                    title={`Alineado con ficha "${act.name}": ${featText}`}
+                                                  >
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                    <span>${displayText}</span>
+                                                  </span>
+                                                );
+                                              }
+                                              return (
+                                                <span
+                                                  className="inline-flex items-center gap-1 font-sans text-[10px] font-black text-rose-950 bg-rose-100 px-2 py-0.5 border border-rose-300 rounded-xs shadow-2xs animate-pulse"
+                                                  title={`BRECHA FUNCIONAL: El sistema SIH ${matchedSys.code} no cuenta con una funcionalidad específica para "${act.name}"`}
+                                                >
+                                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                                  <span>🔴 BRECHA FUNCIONAL</span>
+                                                </span>
+                                              );
                                            }
                                            return null;
                                          })()}
