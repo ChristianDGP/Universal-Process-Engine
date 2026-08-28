@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { SIHSystem, ProcessDefinition } from "../types";
 import { OFFICIAL_SIH_CATEGORIES, INITIAL_SIH_CATALOG } from "../data/sihCatalogPreset";
 import { parseSIHDocumentFile, exportSIHCatalogToWord } from "../lib/docxParser";
-import { systemMatchesQuery } from "../lib/sihUtils";
+import { systemMatchesQuery, getActiveSihCatalog, saveActiveSihCatalog, SIH_STORAGE_KEY } from "../lib/sihUtils";
 import {
   Server, Upload, Download, Plus, Search, Filter, Edit3, Trash2, CheckCircle2,
   AlertTriangle, Shield, Layers, FileText, RefreshCw, X, Check, Cpu, Link2,
@@ -16,26 +16,13 @@ interface SIHModuleProps {
   userRole?: string;
 }
 
-const STORAGE_KEY = "sih_catalog_state_v1";
-
 export default function SIHModule({
   currentProcess,
   onProcessChange,
   userRole = "admin"
 }: SIHModuleProps) {
-  // Load state from localStorage or initialize with SSMSO catalog preset
-  const [sihCatalog, setSihCatalog] = useState<SIHSystem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error("Error loading SIH catalog from local storage:", e);
-    }
-    return INITIAL_SIH_CATALOG;
-  });
+  // Load state from getActiveSihCatalog (handles automatic version upgrades & preserves 14 features for 1.4.4)
+  const [sihCatalog, setSihCatalog] = useState<SIHSystem[]>(() => getActiveSihCatalog());
 
   // Filter & View States
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,11 +42,7 @@ export default function SIHModule({
 
   // Save changes to LocalStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sihCatalog));
-    } catch (e) {
-      console.error("Error saving SIH catalog to localStorage:", e);
-    }
+    saveActiveSihCatalog(sihCatalog);
   }, [sihCatalog]);
 
   // Statistics calculation

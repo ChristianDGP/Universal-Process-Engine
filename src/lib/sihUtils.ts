@@ -1,4 +1,7 @@
 import { SIHSystem } from "../types";
+import { INITIAL_SIH_CATALOG } from "../data/sihCatalogPreset";
+
+export const SIH_STORAGE_KEY = "sih_catalog_state_v3";
 
 /**
  * Normalizes text for search by converting to lowercase, removing accents/diacritics,
@@ -11,6 +14,156 @@ export function normalizeText(text: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[.\t,;:]/g, " ")
     .trim();
+}
+
+/**
+ * Retrieves the authoritative SIH Catalog.
+ * Ensures the latest preset definitions (such as 1.4.4 with all 14 features) are always preserved and merged.
+ */
+export function getActiveSihCatalog(): SIHSystem[] {
+  try {
+    const saved = localStorage.getItem(SIH_STORAGE_KEY);
+    if (!saved) {
+      // Clean previous versions
+      localStorage.removeItem("sih_catalog_state_v1");
+      localStorage.removeItem("sih_catalog_state_v2");
+      localStorage.setItem(SIH_STORAGE_KEY, JSON.stringify(INITIAL_SIH_CATALOG));
+      return INITIAL_SIH_CATALOG;
+    }
+
+    const parsed: SIHSystem[] = JSON.parse(saved);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Merge with INITIAL_SIH_CATALOG to ensure that updated systems (like 1.4.4 with 14 features) are always up to date
+      const merged = INITIAL_SIH_CATALOG.map((presetSys) => {
+        const userSys = parsed.find((p) => p.code === presetSys.code);
+        if (!userSys) return presetSys;
+        // If preset has 14 features or more than userSys, use the authoritative preset features
+        if ((presetSys.features?.length || 0) > (userSys.features?.length || 0) || presetSys.code === "1.4.4") {
+          return {
+            ...userSys,
+            name: presetSys.name,
+            objective: presetSys.objective,
+            features: presetSys.features,
+            integrations: presetSys.integrations,
+            providerVendor: presetSys.providerVendor || userSys.providerVendor
+          };
+        }
+        return userSys;
+      });
+
+      // Include any user-created custom systems not in preset
+      const customSystems = parsed.filter((p) => !INITIAL_SIH_CATALOG.some((preset) => preset.code === p.code));
+      const fullList = [...merged, ...customSystems];
+      localStorage.setItem(SIH_STORAGE_KEY, JSON.stringify(fullList));
+      return fullList;
+    }
+  } catch (e) {
+    console.error("Error reading SIH catalog from storage:", e);
+  }
+  return INITIAL_SIH_CATALOG;
+}
+
+/**
+ * Saves the SIH catalog to localStorage.
+ */
+export function saveActiveSihCatalog(catalog: SIHSystem[]): void {
+  try {
+    localStorage.setItem(SIH_STORAGE_KEY, JSON.stringify(catalog));
+  } catch (e) {
+    console.error("Error saving SIH catalog to storage:", e);
+  }
+}
+
+/**
+ * Finds a matching SIHSystem given an arbitrary text (e.g. from an activity supportTech field).
+ */
+export function findSihSystemByText(text: string, catalog?: SIHSystem[]): SIHSystem | null {
+  if (!text) return null;
+  const raw = text.trim();
+  const lower = raw.toLowerCase();
+  if (lower === "no tiene" || lower === "no aplica" || lower === "ninguno" || lower === "manual") {
+    return null;
+  }
+
+  const activeCatalog = catalog && catalog.length > 0 ? catalog : getActiveSihCatalog();
+
+  // 1. Direct code match in brackets or standalone: e.g. [1.4.4] or 1.4.4
+  for (const sys of activeCatalog) {
+    const codePattern = new RegExp(`(^|\\s|\\[|-)(${sys.code.replace(".", "\\.")})($|\\s|\\]|-)`, "i");
+    if (codePattern.test(raw)) {
+      return sys;
+    }
+  }
+
+  // 2. Direct name match
+  const normInput = normalizeText(raw);
+  for (const sys of activeCatalog) {
+    const normName = normalizeText(sys.name);
+    if (normInput.includes(normName) || normName.includes(normInput)) {
+      return sys;
+    }
+  }
+
+  // 3. Keyword heuristic match for specific known systems
+  if (normInput.includes("traslado") || normInput.includes("camilla") || normInput.includes("camillero")) {
+    const s144 = activeCatalog.find((s) => s.code === "1.4.4");
+    if (s144) return s144;
+  }
+  if (normInput.includes("bodega") || normInput.includes("wms") || normInput.includes("insumo")) {
+    const s141 = activeCatalog.find((s) => s.code === "1.4.1");
+    if (s141) return s141;
+  }
+  if (normInput.includes("ficha clinica") || normInput.includes("his") || normInput.includes("anamnesis")) {
+    const s114 = activeCatalog.find((s) => s.code === "1.1.4");
+    if (s114) return s114;
+  }
+  if (normInput.includes("agenda") || normInput.includes("ambulatorio") || normInput.includes("cita")) {
+    const s111 = activeCatalog.find((s) => s.code === "1.1.1");
+    if (s111) return s111;
+  }
+  if (normInput.includes("urgencia") || normInput.includes("triage") || normInput.includes("categorizacion")) {
+    const s112 = activeCatalog.find((s) => s.code === "1.1.2");
+    if (s112) return s112;
+  }
+
+  return null;
+}
+
+/**
+ * Standardizes an arbitrary Apoyo Tecnológico text to the official canonical SIH naming convention:
+ * Format: "SIH - [Código] [Nombre]" or "SIH - [Código] [Nombre] | Funcionalidades: [f1; f2]"
+ * If "no tiene", returns "No tiene".
+ */
+export function standardizeSihSupportTech(rawText: string, catalog?: SIHSystem[]): string {
+  if (!rawText) return "No tiene";
+  const trimmed = rawText.trim();
+  const lower = trimmed.toLowerCase();
+
+  if (lower === "no tiene" || lower === "no aplica" || lower === "ninguno" || lower === "manual") {
+    return "No tiene";
+  }
+
+  const activeCatalog = catalog && catalog.length > 0 ? catalog : getActiveSihCatalog();
+  const matchedSys = findSihSystemByText(trimmed, activeCatalog);
+
+  if (matchedSys) {
+    // Check if there are specific features preserved in rawText
+    let featurePart = "";
+    if (trimmed.includes("| Funcionalidades:")) {
+      featurePart = trimmed.substring(trimmed.indexOf("| Funcionalidades:"));
+    } else if (trimmed.includes("|")) {
+      featurePart = trimmed.substring(trimmed.indexOf("|"));
+    }
+
+    return `SIH - ${matchedSys.code} ${matchedSys.name}${featurePart ? ` ${featurePart}` : ""}`;
+  }
+
+  // If already starts with "SIH - ", clean up redundant terms like "Módulo"
+  if (trimmed.startsWith("SIH - ")) {
+    return trimmed.replace(/SIH\s*-\s*Módulo\s+de\s+/i, "SIH - ").replace(/SIH\s*-\s*Módulo\s+/i, "SIH - ");
+  }
+
+  return trimmed;
 }
 
 /**

@@ -4,7 +4,13 @@ import { UserRole } from "../firebase";
 import { UserPermissions } from "../firebaseSync";
 import { ensureProcessSubprocessKpis } from "../lib/processTemplateGenerator";
 import { OFFICIAL_SIH_CATEGORIES, INITIAL_SIH_CATALOG } from "../data/sihCatalogPreset";
-import { systemMatchesQuery } from "../lib/sihUtils";
+import {
+  systemMatchesQuery,
+  getActiveSihCatalog,
+  saveActiveSihCatalog,
+  findSihSystemByText,
+  standardizeSihSupportTech
+} from "../lib/sihUtils";
 import { OFFICIAL_JCI_CATEGORIES, INITIAL_JCI_CATALOG } from "../data/jciCatalogPreset";
 import { jciMatchesQuery, autoDetectJCIForFicha, autoDetectJCISupportType } from "../lib/jciUtils";
 import SihCatalogPickerModal from "./SihCatalogPickerModal";
@@ -604,6 +610,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
   const [editingAct, setEditingAct] = useState<{ subIndex: string; actIndex: string } | null>(null);
   const [actModalOpen, setActModalOpen] = useState(false);
   const [sihPickerModalOpen, setSihPickerModalOpen] = useState(false);
+  const [sihDetailModalSystem, setSihDetailModalSystem] = useState<SIHSystem | null>(null);
   const [sihTargetDirectActivity, setSihTargetDirectActivity] = useState<{
     subIdx: number;
     actIdx: number;
@@ -613,6 +620,29 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
   const handleOpenSihForActivityDirect = (subIdx: number, actIdx: number, currentTech: string) => {
     setSihTargetDirectActivity({ subIdx, actIdx, initialTech: currentTech });
     setSihPickerModalOpen(true);
+  };
+
+  const handleStandardizeAllSihSupportTech = () => {
+    const catalog = getActiveSihCatalog();
+    const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
+    let countChanged = 0;
+
+    updated.subprocesses?.forEach((sub) => {
+      sub.activities?.forEach((act) => {
+        if (act.supportTech) {
+          const standardized = standardizeSihSupportTech(act.supportTech, catalog);
+          if (standardized !== act.supportTech) {
+            act.supportTech = standardized;
+            countChanged++;
+          }
+        }
+      });
+    });
+
+    const synced = syncProcessModel(updated);
+    if (onProcessChange) onProcessChange(synced);
+    setSaveToastVisible(true);
+    setTimeout(() => setSaveToastVisible(false), 3000);
   };
 
   const [jciPickerModalOpen, setJciPickerModalOpen] = useState(false);
@@ -634,20 +664,6 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
   const [sihSelectedStatus, setSihSelectedStatus] = useState<string>("ALL");
   const [sihMatchOptionSystem, setSihMatchOptionSystem] = useState<boolean>(true);
   const [sihMatchOptionFeatures, setSihMatchOptionFeatures] = useState<boolean>(true);
-
-  // Helper to load current SIH catalog from localStorage or preset
-  const getActiveSihCatalog = React.useCallback((): SIHSystem[] => {
-    try {
-      const stored = localStorage.getItem("sih_catalog_state_v1");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.warn("Could not read sih_catalog_state_v1", e);
-    }
-    return INITIAL_SIH_CATALOG;
-  }, []);
 
   // Sync SIH selected system when editing an activity card
   React.useEffect(() => {
@@ -1494,6 +1510,9 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
     const updated = JSON.parse(JSON.stringify(process)) as ProcessDefinition;
     const cleanRules = actForm.rules.trim() ? actForm.rules.trim() : "No tiene";
     const cleanVariants = actForm.variants.trim() ? actForm.variants.trim() : "No tiene";
+    const cleanSupportTech = actForm.supportTech
+      ? standardizeSihSupportTech(actForm.supportTech, getActiveSihCatalog())
+      : "No tiene";
 
     const targetSub = updated.subprocesses.find((s) => s.index === editingAct?.subIndex);
     if (!targetSub) return;
@@ -1504,6 +1523,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
       if (actIdx !== -1) {
         targetSub.activities[actIdx] = {
           ...actForm,
+          supportTech: cleanSupportTech,
           rules: cleanRules,
           variants: cleanVariants
         };
@@ -1513,6 +1533,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
       const newActIndex = `${targetSub.index}.${targetSub.activities.length + 1}`;
       targetSub.activities.push({
         ...actForm,
+        supportTech: cleanSupportTech,
         index: newActIndex,
         rules: cleanRules,
         variants: cleanVariants
@@ -3463,12 +3484,24 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
 
                   {(isAdmin || docPerms.procedureModel.edit) && (
                     <button
+                      type="button"
+                      onClick={handleStandardizeAllSihSupportTech}
+                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-950 text-xs font-bold border border-amber-300 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                      title="Estandarizar y homologar automáticamente todos los nombres de Apoyo Tecnológico SIH en las fichas del proceso"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                      Estandarizar Nombres SIH
+                    </button>
+                  )}
+
+                  {(isAdmin || docPerms.procedureModel.edit) && (
+                    <button
                       onClick={() => {
                         setEditingSubIndex(null);
                         setSubForm({ index: `4.${process.subprocesses.length + 1}`, name: "", narrative: "" });
                         setSubModalOpen(true);
                       }}
-                      className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-1.5 ml-1"
+                      className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-1.5 ml-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Agregar Subproceso
@@ -3740,15 +3773,38 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                         No tiene (Actividad Manual / Presencial)
                                       </button>
                                     ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenSihForActivityDirect(sIdx, aIdx, act.supportTech || "")}
-                                        className="inline-flex items-center gap-1.5 font-mono text-[11px] font-extrabold text-amber-950 bg-amber-100/90 hover:bg-amber-200/90 px-2 py-0.5 border border-amber-300 rounded-xs shadow-2xs cursor-pointer transition-all hover:scale-101 text-left"
-                                        title="Haga clic para ver la ficha técnica y seleccionar funcionalidades del sistema SIH"
-                                      >
-                                        <Server className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                        {act.supportTech}
-                                      </button>
+                                      <div className="inline-flex flex-wrap items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenSihForActivityDirect(sIdx, aIdx, act.supportTech || "")}
+                                          className="inline-flex items-center gap-1.5 font-mono text-[11px] font-extrabold text-amber-950 bg-amber-100/90 hover:bg-amber-200/90 px-2 py-0.5 border border-amber-300 rounded-xs shadow-2xs cursor-pointer transition-all hover:scale-101 text-left"
+                                          title="Haga clic para ver la ficha técnica y seleccionar funcionalidades del sistema SIH"
+                                        >
+                                          <Server className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                          {act.supportTech}
+                                        </button>
+                                        {(() => {
+                                          const sihCatalog = getActiveSihCatalog();
+                                          const matchedSys = findSihSystemByText(act.supportTech, sihCatalog);
+                                          if (matchedSys) {
+                                            return (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setSihDetailModalSystem(matchedSys);
+                                                }}
+                                                className="inline-flex items-center gap-1 font-sans text-[10px] font-black text-slate-950 bg-amber-400 hover:bg-amber-300 px-2 py-0.5 border border-amber-500 rounded-xs shadow-2xs cursor-pointer transition-colors"
+                                                title="Abrir ventana emergente con la Ficha Técnica Oficial (14 Funcionalidades) de este sistema"
+                                              >
+                                                <Maximize2 className="w-3 h-3 text-slate-950" />
+                                                <span>Ficha Oficial ({matchedSys.features?.length || 0})</span>
+                                              </button>
+                                            );
+                                          }
+                                          return null;
+                                        })()}
+                                      </div>
                                     )}
                                   </div>
                                   <p className="text-slate-600">
@@ -5845,6 +5901,118 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           }
         }}
       />
+
+      {/* SIH STANDALONE SYSTEM DETAIL MODAL (FICHA TÉCNICA OFICIAL) */}
+      {sihDetailModalSystem && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-300 w-full max-w-2xl max-h-[85vh] shadow-2xl flex flex-col animate-scaleUp overflow-hidden">
+            {/* Header */}
+            <div className="p-4 bg-slate-900 text-white flex items-start justify-between gap-3 shrink-0">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-amber-400 text-slate-950 font-mono text-xs font-black rounded-xs">
+                    {sihDetailModalSystem.code}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                    {sihDetailModalSystem.macroCategory} • {sihDetailModalSystem.subcategory}
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-white">
+                  {sihDetailModalSystem.name}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSihDetailModalSystem(null)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-sm cursor-pointer"
+                title="Cerrar ventana"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 border border-slate-200 space-y-1.5">
+                <h5 className="font-bold text-slate-900 uppercase tracking-wider text-[10px]">
+                  Propósito y Alcance del Sistema SIH
+                </h5>
+                <p className="text-slate-700 leading-relaxed">
+                  {sihDetailModalSystem.description}
+                </p>
+                <div className="pt-2 flex flex-wrap gap-2 text-[11px]">
+                  <span className="px-2 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 font-semibold rounded-xs">
+                    Nivel: {sihDetailModalSystem.level}
+                  </span>
+                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-900 border border-emerald-200 font-semibold rounded-xs">
+                    Obligatoriedad: {sihDetailModalSystem.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-slate-900 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    Funcionalidades Oficiales del Sistema ({sihDetailModalSystem.features?.length || 0})
+                  </h5>
+                  <span className="text-[10px] font-semibold text-slate-500">
+                    Estándar Catálogo Nacional SIH
+                  </span>
+                </div>
+
+                <div className="space-y-2 border border-slate-200 divide-y divide-slate-100 max-h-72 overflow-y-auto p-2 bg-slate-50/50">
+                  {sihDetailModalSystem.features && sihDetailModalSystem.features.length > 0 ? (
+                    sihDetailModalSystem.features.map((feat, fIdx) => (
+                      <div key={fIdx} className="p-2 bg-white flex items-start gap-2.5 hover:bg-slate-50">
+                        <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[10px] font-bold shrink-0 rounded-xs">
+                          #{fIdx + 1}
+                        </span>
+                        <p className="text-[11px] text-slate-800 leading-relaxed">
+                          {feat}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="p-4 text-center text-slate-500 italic">
+                      No hay funcionalidades registradas.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 bg-slate-100 border-t border-slate-200 flex justify-between items-center shrink-0">
+              <span className="text-[10px] font-mono text-slate-600">
+                {sihDetailModalSystem.features?.length || 0} funcionalidades certificadas
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sihDetailModalSystem) {
+                      const text = `SIH - [${sihDetailModalSystem.code}] ${sihDetailModalSystem.name} | Funcionalidades: ${sihDetailModalSystem.features.join("; ")}`;
+                      navigator.clipboard?.writeText(text);
+                    }
+                    setSihDetailModalSystem(null);
+                  }}
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  Copiar Ficha Completa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSihDetailModalSystem(null)}
+                  className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* JCI CATALOG PICKER MODAL */}
       <JciCatalogPickerModal

@@ -1,7 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { SIHSystem } from "../types";
 import { OFFICIAL_SIH_CATEGORIES, INITIAL_SIH_CATALOG } from "../data/sihCatalogPreset";
-import { systemMatchesQuery } from "../lib/sihUtils";
+import {
+  systemMatchesQuery,
+  getActiveSihCatalog,
+  saveActiveSihCatalog,
+  findSihSystemByText,
+  standardizeSihSupportTech
+} from "../lib/sihUtils";
 import { HighlightText } from "./HighlightText";
 import {
   Server,
@@ -38,9 +44,8 @@ interface SihCatalogPickerModalProps {
   currentValue: string;
   onApply: (resultText: string, selectedSystems?: SIHSystem[]) => void;
   catalog?: SIHSystem[];
+  initialDetailSystemCode?: string;
 }
-
-const STORAGE_KEY = "sih_catalog_state_v1";
 
 // Helper to extract a clean search keyword from currentValue
 function extractCleanSearchKeyword(raw: string, catalog: SIHSystem[]): string {
@@ -54,7 +59,7 @@ function extractCleanSearchKeyword(raw: string, catalog: SIHSystem[]): string {
   // Check if it directly matches a system code or name
   for (const sys of catalog) {
     if (lower.includes(sys.code.toLowerCase())) {
-      return sys.name;
+      return sys.code;
     }
     if (lower.includes(sys.name.toLowerCase())) {
       return sys.name;
@@ -79,21 +84,13 @@ export default function SihCatalogPickerModal({
   onClose,
   currentValue,
   onApply,
-  catalog: propCatalog
+  catalog: propCatalog,
+  initialDetailSystemCode
 }: SihCatalogPickerModalProps) {
-  // Load SIH catalog from prop, storage, or preset
+  // Load authoritative SIH catalog from getActiveSihCatalog (merges preset with 14 features for 1.4.4)
   const catalog = useMemo<SIHSystem[]>(() => {
     if (propCatalog && propCatalog.length > 0) return propCatalog;
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error("Error reading SIH catalog from storage:", e);
-    }
-    return INITIAL_SIH_CATALOG;
+    return getActiveSihCatalog();
   }, [isOpen, propCatalog]);
 
   // Filters & Search
@@ -630,6 +627,16 @@ export default function SihCatalogPickerModal({
 
                                   <button
                                     type="button"
+                                    onClick={() => setDetailModalSystem(sys)}
+                                    className="px-2.5 py-1 text-[10px] font-black uppercase rounded-xs transition-colors cursor-pointer flex items-center gap-1 bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-2xs"
+                                    title="Ver Ficha Técnica Oficial Completa con todas las características"
+                                  >
+                                    <Maximize2 className="w-3 h-3 text-slate-950" />
+                                    <span>Ficha Oficial ({sys.features?.length || 0})</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
                                     onClick={() => handleToggleSystem(sys)}
                                     className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-xs transition-colors cursor-pointer flex items-center gap-1 ${
                                       isSelected
@@ -848,10 +855,11 @@ export default function SihCatalogPickerModal({
                           <button
                             type="button"
                             onClick={() => setDetailModalSystem(sys)}
-                            className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-xs transition-colors cursor-pointer"
-                            title="Ver Ficha Técnica Formal Completa"
+                            className="px-2.5 py-1 text-[10px] font-black uppercase rounded-xs transition-colors cursor-pointer flex items-center gap-1 bg-slate-900 text-amber-300 hover:bg-slate-800 hover:text-white shadow-2xs border border-slate-700"
+                            title="Ver Ficha Técnica Formal Completa con todas las características"
                           >
-                            <Maximize2 className="w-3.5 h-3.5" />
+                            <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Ver Ficha ({sys.features?.length || 0})</span>
                           </button>
 
                           <button
@@ -1370,17 +1378,42 @@ export default function SihCatalogPickerModal({
             </div>
 
             {/* FOOTER MODAL DETALLE */}
-            <div className="p-3 bg-slate-100 border-t border-slate-200 flex justify-between items-center shrink-0">
-              <span className="text-xs text-slate-600 font-medium">
-                Las funcionalidades marcadas se reflejarán automáticamente en la selección.
-              </span>
-              <button
-                type="button"
-                onClick={() => setDetailModalSystem(null)}
-                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xs cursor-pointer shadow-xs"
-              >
-                Cerrar Ficha
-              </button>
+            <div className="p-3 bg-slate-100 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600 font-medium">
+                  {detailModalSystem.features.length} funcionalidades disponibles en esta ficha técnica oficial.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Ensure system is in selectedConfigs with all or current checked features
+                    const cfg = selectedConfigs.find((c) => c.code === detailModalSystem.code);
+                    if (!cfg) {
+                      setSelectedConfigs((prev) => [
+                        ...prev,
+                        {
+                          code: detailModalSystem.code,
+                          selectedFeatures: detailModalSystem.features ? [...detailModalSystem.features] : []
+                        }
+                      ]);
+                    }
+                    setDetailModalSystem(null);
+                  }}
+                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xs cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Aceptar y Añadir a Selección</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailModalSystem(null)}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xs cursor-pointer shadow-xs"
+                >
+                  Cerrar Ficha
+                </button>
+              </div>
             </div>
           </div>
         </div>
