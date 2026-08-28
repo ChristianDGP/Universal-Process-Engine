@@ -42,6 +42,7 @@ export async function parseJCIDocumentFile(file: File): Promise<JCIStandard[]> {
 
 /**
  * Robust text parser that extracts JCI standards structured from JCI 7th Edition document text.
+ * Handles headers with/without colons, multi-line paragraphs, tables, bullets, and numbers.
  */
 export function parseJCITextContent(rawText: string): JCIStandard[] {
   if (!rawText || !rawText.trim()) return [];
@@ -59,14 +60,14 @@ export function parseJCITextContent(rawText: string): JCIStandard[] {
   let currentSection: "NONE" | "OBJECTIVE" | "ELEMENTS" = "NONE";
 
   function pushCurrentStandard() {
-    if (currentCode || currentName || currentObjective) {
+    if (currentCode || currentName || currentObjective || currentElements.length > 0) {
       const codeClean = currentCode || `JCI.${standards.length + 1}`;
       standards.push({
         id: codeClean,
         code: codeClean,
         chapter: currentChapter,
         name: currentName || `Estándar JCI ${codeClean}`,
-        objective: currentObjective.trim() || "Propósito y requerimientos del estándar JCI.",
+        objective: currentObjective.trim() || "Propósito y requerimientos del estándar de acreditación JCI.",
         measurableElements: currentElements.length > 0 ? [...currentElements] : ["Cumplimiento de políticas y protocolos institucionales."],
         supportStatus: currentStatus
       });
@@ -80,50 +81,54 @@ export function parseJCITextContent(rawText: string): JCIStandard[] {
     currentSection = "NONE";
   }
 
-  // Known JCI Chapter prefixes
+  // Known JCI Chapter prefixes mapping to full titles
   const chapterPrefixMap: Record<string, string> = {
     IPSG: "Metas Internacionales de Seguridad del Paciente (International Patient Safety Goals)",
     ACC: "Acceso a la Atención y Continuidad de la Atención (Access to Care and Continuity)",
     AOP: "Evaluación de los Pacientes (Assessment of Patients)",
     COP: "Atención de los Pacientes (Care of Patients)",
-    MMU: "Gestión y Uso de Medicamentos (Medication Management and Use)",
-    PCI: "Prevención y Control de Infecciones (Prevention and Control of Infections)",
-    FMS: "Gestión y Seguridad de Instalaciones (Facility Management and Safety)",
-    SQE: "Cualificación y Educación del Personal (Staff Qualifications and Education)",
-    GLD: "Gobernanza, Liderazgo y Dirección (Governance, Leadership, and Direction)",
-    MOI: "Gestión de la Información (Management of Information)",
-    QPS: "Mejora de la Calidad y Seguridad de los Pacientes (Quality Improvement)",
     ASC: "Anestesia y Atención Quirúrgica (Anesthesia and Surgical Care)",
+    MMU: "Gestión y Uso de Medicamentos (Medication Management and Use)",
+    PFE: "Educación del Paciente y la Familia (Patient and Family Education)",
+    QPS: "Mejora de la Calidad y Seguridad del Paciente (Quality Improvement and Patient Safety)",
+    PCI: "Prevención y Control de Infecciones (Prevention and Control of Infections)",
+    GLD: "Gobernanza, Liderazgo y Dirección (Governance, Leadership, and Direction)",
+    FMS: "Gestión y Seguridad de Instalaciones (Facility Management and Safety)",
+    SQE: "Calificaciones y Educación del Personal (Staff Qualifications and Education)",
+    MOI: "Gestión de la Información (Management of Information)",
     PCC: "Atención Centrada en el Paciente (Patient-Centered Care)"
   };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Detect Chapter Header e.g. "Acceso y continuidad de la atención (ACC)" or "Objetivos internacionales..."
+    // 1. Detect Chapter Header e.g. "Capítulo: Acceso a la Atención (ACC)", "METAS INTERNACIONALES (IPSG)"
+    let detectedChapter = false;
     for (const [code, fullName] of Object.entries(chapterPrefixMap)) {
-      if (line.toUpperCase().includes(`(${code})`) || (line.toUpperCase().startsWith(code) && line.length < 50)) {
+      if (
+        line.toUpperCase().includes(`(${code})`) ||
+        line.toUpperCase().includes(`[${code}]`) ||
+        (line.toUpperCase().startsWith(code) && line.length < 60 && !line.match(/^[A-Z]{2,4}\s*[\.\-]\s*\d+/i)) ||
+        (line.toUpperCase().startsWith("CAPÍTULO") && line.toUpperCase().includes(code)) ||
+        (line.toUpperCase().startsWith("CAPITULO") && line.toUpperCase().includes(code))
+      ) {
         currentChapter = fullName;
+        detectedChapter = true;
         break;
       }
     }
+    if (detectedChapter) continue;
 
-    // Detect Standard Code e.g. "Estándar IPSG.1", "IPSG.2.1", "ACC.1", "AOP.5.2", "MMU.4"
-    const stdMatch = line.match(/^(?:Estándar\s+)?([A-Z]{2,4}\.\d+(?:\.\d+)?)\.?\s*(.*)$/i);
+    // 2. Detect Standard Code & Name e.g. "Estándar IPSG.1", "IPSG.1 Identificación de Pacientes", "ACC.1.1 Criterios de Ingreso", "Estándar: MMU.4"
+    const stdMatch = line.match(/^(?:Estándar|Estandar|Standard|Cód\.|Cod\.|Código)?\s*[:\-–—]?\s*([A-Z]{2,4})[\.\-\s](\d+(?:\.\d+)?)\.?\s*(?:[\-–—:]\s*)?(.*)$/i);
     if (stdMatch) {
-      const codeExtracted = stdMatch[1].toUpperCase();
-      const restOfLine = stdMatch[2];
-
-      // Check if it's a valid JCI prefix
-      const prefix = codeExtracted.split(".")[0];
+      const prefix = stdMatch[1].toUpperCase();
       if (chapterPrefixMap[prefix]) {
         pushCurrentStandard();
-        currentCode = codeExtracted;
-        if (chapterPrefixMap[prefix]) {
-          currentChapter = chapterPrefixMap[prefix];
-        }
-
-        if (restOfLine && restOfLine.trim().length > 0) {
+        currentCode = `${prefix}.${stdMatch[2]}`;
+        currentChapter = chapterPrefixMap[prefix];
+        const restOfLine = stdMatch[3]?.trim();
+        if (restOfLine && restOfLine.length > 0) {
           currentName = restOfLine.replace(/\.$/, "").trim();
         }
         currentSection = "OBJECTIVE";
@@ -131,30 +136,58 @@ export function parseJCITextContent(rawText: string): JCIStandard[] {
       }
     }
 
-    // Detect Measurable Elements section e.g. "Elementos medibles de IPSG.1" or "Elementos medibles"
-    if (line.toLowerCase().includes("elementos medibles")) {
+    // 3. Detect Explicit "Nombre / Título" line
+    const titleExplicitMatch = line.match(/^(?:Título|Titulo|Nombre del Estándar|Nombre del Estandar|Nombre)(?:\s*[:\-–—\t]|\s+)(.+)$/i);
+    if (titleExplicitMatch && titleExplicitMatch[1].trim().length > 2) {
+      currentName = titleExplicitMatch[1].trim().replace(/\.$/, "");
+      continue;
+    }
+
+    // 4. Detect Objective / Purpose / Intención section
+    const objMatch = line.match(/^(?:Propósito|Proposito|Intención|Intencion|Objetivo|Requisitos del Estándar|Requisitos)(?:\s+de\s+[A-Z]{2,4}[\.\-\s]\d+(?:\.\d+)?)?(?:\s*[:\-–—\t]|\s+)(.+)$/i);
+    if (objMatch) {
+      currentSection = "OBJECTIVE";
+      currentObjective = objMatch[1].trim();
+      continue;
+    } else if (line.match(/^(?:Propósito|Proposito|Intención|Intencion|Objetivo|Requisitos del Estándar|Requisitos)(?:\s+de\s+[A-Z]{2,4}[\.\-\s]\d+(?:\.\d+)?)?\s*[:\-–—\t]?$/i)) {
+      currentSection = "OBJECTIVE";
+      continue;
+    }
+
+    // 5. Detect Measurable Elements section e.g. "Elementos Medibles de IPSG.1", "Elementos medibles:", "Criterios de Evaluación"
+    if (
+      line.match(/^(?:Elementos [Mm]edibles(?:\s+de\s+[A-Z]{2,4}[\.\-\s]\d+(?:\.\d+)?)?|Criterios de [Ee]valuación|Puntos de [Vv]erificación|Requerimientos de [Cc]umplimiento)\s*[:\-–—\t]?$/i) ||
+      line.toLowerCase().startsWith("elementos medibles") ||
+      line.toLowerCase().startsWith("criterios de evaluación") ||
+      line.toLowerCase().startsWith("criterios de evaluacion")
+    ) {
       currentSection = "ELEMENTS";
       continue;
     }
 
-    // Detect Objective / Purpose / Intención
-    if (line.toLowerCase().startsWith("intención") || line.toLowerCase().startsWith("propósito") || line.toLowerCase().startsWith("objetivo")) {
-      currentSection = "OBJECTIVE";
-      const parts = line.split(/[:\t]+/);
-      if (parts.length > 1 && parts[1].trim()) {
-        currentObjective = parts[1].trim();
+    // 6. Detect Support Status e.g. "Estado: CUMPLIDO", "Estado de Cumplimiento: BRECHA"
+    const statusMatch = line.match(/^(?:Estado|Estado de Cumplimiento|Cumplimiento)\s*[:\-–—\t]\s*(CUMPLIDO|EN_EVALUACION|BRECHA|CUMPLE|NO CUMPLE|PARCIAL)/i);
+    if (statusMatch) {
+      const rawStatus = statusMatch[1].toUpperCase();
+      if (rawStatus.includes("BRECHA") || rawStatus.includes("NO CUMPLE")) {
+        currentStatus = "BRECHA";
+      } else if (rawStatus.includes("EVALUACION") || rawStatus.includes("PARCIAL")) {
+        currentStatus = "EN_EVALUACION";
+      } else {
+        currentStatus = "CUMPLIDO";
       }
       continue;
     }
 
-    // Accumulate content based on section
+    // 7. Accumulate lines based on active section
     if (currentSection === "ELEMENTS") {
-      const cleanLine = line.replace(/^[\d+\.\-\*\•\o]+\s*/, "").trim();
-      if (cleanLine.length > 4) {
+      // Clean bullet, number or letter prefix e.g. "1.", "•", "-", "a)", "EM 1."
+      const cleanLine = line.replace(/^(?:EM\s*\d+\.?|[\d+\.\-\*\•\o\▪\▫\►\)]+)\s*/i, "").trim();
+      if (cleanLine.length > 2) {
         currentElements.push(cleanLine);
       }
     } else if (currentSection === "OBJECTIVE") {
-      if (!currentName && line.length < 100 && !line.includes(".")) {
+      if (!currentName && line.length < 90 && !line.endsWith(".")) {
         currentName = line;
       } else {
         if (currentObjective) currentObjective += " " + line;

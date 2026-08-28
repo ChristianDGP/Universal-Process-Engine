@@ -2,11 +2,9 @@ import React, { useState, useMemo, useEffect } from "react";
 import { SIHSystem } from "../types";
 import { OFFICIAL_SIH_CATEGORIES, INITIAL_SIH_CATALOG } from "../data/sihCatalogPreset";
 import { systemMatchesQuery } from "../lib/sihUtils";
-import { parseSihDocumentText } from "../lib/sihDocumentParser";
 import {
   Server, Search, X, Check, Filter, Layers, CheckCircle2,
-  AlertCircle, ChevronRight, ChevronDown, ChevronUp, Cpu, ArrowRight, Sparkles, BookOpen, Plus, Trash2,
-  UploadCloud, FileText, RotateCcw
+  AlertCircle, ChevronRight, ChevronDown, ChevronUp, Cpu, ArrowRight, Sparkles, BookOpen, Plus, Trash2
 } from "lucide-react";
 
 export interface SelectedSihSystemConfig {
@@ -21,7 +19,7 @@ interface SihCatalogPickerModalProps {
   onApply: (resultText: string, selectedSystems?: SIHSystem[]) => void;
 }
 
-const STORAGE_KEY = "sih_catalog_state_v2";
+const STORAGE_KEY = "sih_catalog_state_v1";
 
 export default function SihCatalogPickerModal({
   isOpen,
@@ -29,35 +27,19 @@ export default function SihCatalogPickerModal({
   currentValue,
   onApply
 }: SihCatalogPickerModalProps) {
-  // Load & stateful SIH catalog
-  const [catalog, setCatalog] = useState<SIHSystem[]>(() => {
+  // Load SIH catalog
+  const catalog = useMemo<SIHSystem[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("sih_catalog_state_v1");
+      const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed: SIHSystem[] = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const map = new Map<string, SIHSystem>();
-          INITIAL_SIH_CATALOG.forEach((item) => map.set(item.code, { ...item }));
-          parsed.forEach((item) => {
-            const existing = map.get(item.code);
-            if (existing) {
-              if (item.features && existing.features && item.features.length >= existing.features.length) {
-                map.set(item.code, { ...existing, ...item });
-              } else {
-                map.set(item.code, { ...item, features: existing.features, objective: existing.objective || item.objective });
-              }
-            } else {
-              map.set(item.code, item);
-            }
-          });
-          return Array.from(map.values());
-        }
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
       console.error("Error reading SIH catalog from storage:", e);
     }
     return INITIAL_SIH_CATALOG;
-  });
+  }, [isOpen]);
 
   // Filters
   const [selectedArea, setSelectedArea] = useState<string>("ALL");
@@ -74,11 +56,6 @@ export default function SihCatalogPickerModal({
   const [includeStatus, setIncludeStatus] = useState<boolean>(false);
   const [customResultText, setCustomResultText] = useState<string>(currentValue || "");
   const [isManualEdit, setIsManualEdit] = useState<boolean>(false);
-
-  // Import / Update from Document State
-  const [showImportDrawer, setShowImportDrawer] = useState<boolean>(false);
-  const [importRawText, setImportRawText] = useState<string>("");
-  const [importNotification, setImportNotification] = useState<string | null>(null);
 
   // Helper: Build consolidated result string
   const buildResultText = (
@@ -161,48 +138,6 @@ export default function SihCatalogPickerModal({
       setCustomResultText(generated);
     }
   }, [selectedConfigs, includeSystemName, includeFeatures, includeStatus, isManualEdit]);
-
-  // Parsed preview for text import
-  const parsedImportedSystems = useMemo(() => {
-    if (!importRawText.trim()) return [];
-    return parseSihDocumentText(importRawText);
-  }, [importRawText]);
-
-  // Save imported systems into catalog
-  const handleSaveImportedSystems = () => {
-    if (parsedImportedSystems.length === 0) return;
-
-    const map = new Map<string, SIHSystem>();
-    catalog.forEach((s) => map.set(s.code, s));
-    parsedImportedSystems.forEach((s) => map.set(s.code, s));
-
-    const updated = Array.from(map.values());
-    setCatalog(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (e) {
-      console.error("Error saving updated SIH catalog to localStorage:", e);
-    }
-
-    setImportNotification(`¡Se han importado/actualizado exitosamente ${parsedImportedSystems.length} módulo(s) en el Catálogo SIH!`);
-    setTimeout(() => {
-      setShowImportDrawer(false);
-      setImportRawText("");
-      setImportNotification(null);
-    }, 2000);
-  };
-
-  // Reset to full official catalog
-  const handleResetCatalog = () => {
-    if (window.confirm("¿Desea restablecer el Catálogo SIH a la versión oficial completa (incluyendo las 13 funcionalidades de Gestión OIRS y todos los módulos hospitalarios)?")) {
-      setCatalog(INITIAL_SIH_CATALOG);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_SIH_CATALOG));
-      } catch (e) {
-        console.error("Error resetting SIH catalog:", e);
-      }
-    }
-  };
 
   // Filtered systems list
   const filteredSystems = useMemo(() => {
@@ -422,137 +357,15 @@ export default function SihCatalogPickerModal({
               </select>
             </div>
 
-            {/* ACTIONS: IMPORT, RESET, NO TIENE */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setShowImportDrawer(!showImportDrawer)}
-                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 text-xs font-bold border border-indigo-300 flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs rounded-xs"
-                title="Importar o actualizar módulos y funcionalidades desde documento técnico (Word/PDF/Texto)"
-              >
-                <UploadCloud className="w-3.5 h-3.5 text-indigo-700" />
-                <span>📥 Importar desde Documento / Texto</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleResetCatalog}
-                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs rounded-xs"
-                title="Restablecer catálogo oficial con todas las funcionalidades completas"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
-                <span>Restablecer Catálogo Oficial</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSelectNoTiene}
-                className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border border-slate-300 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs rounded-xs"
-              >
-                <X className="w-3.5 h-3.5 text-slate-500" />
-                <span>Marcar "No tiene" (Actividad Manual)</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSelectNoTiene}
+              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border border-slate-300 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs rounded-xs"
+            >
+              <X className="w-3.5 h-3.5 text-slate-500" />
+              <span>Marcar "No tiene" (Actividad Manual)</span>
+            </button>
           </div>
-
-          {/* IMPORT DRAWER / SECTION */}
-          {showImportDrawer && (
-            <div className="bg-indigo-950/5 border border-indigo-300 p-3.5 rounded-xs space-y-3 animate-in fade-in duration-150">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-indigo-700" />
-                  <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider">
-                    Importador Inteligente de Módulos Técnicos SIH
-                  </h4>
-                  <span className="bg-indigo-100 text-indigo-900 text-[10px] font-bold px-2 py-0.5 border border-indigo-200 rounded-xs">
-                    Extracción de Todas las Funcionalidades (1..N)
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowImportDrawer(false)}
-                  className="text-slate-400 hover:text-slate-700 p-1"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <p className="text-[11px] text-slate-600">
-                Pegue directamente el texto del documento técnico del módulo SIH (incluyendo Código, Área, Objetivo y la lista completa de Funcionalidades más relevantes 1..N). El sistema extraerá y estructurará automáticamente cada funcionalidad.
-              </p>
-
-              {importNotification && (
-                <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold rounded-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{importNotification}</span>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <textarea
-                  rows={6}
-                  value={importRawText}
-                  onChange={(e) => setImportRawText(e.target.value)}
-                  placeholder={`Ejemplo de texto a pegar:
-1.6.4. Gestión OIRS
-Área    Gestión de la Información
-Sistema de Información    Gestión OIRS
-Objetivo    Constituye una herramienta o medio de atención...
-Funcionalidades más relevantes
-1.    Permite el ingreso de consultas, felicitaciones, reclamos, sugerencias...
-2.    Permita ingresar los datos del solicitante...
-13.   Disponer de un sistema para tomar encuestas de satisfacción...`}
-                  className="w-full p-2.5 text-xs font-mono bg-white border border-indigo-200 text-slate-900 focus:outline-none focus:border-indigo-600 rounded-xs shadow-inner"
-                />
-
-                {parsedImportedSystems.length > 0 && (
-                  <div className="bg-white p-3 border border-indigo-200 rounded-xs space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold text-indigo-950">
-                      <span>Módulos detectados ({parsedImportedSystems.length}):</span>
-                      <span className="text-emerald-700 font-mono text-[11px]">
-                        ✓ Formato válido y estructurado
-                      </span>
-                    </div>
-
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {parsedImportedSystems.map((sys, idx) => (
-                        <div key={idx} className="p-2 bg-slate-50 border border-slate-200 rounded-xs space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-mono font-black text-slate-900 bg-amber-200 px-1.5 py-0.5 rounded-xs">
-                              {sys.code}
-                            </span>
-                            <span className="font-bold text-slate-900 flex-1 ml-2">{sys.name}</span>
-                            <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-1.5 py-0.5 border border-indigo-200">
-                              {sys.features.length} Funcionalidades extraídas
-                            </span>
-                          </div>
-                          {sys.objective && (
-                            <p className="text-[11px] text-slate-600 line-clamp-2">
-                              <strong>Objetivo:</strong> {sys.objective}
-                            </p>
-                          )}
-                          <div className="text-[10px] text-slate-500 line-clamp-2">
-                            <strong>Funcionalidades:</strong> {sys.features.slice(0, 3).join(" | ")}... ({sys.features.length} en total)
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex justify-end pt-1">
-                      <button
-                        type="button"
-                        onClick={handleSaveImportedSystems}
-                        className="px-4 py-2 bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-black rounded-xs flex items-center gap-1.5 shadow-md cursor-pointer"
-                      >
-                        <Check className="w-4 h-4" />
-                        <span>Guardar y Actualizar {parsedImportedSystems.length} Módulo(s) en el Catálogo</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* MAIN BODY: CATALOG CARDS ON LEFT, MULTI-SELECTION AND RESULT PREVIEW ON RIGHT */}
@@ -683,13 +496,10 @@ Funcionalidades más relevantes
                         </span>
                       </div>
 
-                      {/* OBJECTIVE / PURPOSE */}
-                      {sys.objective && (
-                        <div className="text-xs text-slate-700 leading-relaxed mb-2.5 bg-slate-50 p-2 border border-slate-200 rounded-xs">
-                          <span className="font-bold text-slate-900 block mb-0.5">Objetivo:</span>
-                          {sys.objective}
-                        </div>
-                      )}
+                      {/* DESCRIPTION */}
+                      <p className="text-xs text-slate-700 leading-relaxed mb-2.5">
+                        {sys.description}
+                      </p>
 
                       {/* FEATURES WITH INDIVIDUAL CHECKBOXES */}
                       {sys.features && sys.features.length > 0 && (

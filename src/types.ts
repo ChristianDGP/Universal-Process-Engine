@@ -161,26 +161,6 @@ export interface JCICategory {
   standardsCount?: number;
 }
 
-export interface ReferenceDocumentSection {
-  title: string;
-  content: string;
-  suggestedActivities?: string[];
-  normativeCodes?: string[];
-}
-
-export interface ReferenceDocument {
-  id: string;
-  name: string;
-  type: "MANUAL" | "PAPER" | "GUIA_CLINICA" | "NORMA_TECNICA" | "PROTOCOLO" | "OTRO";
-  uploadedAt: string;
-  sourceType: "docx" | "pdf" | "txt" | "json";
-  sizeBytes?: number;
-  authorOrEntity?: string;
-  summary?: string;
-  sections: ReferenceDocumentSection[];
-  rawContent?: string;
-}
-
 export interface SimulationLogEntry {
   timestamp: string;
   activityIndex: string;

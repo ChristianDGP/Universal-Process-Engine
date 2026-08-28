@@ -779,44 +779,56 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
     code: "1.6.1",
     area: "Gestión de la Información",
     name: "Control de Gestión",
-    objective: "Herramienta que facilita planificar, monitorear y controlar la operación del hospital mediante indicadores estratégicos, fórmulas y tableros de mando.",
+    objective: "Herramienta que facilita planificar, monitorear y controlar la operación del hospital mediante indicadores estratégicos, fórmulas de cálculo, tableros de mando y generación de estadísticas de producción asistencial y presupuestaria.",
     supportStatus: "SOPORTADO",
     providerVendor: "Tablero de Control de Gestión",
     features: [
-      "Definición y cálculo automático de indicadores clave de rendimiento (KPIs).",
-      "Definición de umbrales y alertas por desviación de metas.",
-      "Emisión de informes estadísticos mensuales (REM) y benchmarking."
+      "Definición y cálculo automático de indicadores clave de rendimiento (KPIs) hospitalarios.",
+      "Definición de umbrales, metas y alertas tempranas por desviación de metas.",
+      "Emisión y consolidación de Reportes Estadísticos Mensuales (REM) para el DEIS / MINSAL.",
+      "Tableros de mando ejecutivos con segmentación por servicio clínico, unidad de apoyo y centro de costo.",
+      "Monitoreo de ocupación de camas, estancia media, rotación y tasas de reingreso.",
+      "Seguimiento de compromisos de gestión (COMGES) y convenios de desempeño institucional."
     ],
-    integrations: ["SIRH, SIGFE, Data Warehouse, Ficha Clínica."]
+    integrations: ["SIRH, SIGFE, Data Warehouse, Ficha Clínica, Admisión y Egresos."],
+    legalConsiderations: "Compromisos de Gestión (COMGES) MINSAL, Serie REM DEIS."
   },
   {
     id: "SIH-1.6.2",
     code: "1.6.2",
     area: "Gestión de la Información",
     name: "Gestión de Calidad y seguridad del paciente",
-    objective: "Evaluar el cumplimiento de estándares de acreditación en salud, normas clínicas, eventos adversos y acreditación del personal sanitario.",
+    objective: "Evaluar el cumplimiento de estándares de acreditación en salud, normas técnicas institucionales, monitorización de eventos adversos y verificación de habilitación profesional del personal asistencial.",
     supportStatus: "SOPORTADO",
     providerVendor: "Calidad & Acreditación Institucional",
     features: [
-      "Seguimiento de normas de acreditación de la Superintendencia de Salud.",
-      "Registro y análisis de eventos adversos y centinela.",
-      "Verificación de requisitos académicos y habilitación del personal."
+      "Seguimiento y auditoría continua de los estándares de acreditación de la Superintendencia de Salud (Manual de Estándares Generales de Acreditación).",
+      "Registro, notificación y análisis causa-raíz de eventos adversos, incidentes sin daño y eventos centinela.",
+      "Seguimiento de planes de mejora continua y acciones correctivas / preventivas.",
+      "Verificación de requisitos académicos, títulos, especialidades y vigencia en el Registro Nacional de Prestadores Individuales (RNPI).",
+      "Monitorización de pautas de cotejo de calidad clínica (ej. consentimientos informados, fichas clínicas, listas de chequeo).",
+      "Gestión documental de protocolos, guías clínicas y procedimientos operativos estandarizados (POE)."
     ],
-    integrations: ["Gestión de Personas, Ficha Clínica, Mesa de Ayuda."]
+    integrations: ["Gestión de Personas, Ficha Clínica, Mesa de Ayuda, Registro de Incidencias."],
+    legalConsiderations: "Ley 20.584 de Derechos y Deberes de los Pacientes, DFL N° 1/2005 y Reglamento de Acreditación de Prestadores Institucionales de Salud."
   },
   {
     id: "SIH-1.6.3",
     code: "1.6.3",
     area: "Gestión de la Información",
     name: "Registro de Incidencias",
-    objective: "Notificación anónima o nominativa de incidencias o anomalías en la calidad del servicio para investigación forense y propuestas de mejora.",
+    objective: "Notificación anónima o nominativa de incidencias, anomalías, fallas de equipamiento o desvíos en la calidad del servicio para investigación forense, análisis de fallas y propuestas de mejora.",
     supportStatus: "SOPORTADO",
     providerVendor: "Registro de Incidencias Institucional",
     features: [
-      "Registro web de incidencias por categoría e impacto.",
-      "Asignación de investigador y registro de investigación forense."
+      "Registro web de incidencias por categoría, tipo de riesgo, servicio y nivel de impacto.",
+      "Modalidad de reporte confidencial y anónimo para fomentar la cultura no punitiva de seguridad.",
+      "Asignación de investigador responsable y registro de investigación forense / análisis de barreras.",
+      "Generación de reportes de recurrencia, mapas de calor de riesgo y matriz de riesgos por área.",
+      "Alertas automáticas a comités de seguridad ante incidencias de alto impacto o eventos centinela."
     ],
-    integrations: ["Gestión de Calidad."]
+    integrations: ["Gestión de Calidad, Prevención de Riesgos, IAAS."],
+    legalConsiderations: "Norma Técnica General de Seguridad del Paciente MINSAL."
   },
   {
     id: "SIH-1.6.4",
@@ -841,68 +853,66 @@ export const INITIAL_SIH_CATALOG: SIHSystem[] = [
       "Obtener informes y consultas por tipo de requerimiento, localidad, participantes, institución, fecha, y usuario de atención.",
       "Disponer de un sistema para tomar encuestas de satisfacción, mediante dispositivos móviles como tabletas u otros medios electrónicos, permitir tabular los resultados, disponer de mecanismos de difusión de los resultados (mails particulares, masivos, tableros-pantallas) y disponer de herramientas estadísticas descriptivas y que permitan realizar inferencias."
     ],
-    integrations: ["Sistema OIRS MINSAL, Gestión de Calidad, Ficha Clínica Electrónica, Oficina de Partes / Gestor Documental."]
+    integrations: [
+      "Sistema OIRS MINSAL.",
+      "Maestro de Pacientes.",
+      "Gestión de Calidad y Experiencia Usuaria.",
+      "Sistema de Correo Electrónico y Notificaciones Institucionales."
+    ],
+    legalConsiderations: "Ley 19.880 sobre Bases de los Procedimientos Administrativos, Ley 20.584 de Derechos y Deberes de las Personas en Salud, D.S. N° 35/2012 Reglamento sobre Reclamos OIRS."
   },
   {
     id: "SIH-1.6.5",
     code: "1.6.5",
     area: "Gestión de la Información",
     name: "Gestión de Proyectos",
-    objective: "Gestionar proyectos de inversión y desarrollo, carta Gantt, paquetes de trabajo, hitos y vinculación con presupuestos y compras.",
+    objective: "Gestionar proyectos de inversión y desarrollo hospitalario, carta Gantt, paquetes de trabajo, hitos, control presupuestario y vinculación con compras y abastecimiento.",
     supportStatus: "EN_IMPLEMENTACION",
     providerVendor: "Módulo Gestión de Proyectos",
     features: [
-      "Carta Gantt interactiva con control de avances.",
-      "Generación de lista de materiales (BOM) y compras asociadas."
+      "Carta Gantt interactiva con control de avances, ruta crítica e hitos de entrega.",
+      "Generación de lista de materiales (BOM) y compras asociadas a cada proyecto.",
+      "Control presupuestario por línea de financiamiento (FNDR, fondos sectoriales, fondos propios).",
+      "Gestión de riesgos del proyecto y control de cambios en alcance y plazos.",
+      "Seguimiento de actas de recepción de obras, equipamiento y puesta en marcha."
     ],
-    integrations: ["Abastecimiento, Presupuesto, Contabilidad."]
+    integrations: ["Abastecimiento, Presupuesto, Contabilidad, Activo Fijo."],
+    legalConsiderations: "Normas del Sistema Nacional de Inversiones (SNI) Ministerio de Desarrollo Social."
   },
   {
     id: "SIH-1.6.6",
     code: "1.6.6",
     area: "Gestión de la Información",
     name: "Data Warehouse, Data Lake (Ciencia de datos)",
-    objective: "Estructuras de datos multidimensionales y repositorio centralizado para analítica avanzada, inteligencia de negocios y reportes estadísticos REM.",
+    objective: "Estructuras de datos multidimensionales y repositorio centralizado para analítica avanzada, inteligencia de negocios, modelos predictivos y reportes estadísticos REM.",
     supportStatus: "EN_IMPLEMENTACION",
     providerVendor: "Data Warehouse / BI Institucional",
     features: [
-      "Extracción y poblamiento automatizado de datos relacionales y no relacionales.",
-      "Generación automatizada de Reportes Estadísticos Mensuales (REM).",
-      "Modelos analíticos predictivos y tableros interactivos."
+      "Extracción, transformación y carga (ETL/ELT) automatizada de datos relacionales y no relacionales desde todos los sistemas del hospital.",
+      "Generación automatizada y validación cruzada de Reportes Estadísticos Mensuales (REM) y DEIS.",
+      "Modelos analíticos predictivos para estimación de demanda en urgencia, estancias y ausentismo.",
+      "Construcción de cubos OLAP y data marts temáticos (quirúrgico, camas, farmacia, laboratorio).",
+      "Tableros de analítica avanzada con gobierno de datos y trazabilidad del linaje de datos."
     ],
-    integrations: ["Todos los sistemas transaccionales del hospital."]
+    integrations: ["Todos los sistemas transaccionales del hospital, SIDRA, MINSAL DEIS."],
+    legalConsiderations: "Ley 19.628 sobre Protección de la Vida Privada / Datos Personales, Estándares de Ciberseguridad Ley 21.663."
   },
   {
     id: "SIH-1.6.7",
     code: "1.6.7",
     area: "Gestión de la Información",
     name: "Grupo Relacionados por diagnóstico (GRD)",
-    objective: "Clasificar y agrupar el producto hospitalario por casuística, nivel de complejidad y riesgo para estimar costos e índices de eficiencia clínica.",
+    objective: "Clasificar y agrupar el producto hospitalario por casuística, nivel de complejidad y riesgo para estimar costos, facturación por IR-GRD e índices de eficiencia clínica.",
     supportStatus: "SOPORTADO",
     providerVendor: "Agrupador GRD / MINSAL",
     features: [
-      "Control de desempeño clínico y casuística hospitalaria (case-mix).",
-      "Indicadores de complejidad, estancia media e índice de uso de recursos."
+      "Codificación automatizada y asistida de diagnósticos principales, secundarios (CIE-10) y procedimientos (CIE-9-MC / ACHS).",
+      "Control de desempeño clínico y casuística hospitalaria (case-mix index / CMI).",
+      "Cálculo de indicadores de severidad, riesgo de mortalidad, estancia media ajustada y ratio de complejidad.",
+      "Detección y auditoría de complicaciones intrahospitalarias y comorbilidades mayores (CC/MCC).",
+      "Estimación de costos por paciente y facturación FONASA por paquete de transferencia GRD."
     ],
-    integrations: ["Ficha Clínica, Ficha de Urgencia, Hospitalizados."]
-  },
-  {
-    id: "SIH-1.6.8",
-    code: "1.6.8",
-    area: "Gestión de la Información",
-    name: "Interoperabilidad y Middleware Regional (HL7 / FHIR)",
-    objective: "Garantizar el intercambio seguro y estandarizado de datos clínicos y administrativos entre los sistemas del hospital y la red del Servicio de Salud mediante estándares HL7 v2, HL7 FHIR R4 y CDA.",
-    supportStatus: "SOPORTADO",
-    providerVendor: "Motor de Integración / FHIR Server",
-    features: [
-      "Motor de transformación y mensajería en tiempo real HL7 v2 (ADT, ORM, ORU, MDM).",
-      "Servidor FHIR R4 para intercambio interoperable de recursos clínicos (Patient, Encounter, Condition, MedicationRequest).",
-      "Bitácora de auditoría y monitoreo de colas de mensajes con reintento automático.",
-      "Seguridad de transporte con TLS 1.3, autenticación OAuth 2.0 / Mutual TLS y validación de esquemas."
-    ],
-    integrations: [
-      "Ficha Clínica Electrónica, LIS Laboratorio, RIS/PACS, Registro Civil, FONASA, MINSAL (RND, SIGTE)."
-    ],
-    legalConsiderations: "Ley 20.584, Ley 19.628 de Protección de Datos Personales y Guías de Interoperabilidad MINSAL."
+    integrations: ["Ficha Clínica, Ficha de Urgencia, Hospitalizados, Pabellón Quirúrgico, Facturación."],
+    legalConsiderations: "Metodología IR-GRD FONASA / MINSAL, Norma Técnica DEIS."
   }
 ];

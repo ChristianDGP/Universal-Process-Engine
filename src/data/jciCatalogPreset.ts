@@ -5,7 +5,7 @@ export const OFFICIAL_JCI_CATEGORIES: JCICategory[] = [
   { code: "ACC", name: "Acceso a la Atención y Continuidad de la Atención (Access to Care and Continuity)" },
   { code: "AOP", name: "Evaluación de los Pacientes (Assessment of Patients)" },
   { code: "COP", name: "Atención de los Pacientes (Care of Patients)" },
-  { code: "ASC", name: "Atención Anestésica y Quirúrgica (Anesthesia and Surgical Care)" },
+  { code: "ASC", name: "Anestesia y Atención Quirúrgica (Anesthesia and Surgical Care)" },
   { code: "MMU", name: "Gestión y Uso de Medicamentos (Medication Management and Use)" },
   { code: "PFE", name: "Educación del Paciente y la Familia (Patient and Family Education)" },
   { code: "QPS", name: "Mejora de la Calidad y Seguridad del Paciente (Quality Improvement and Patient Safety)" },
@@ -13,25 +13,27 @@ export const OFFICIAL_JCI_CATEGORIES: JCICategory[] = [
   { code: "GLD", name: "Gobernanza, Liderazgo y Dirección (Governance, Leadership, and Direction)" },
   { code: "FMS", name: "Gestión y Seguridad de Instalaciones (Facility Management and Safety)" },
   { code: "SQE", name: "Calificaciones y Educación del Personal (Staff Qualifications and Education)" },
-  { code: "MOI", name: "Gestión de la Información (Management of Information)" }
+  { code: "MOI", name: "Gestión de la Información (Management of Information)" },
+  { code: "PCC", name: "Atención Centrada en el Paciente (Patient-Centered Care)" }
 ];
 
 export const INITIAL_JCI_CATALOG: JCIStandard[] = [
   // =========================================================================
-  // METAS INTERNACIONALES DE SEGURIDAD DEL PACIENTE (IPSG)
+  // 1. METAS INTERNACIONALES DE SEGURIDAD DEL PACIENTE (IPSG)
   // =========================================================================
   {
     id: "IPSG.1",
     code: "IPSG.1",
     chapter: "Metas Internacionales de Seguridad del Paciente (International Patient Safety Goals)",
     name: "Identificación Correcta de Pacientes",
-    objective: "La organización desarrolla e implementa un proceso para mejorar la precisión en la identificación de pacientes mediante al menos dos identificadores únicos (ej. Nombre completo y RUN/Ficha Clínica), excluyendo el número de cama o sala.",
+    objective: "La organización desarrolla e implementa un proceso para mejorar la precisión en la identificación de pacientes mediante al menos dos identificadores únicos en todos los puntos de atención.",
     measurableElements: [
-      "Los pacientes son identificados utilizando al menos dos identificadores únicos en todas las atenciones clínicas y administrativas.",
-      "Identificación previa y activa antes de la administración de cualquier medicamento, sangre, hemoderivados o nutrición parenteral.",
-      "Identificación activa previa a la toma de muestras de laboratorio, fluidos corporales e imágenes diagnósticas.",
-      "Identificación activa antes de realizar cualquier procedimiento quirúrgico, invasivo o traslado.",
-      "Verificación obligatoria de pulsera de identificación estandarizada con código de barras al ingreso hospitalario y reposición inmediata si se deteriora."
+      "Los pacientes son identificados utilizando al menos dos identificadores únicos (ej. nombre completo y número de cédula/RUT/número de historia clínica), nunca por número de habitación o cama.",
+      "Identificación activa del paciente previa a la administración de cualquier medicamento, sangre, hemoderivados o nutrición parenteral.",
+      "Identificación previa a la toma de muestras de sangre, fluidos corporales, biopsias y realización de exámenes diagnósticos o procedimientos clínicos.",
+      "Uso obligatorio de pulsera de identificación estandarizada, resistente al agua y legible colocada al momento de la admisión/ingreso.",
+      "Protocolo específico para la identificación de pacientes en estado de inconsciencia, confusión, recién nacidos y homónimos.",
+      "Verificación cruzada de identidad verbal con el paciente o acompañante cuando su estado clínico lo permita."
     ],
     category: "SAFETY_GOALS",
     supportStatus: "CUMPLIDO"
@@ -41,12 +43,13 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     code: "IPSG.2",
     chapter: "Metas Internacionales de Seguridad del Paciente (International Patient Safety Goals)",
     name: "Mejora de la Comunicación Efectiva",
-    objective: "La organización desarrolla e implementa un proceso para mejorar la efectividad y oportunidad de la comunicación verbal, telefónica y de traspaso de pacientes entre los profesionales de la salud.",
+    objective: "La organización desarrolla e implementa un proceso para mejorar la efectividad de la comunicación verbal y/o telefónica, el traspaso de información clínica y el reporte oportuno de valores críticos.",
     measurableElements: [
-      "Aplicación obligatoria del protocolo 'Escribir - Leer - Confirmar' (Write down, Read back, Confirm) para órdenes verbales o telefónicas de prescripciones.",
-      "Definición institucional, difusión y notificación oportuna de valores críticos de laboratorio, imágenes y monitorización fisiológica.",
-      "Uso de metodología estructurada y estandarizada (ej. SBAR: Situación, Antecedentes, Evaluación, Recomendación) durante el traspaso de pacientes y entregas de turno.",
-      "Registro inmediato con fecha, hora, nombre y rol de los profesionales emisores y receptores de información clínica crítica."
+      "Aplicación obligatoria del protocolo 'Escribir - Leer - Confirmar' (Read-Back) para órdenes verbales o telefónicas de medicación y tratamientos.",
+      "Definición y difusión institucional del listado de valores críticos de laboratorio, imagenología y monitorización diagnóstica.",
+      "Proceso estandarizado para la notificación y registro inmediato de resultados de exámenes críticos al médico tratante dentro de tiempos límites definidos.",
+      "Uso de metodología estructurada y validada para el traspaso de información clínica (ej. SBAR / SAER) en entregas de turno médico y de enfermería.",
+      "Documentación obligatoria del traspaso clínico entre servicios y en traslados intrahospitalarios o extrahospitalarios."
     ],
     category: "SAFETY_GOALS",
     supportStatus: "CUMPLIDO"
@@ -56,12 +59,13 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     code: "IPSG.3",
     chapter: "Metas Internacionales de Seguridad del Paciente (International Patient Safety Goals)",
     name: "Seguridad de Medicamentos de Alto Riesgo",
-    objective: "La organización desarrolla e implementa un proceso para mejorar la seguridad en el manejo, almacenamiento, prescripción, preparación y administración de medicamentos de alto riesgo y fármacos de alerta máxima.",
+    objective: "La organización desarrolla e implementa un proceso para mejorar la seguridad en el manejo de medicamentos de alto riesgo, concentrados electrolíticos y fármacos con nombres o aspecto similar (LASA).",
     measurableElements: [
-      "Elaboración y actualización anual de la lista institucional de medicamentos de alto riesgo y fármacos con nombres o aspecto similar (LASA - Look-Alike / Sound-Alike).",
-      "Identificación visual diferenciada y etiquetado de advertencia para electrolitos concentrados y citostáticos.",
-      "Almacenamiento restringido y bajo llave de electrolitos concentrados fuera de áreas clínicas generales, permitiéndose sólo en unidades críticas bajo protocolo.",
-      "Doble chequeo independiente obligatorio (dos profesionales) antes de la preparación y administración de fármacos de alto riesgo (insulinas, anticoagulantes, opioides, quimioterapia)."
+      "Identificación y etiquetado diferenciado con señalética de alerta visual para medicamentos de alto riesgo y fármacos LASA (Look-Alike / Sound-Alike).",
+      "Restricción y retiro de electrolitos concentrados (ej. Cloruro de Potasio concentrado, Cloruro de Sodio hipertónico) de las áreas de hospitalización general.",
+      "Almacenamiento seguro bajo llave y con acceso controlado para electrolitos concentrados en farmacia y unidades críticas autorizadas.",
+      "Doble chequeo independiente documentado antes de la preparación y administración de medicamentos de alto riesgo, citostáticos, anticoagulantes e insulina.",
+      "Protocolos estandarizados de dosificación, dilución, velocidad de infusión y administración con bombas programables."
     ],
     category: "SAFETY_GOALS",
     supportStatus: "CUMPLIDO"
@@ -71,12 +75,13 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     code: "IPSG.4",
     chapter: "Metas Internacionales de Seguridad del Paciente (International Patient Safety Goals)",
     name: "Cirugía y Procedimientos Seguros",
-    objective: "Garantizar la realización de cirugías y procedimientos invasivos en el sitio correcto, con el procedimiento correcto y al paciente correcto en todas las áreas donde se realicen intervenciones.",
+    objective: "Garantizar la realización de cirugías y procedimientos invasivos en el sitio anatómico correcto, con el procedimiento correcto y al paciente correcto.",
     measurableElements: [
-      "Marcación inequívoca del sitio quirúrgico/anatómico realizada por el cirujano responsable antes del ingreso al quirófano y con participación del paciente cuando esté consciente.",
-      "Proceso de verificación preoperatoria integral de consentimientos, exámenes preoperatorios, hemoderivados e implantes disponibles.",
-      "Ejecución de la Pausa de Seguridad Quirúrgica (Time-Out) inmediatamente antes del inicio de la incisión o procedimiento, con participación activa de todo el equipo.",
-      "Aplicación estandarizada de la Lista de Chequeo Quirúrgico de la OMS (Entrada, Pausa Quirúrgica y Salida con recuento de compresas e instrumental)."
+      "Marcación del sitio quirúrgico inequívoca e indeleble realizada por el profesional responsable del procedimiento con la participación del paciente despierto.",
+      "Proceso de verificación preoperatoria integral previo al ingreso al quirófano (documentación, consentimientos, exámenes, instrumental, prótesis).",
+      "Realización sistemática y en voz alta de la Pausa de Seguridad (Time-Out) inmediatamente antes de la incisión quirúrgica o inicio del procedimiento invasivo.",
+      "Aplicación y firma en la ficha clínica de la Lista de Chequeo Quirúrgico de la OMS (Entrada, Pausa Quirúrgica y Salida).",
+      "Verificación postoperatoria del recuento completo de gasas, compresas, agujas e instrumental quirúrgico."
     ],
     category: "SAFETY_GOALS",
     supportStatus: "CUMPLIDO"
@@ -86,12 +91,13 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     code: "IPSG.5",
     chapter: "Metas Internacionales de Seguridad del Paciente (International Patient Safety Goals)",
     name: "Reducción del Riesgo de Infecciones Asociadas a la Atención (Higiene de Manos)",
-    objective: "La organización adopta e implementa las directrices de higiene de manos de la OMS / CDC para reducir sustancialmente el riesgo de infecciones asociadas a la atención de salud (IAAS).",
+    objective: "La organización adopta e implementa las directrices de higiene de manos de la OMS / CDC para reducir el riesgo de infecciones asociadas a la atención de salud (IAAS).",
     measurableElements: [
-      "Cumplimiento y adhesión estricta a los '5 Momentos de la Higiene de Manos' recomendados por la OMS en todas las unidades asistenciales.",
-      "Disponibilidad universal y permanente de dispensadores de solución alcohólica en el punto de atención y lavamanos operativos con jabón y toallas desechables.",
-      "Programa continuo de capacitación y evaluación práctica de la técnica de lavado y desinfección de manos para todo el personal asistencial y de apoyo.",
-      "Monitorización observacional periódica de la adherencia a la higiene de manos y retroalimentación mensual a las jefaturas de servicio."
+      "Adopción e implementación institucional de los '5 Momentos para la Higiene de Manos' definidos por la Organización Mundial de la Salud (OMS).",
+      "Disponibilidad permanente de dispensadores de solución alcohólica (alcohol gel) en cada punto de atención, box clínico y pie de cama de hospitalización.",
+      "Instalaciones de lavado de manos con agua corriente, jabón antiséptico y toallas desechables operativas en todas las áreas clínicas.",
+      "Programa continuo de capacitación, evaluación y reentrenamiento en técnica correcta de lavado de manos para todo el personal asistencial y de apoyo.",
+      "Medición y reporte trimestral de los índices de adherencia a la higiene de manos por servicio clínico con planes de intervención ante bajas tasas."
     ],
     category: "SAFETY_GOALS",
     supportStatus: "CUMPLIDO"
@@ -101,30 +107,33 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     code: "IPSG.6",
     chapter: "Metas Internacionales de Seguridad del Paciente (International Patient Safety Goals)",
     name: "Reducción del Riesgo de Daño por Caídas",
-    objective: "La organización desarrolla e implementa un proceso para evaluar y reevaluar continuamente el riesgo de caídas en todos los pacientes y aplicar medidas preventivas individualizadas.",
+    objective: "La organización desarrolla e implementa un proceso integral para evaluar, reevaluar el riesgo de caídas en todos los pacientes y aplicar medidas preventivas adaptadas.",
     measurableElements: [
-      "Evaluación inicial del riesgo de caídas al ingreso hospitalario utilizando una escala validada y adaptada a la población (ej. Morse, Downtown, Macdems).",
-      "Reevaluación periódica del riesgo de caídas ante cambios de medicación, sedación, traslados entre unidades o deterioro del estado neurológico/funcional.",
-      "Identificación visual de pacientes con alto riesgo de caída (ej. distintivo en pulsera y ficha clínica).",
-      "Implementación de medidas de seguridad ambiental: barandas elevadas, timbres de llamada al alcance, iluminación adecuada y calzado antideslizante."
+      "Evaluación sistemática del riesgo de caídas al ingreso hospitalario y en urgencias mediante una escala validada institucionalmente (ej. Morse, Downton, Macdems).",
+      "Reevaluación periódica del riesgo de caídas ante cambios de medicación sedante, traslados entre unidades, postoperatorio o deterioro del estado general.",
+      "Identificación visual del paciente con alto riesgo de caídas (ej. brazalete de color distintivo, señalética en cabecera de cama).",
+      "Implementación de intervenciones preventivas individualizadas: barandas elevadas, timbre al alcance, calzado antideslizante, asistencia en deambulación y educación familiar.",
+      "Registro, investigación y análisis de causas de todas las caídas ocurridas para retroalimentar el plan de prevención institucional."
     ],
     category: "SAFETY_GOALS",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // ACCESO A LA ATENCIÓN Y CONTINUIDAD (ACC)
+  // 2. ACCESO A LA ATENCIÓN Y CONTINUIDAD (ACC)
   // =========================================================================
   {
     id: "ACC.1",
     code: "ACC.1",
     chapter: "Acceso a la Atención y Continuidad de la Atención (Access to Care and Continuity)",
     name: "Admisión, Ingreso y Triaje Clínico",
-    objective: "La organización cuenta con un proceso estandarizado para la evaluación de necesidades asistenciales, priorización de urgencias (Triaje) e ingreso de pacientes según su capacidad resolutiva.",
+    objective: "Proceso estandarizado para la evaluación oportuna de necesidades asistenciales, priorización de urgencias mediante triaje estructurado e ingreso de pacientes según capacidad resolutiva institucional.",
     measurableElements: [
-      "Criterios clínicos y administrativos estandarizados para la admisión e ingreso a servicios ambulatorios, hospitalización y unidades de cuidados intensivos.",
-      "Sistema de triaje estructurado y validado (ESI / Manchester) en el Servicio de Urgencia para categorizar la gravedad y tiempo de atención.",
-      "Información clara y oportuna al paciente y acompañante respecto a las opciones de atención, tiempos de espera estimados y coberturas previsionales."
+      "Criterios explícitos y documentados para la admisión de pacientes a servicios ambulatorios, urgencia, hospitalización general y unidades de cuidados intensivos.",
+      "Sistema de triaje estructurado y validado (ej. ESI / Manchester) operado por personal capacitado las 24 horas en el servicio de urgencia.",
+      "Tiempos máximos de espera establecidos y monitorizados por categoría de triaje desde el arribo hasta la primera atención médica.",
+      "Evaluación de la pertinencia clínica y capacidad institucional previo a la admisión de pacientes electivos o de urgencia.",
+      "Proceso claro de orientación e información al paciente y acompañantes sobre derechos, deberes, aranceles, coberturas y normas de convivencia."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
@@ -133,12 +142,13 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     id: "ACC.2",
     code: "ACC.2",
     chapter: "Acceso a la Atención y Continuidad de la Atención (Access to Care and Continuity)",
-    name: "Continuidad y Coordinación Asistencial en Transiciones",
-    objective: "Garantizar la continuidad de la atención clínica durante todas las fases de la atención, traslados internos entre unidades y derivaciones a otros centros de la red asistencial.",
+    name: "Continuidad y Coordinación Asistencial",
+    objective: "Garantizar la continuidad ininterrumpida de los cuidados clínicos a lo largo de las distintas etapas, unidades asistenciales y transiciones de cuidado.",
     measurableElements: [
-      "Registro de epicrisis y resumen clínico de traslado estandarizado con diagnósticos, tratamientos administrados y plan de cuidados pendiente.",
-      "Coordinación previa, confirmación de cama y recepción informada por el equipo de la unidad receptora.",
-      "Acompañamiento por personal de salud competente y equipamiento de soporte vital según nivel de complejidad y riesgo del paciente durante el transporte."
+      "Asignación de un médico tratante responsable de coordinar la atención integral del paciente durante toda su estancia hospitalaria.",
+      "Plan de cuidados interdisciplinario compartido entre médicos, enfermeros, kinesiólogos, nutricionistas y farmacéuticos clínicos.",
+      "Procedimiento formal de traspaso y recepción de pacientes entre turnos y entre diferentes servicios clínicos (ej. Urgencia a Pabellón o UPC).",
+      "Registro cronológico y completo en la ficha clínica de todas las decisiones asistenciales, interconsultas y evoluciones clínicas."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
@@ -147,12 +157,14 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     id: "ACC.3",
     code: "ACC.3",
     chapter: "Acceso a la Atención y Continuidad de la Atención (Access to Care and Continuity)",
-    name: "Planificación del Alta y Continuidad de Cuidados",
-    objective: "La organización cuenta con un proceso estructurado para la planificación del alta hospitalaria coordinada con el paciente, familia y la red de atención primaria.",
+    name: "Proceso de Alta Médica y Plan de Egreso",
+    objective: "Planificación anticipada del egreso hospitalario para garantizar un alta segura, entrega de indicaciones comprensibles y continuidad del tratamiento extrahospitalario.",
     measurableElements: [
-      "Inicio de la planificación del alta desde el ingreso del paciente considerando factores clínicos, sociales y de red de apoyo familiar.",
-      "Entrega obligatoria al momento del egreso del informe de alta médica (epicrisis) y hoja de indicaciones de enfermería por escrito y explicada verbalmente.",
-      "Receta médica completa con conciliación de fármacos al alta y coordinación de citas de control o derivación a la atención primaria."
+      "Planificación del alta iniciada tempranamente durante la hospitalización considerando necesidades biológicas, sociales y funcionales del paciente.",
+      "Emisión y entrega obligatoria del informe de alta médica / epicrisis completa que resume diagnósticos, procedimientos, evolución y exámenes relevantes.",
+      "Instrucciones por escrito y explicadas al paciente/familia sobre medicamentos prescritos (dosis, horario, duración), signos de alarma y cuidados en el hogar.",
+      "Coordinación de citaciones para controles médicos post-alta y retiro o derivación de recetas en farmacia ambulatoria.",
+      "Protocolo formal para el manejo del alta contra opinión médica (alta voluntaria) con firma de desistimiento informado."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
@@ -161,44 +173,33 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     id: "ACC.4",
     code: "ACC.4",
     chapter: "Acceso a la Atención y Continuidad de la Atención (Access to Care and Continuity)",
-    name: "Transporte Asistencial y Gestión de Ambulancias",
-    objective: "Garantizar que el transporte de pacientes en vehículos institucionales o contratados cumpla con estándares de seguridad, equipamiento y competencia técnica del personal.",
+    name: "Traslado y Derivación Extrahospitalaria de Pacientes",
+    objective: "Regulación y coordinación de los traslados y derivaciones a otros centros de salud para asegurar la estabilidad clínica del paciente durante el transporte.",
     measurableElements: [
-      "Mantenimiento preventivo periódico y certificación de operatividad de la flota de ambulancias y equipos biomédicos de transporte.",
-      "Dotación de insumos de reanimación, oxígeno, medicamentos de urgencia y desfibrilador operativo en cada móvil de traslado.",
-      "Registro formal del monitoreo de signos vitales e incidentes ocurridos durante el trayecto de traslado."
+      "Criterios explícitos para la derivación de pacientes cuando la organización no cuenta con la capacidad resolutiva o especialidad requerida.",
+      "Coordinación previa, comunicación médica directa y confirmación de recepción y disponibilidad de cama en el hospital receptor.",
+      "Acompañamiento del paciente durante el traslado por personal de salud competente con equipamiento de soporte vital acorde a la gravedad clínica.",
+      "Entrega de copia de la epicrisis, exámenes complementarios y registro del monitoreo y eventos ocurridos durante el trayecto en ambulancia."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // EVALUACIÓN DE LOS PACIENTES (AOP)
+  // 3. EVALUACIÓN DE LOS PACIENTES (AOP)
   // =========================================================================
   {
     id: "AOP.1",
     code: "AOP.1",
     chapter: "Evaluación de los Pacientes (Assessment of Patients)",
-    name: "Evaluación Inicial Médica y de Enfermería",
-    objective: "Todos los pacientes reciben una evaluación médica y de enfermería integral, oportuna y documentada en la ficha clínica al ingreso hospitalario.",
+    name: "Evaluación Integral Inicial Médica y de Enfermería",
+    objective: "Todos los pacientes admitidos reciben una evaluación clínica integral, oportuna y estructurada para identificar sus necesidades diagnósticas y terapéuticas.",
     measurableElements: [
-      "Evaluación médica inicial documentada dentro de los marcos temporales normados (máximo 24 horas tras el ingreso o inmediato en urgencias).",
-      "Valoración integral de enfermería completada dentro de las primeras 24 horas que incluye anamnesis, valoración por patrones/necesidades y tamizajes de riesgo.",
-      "Evaluación sistemática del dolor, estado nutricional, riesgo de úlceras por presión (Braden) y capacidad funcional al ingreso."
-    ],
-    category: "PATIENT_CENTERED",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "AOP.2",
-    code: "AOP.2",
-    chapter: "Evaluación de los Pacientes (Assessment of Patients)",
-    name: "Reevaluación Médica y Monitoreo Continuo",
-    objective: "Los pacientes son reevaluados a intervalos regulares a lo largo de su estancia para determinar su respuesta al tratamiento y planificar la continuidad de cuidados.",
-    measurableElements: [
-      "Reevaluación médica diaria documentada en la ficha clínica para pacientes hospitalizados, y con mayor frecuencia en unidades críticas o pacientes inestables.",
-      "Registro de constantes vitales por enfermería según frecuencia pautada o ante cambios en la condición hemodinámica del paciente.",
-      "Reevaluación formal de la respuesta clínica tras intervenciones diagnósticas, quirúrgicas o farmacológicas relevantes."
+      "Evaluación médica inicial documentada dentro de las primeras 24 horas de hospitalización o antes si la condición clínica lo requiere.",
+      "Anamnesis completa, antecedentes mórbidos, quirúrgicos, alergias, fármacos habituales y examen físico minucioso registrados en la ficha clínica.",
+      "Evaluación de enfermería inicial completada dentro de las primeras 24 horas abarcando signos vitales, necesidades básicas, riesgo de caídas y riesgo de UPP.",
+      "Evaluación del dolor mediante escalas visuales/numéricas estandarizadas al ingreso y en cada control de enfermería.",
+      "Tamizaje de riesgo nutricional y derivación temprana a especialista en nutrición clínica ante pacientes en riesgo."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
@@ -208,60 +209,46 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     code: "AOP.5",
     chapter: "Evaluación de los Pacientes (Assessment of Patients)",
     name: "Servicios de Laboratorio Clínico y Banco de Sangre",
-    objective: "Los servicios de laboratorio clínico cumplen con estándares de bioseguridad, control de calidad analítico, oportunidad en resultados y trazabilidad de muestras.",
+    objective: "Los servicios de laboratorio clínico y medicina transfusional operan bajo estrictos controles de calidad, bioseguridad y oportunidad diagnóstica.",
     measurableElements: [
-      "Programa integral de control de calidad interno diario y participación en programas de evaluación externa de la calidad (PEEC).",
-      "Protocolo formal de notificación inmediata y registro de resultados de alerta o valores críticos a los médicos tratantes.",
-      "Trazabilidad unívoca de muestras biológicas con código de barras desde la toma, transporte, procesamiento hasta el descarte.",
-      "Disponibilidad de reactivos vigentes, mantenimiento y calibración documentada de analizadores automatizados."
+      "Disponibilidad de catálogo oficial de exámenes de laboratorio con tiempos de respuesta (TAT) definidos para urgencias y rutina.",
+      "Programa riguroso de control de calidad interno diario y participación en programas de evaluación externa de calidad (PEEC / RIQAS).",
+      "Protocolos de bioseguridad, manejo de residuos biológicos y mantenimiento preventivo calibrado de analizadores automatizados.",
+      "Trazabilidad completa de unidades de sangre y hemoderivados desde la recepción hasta la transfusión con pruebas de compatibilidad pretransfusional."
     ],
-    category: "PATIENT_CENTERED",
+    category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
   {
     id: "AOP.6",
     code: "AOP.6",
     chapter: "Evaluación de los Pacientes (Assessment of Patients)",
-    name: "Servicios de Diagnóstico por Imágenes y Radiología",
-    objective: "Los servicios de imágenes diagnósticas operan bajo estrictas normas de radioprotección, control de calidad, mantención de equipos y emisión oportuna de informes radiológicos.",
+    name: "Servicios de Radiología e Imagenología Diagnóstica",
+    objective: "Garantizar la realización segura de exámenes de imagenología con protección radiológica y entrega oportuna de informes radiológicos interpretados.",
     measurableElements: [
-      "Programa de protección radiológica para pacientes, acompañantes y personal ocupacionalmente expuesto (dosimetría personal, blindaje).",
-      "Control de calidad y calibración periódica de equipos de rayos X, tomografía computarizada, resonancia y ecografía.",
-      "Emisión y validación de informes radiológicos por médicos especialistas dentro de los plazos establecidos según nivel de urgencia.",
-      "Protocolo para el uso seguro de medios de contraste radiológico con tamizaje de función renal previa y manejo de reacciones anafilácticas."
+      "Programa formal de protección radiológica para pacientes y personal ocupacionalmente expuesto según normas regulatorias vigentes.",
+      "Informes radiológicos emitidos y firmados por médicos radiólogos dentro de plazos estipulados según urgencia clínica.",
+      "Verificación de antecedentes de alergias a medios de contraste iodados/gadolinio y función renal previa (creatinina/VFG).",
+      "Control de mantenimiento periódico y dosimetría de equipos de rayos X, tomografía computarizada y resonancia magnética."
     ],
-    category: "PATIENT_CENTERED",
+    category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // ATENCIÓN DE LOS PACIENTES (COP)
+  // 4. ATENCIÓN DE LOS PACIENTES (COP)
   // =========================================================================
   {
     id: "COP.1",
     code: "COP.1",
     chapter: "Atención de los Pacientes (Care of Patients)",
-    name: "Plan de Atención Integrado y Multidisciplinario",
-    objective: "La atención de cada paciente es planificada y coordinada de forma multidisciplinaria mediante un plan de cuidados individualizado basado en la evaluación clínica.",
+    name: "Plan de Atención Integrado e Individualizado",
+    objective: "La atención de cada paciente es planificada y coordinada de forma multidisciplinaria mediante un plan de cuidados individualizado actualizado según la evolución clínica.",
     measurableElements: [
-      "Plan de atención individualizado documentado en la ficha clínica dentro de las primeras 24 horas del ingreso.",
-      "Coordinación e integración de objetivos terapéuticos entre médicos, enfermeros, kinesiólogos, nutricionistas y farmacéuticos.",
-      "Actualización y ajuste del plan de cuidados en función de la evolución clínica y reevaluaciones periódicas del paciente."
-    ],
-    category: "PATIENT_CENTERED",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "COP.2",
-    code: "COP.2",
-    chapter: "Atención de los Pacientes (Care of Patients)",
-    name: "Manejo de Emergencias Clínicas y Reanimación Cardiopulmonar",
-    objective: "La organización cuenta con un sistema estandarizado y oportuno de respuesta a emergencias médicas y paro cardiorrespiratorio en todas las instalaciones del hospital (Código Azul).",
-    measurableElements: [
-      "Disponibilidad de carros de paro equipados, revisados diariamente por enfermería y sellados con precinto de seguridad en todas las unidades.",
-      "Desfibriladores automáticos/manuales operativos con pruebas diarias de descarga documentadas.",
-      "Equipo de respuesta rápida o Código Azul con activación unificada y tiempos de respuesta monitorizados.",
-      "Personal asistencial capacitado y certificado en soporte vital básico (BLS) y avanzado (ACLS/PALS)."
+      "Elaboración de un plan de cuidados multidisciplinario individualizado registrado en la ficha clínica dentro de las primeras 24 horas.",
+      "Integración de metas terapéuticas compartidas entre el equipo médico, enfermería, farmacia y profesionales de apoyo terapéutico.",
+      "Actualización y reevaluación periódica del plan de atención conforme a la respuesta al tratamiento y cambios en el estado del paciente.",
+      "Indicaciones médicas claras, fechadas, con firma, timbre o firma electrónica avanzada del profesional emisor."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
@@ -271,162 +258,80 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     code: "COP.3",
     chapter: "Atención de los Pacientes (Care of Patients)",
     name: "Atención de Pacientes de Alto Riesgo y Servicios Críticos",
-    objective: "Provisión de cuidados especializados y seguros a poblaciones vulnerables y pacientes de alto riesgo (UCI, pacientes comatosos, pacientes inmunodeprimidos, pacientes en contención).",
+    objective: "Políticas y protocolos estandarizados para la atención segura de pacientes en estado crítico, paro cardiorrespiratorio, coma o soporte vital avanzado.",
     measurableElements: [
-      "Guías clínicas y protocolos específicos para el manejo de pacientes en unidades de cuidados intensivos e intermedios.",
-      "Protocolo estricto para la indicación, monitoreo continuo y retiro oportuno de contenciones físicas o farmacológicas.",
-      "Protección y resguardo reforzado para pacientes vulnerables: recién nacidos, niños, adultos mayores dependientes y pacientes psiquiátricos."
+      "Protocolos clínicos específicos para la atención en Unidades de Paciente Crítico (UCI / UTI) con ratios de enfermería/paciente normados.",
+      "Disponibilidad de carros de paro estandarizados con desfibrilador operativo, revisados y sellados diariamente en todas las áreas clínicas.",
+      "Activación de Equipos de Respuesta Rápida (ERR) / Código Azul ante deterioro clínico agudo o signos de alarma tempranos.",
+      "Protocolos para la prevención de eventos adversos en ventilación mecánica invasiva y monitoreo hemodinámico continuo."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
   },
   {
-    id: "COP.4",
-    code: "COP.4",
+    id: "COP.8",
+    code: "COP.8",
     chapter: "Atención de los Pacientes (Care of Patients)",
-    name: "Terapia Nutricional y Manejo de Dietas",
-    objective: "Garantizar que la prescripción, preparación, almacenamiento y distribución de alimentos y nutrición clínica cumplan con las necesidades terapéuticas y normas de inocuidad.",
+    name: "Terapia Transfusional y Manejo de Hemoderivados",
+    objective: "Administración segura y controlada de sangre y componentes sanguíneos con monitorización estrecha de posibles reacciones adversas.",
     measurableElements: [
-      "Prescripción médica y nutricional de dietas terapéuticas, nutrición enteral y nutrición parenteral documentada en ficha.",
-      "Trazabilidad y control higiénico-sanitario en la preparación y distribución de raciones alimentarias y fórmulas lácteas (SEDILE).",
-      "Monitoreo de la tolerancia digestiva, ingesta calórico-proteica y balance hidroelectrolítico en pacientes con soporte nutricional especializado."
-    ],
-    category: "PATIENT_CENTERED",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "COP.6",
-    code: "COP.6",
-    chapter: "Atención de los Pacientes (Care of Patients)",
-    name: "Manejo y Control del Dolor",
-    objective: "Todos los pacientes tienen derecho a una evaluación sistemática, oportuna y tratamiento efectivo del dolor.",
-    measurableElements: [
-      "Evaluación inicial del dolor mediante escalas validadas acordes a la edad y estado cognitivo (EVA, Escala Numérica, FLACC, Campbell).",
-      "Tratamiento analgésico pautado y escalonado según intensidad del dolor documentado en la ficha clínica.",
-      "Reevaluación obligatoria de la intensidad del dolor posterior a la administración de analgésicos para verificar eficacia terapéutica.",
-      "Educación al paciente y familia sobre el reporte y manejo de síntomas dolorosos."
-    ],
-    category: "PATIENT_CENTERED",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "COP.7",
-    code: "COP.7",
-    chapter: "Atención de los Pacientes (Care of Patients)",
-    name: "Cuidados al Final de la Vida y Cuidados Paliativos",
-    objective: "Proveer atención compasiva, respetuosa y de alivio sintomático a pacientes en etapa terminal y apoyo integral a sus familias.",
-    measurableElements: [
-      "Evaluación y manejo oportuno del dolor, disnea, náuseas y otros síntomas angustiantes en el paciente terminal.",
-      "Respeto a las voluntades anticipadas, valores culturales y creencias espirituales del paciente y su familia.",
-      "Acompañamiento continuo y facilidades de estancia para la familia durante el proceso de agonía y duelo."
+      "Consentimiento informado específico firmado por el paciente o representante legal previo a la transfusión de hemoderivados.",
+      "Verificación de doble chequeo independiente de la unidad de sangre, compatibilidad y datos del receptor a pie de cama.",
+      "Monitorización estricta de signos vitales antes, a los 15 minutos de iniciada la transfusión y al término del procedimiento.",
+      "Protocolo de notificación y manejo inmediato ante sospecha de reacción transfusional adversa o hemólisis aguda."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // ATENCIÓN ANESTÉSICA Y QUIRÚRGICA (ASC)
+  // 5. ANESTESIA Y ATENCIÓN QUIRÚRGICA (ASC)
   // =========================================================================
   {
     id: "ASC.1",
     code: "ASC.1",
-    chapter: "Atención Anestésica y Quirúrgica (Anesthesia and Surgical Care)",
-    name: "Organización y Bioseguridad de Pabellones Quirúrgicos",
-    objective: "Los servicios quirúrgicos y pabellones de operaciones operan bajo estrictas normas de bioseguridad, control ambiental, flujo de personal y equipamiento estandarizado.",
+    chapter: "Anestesia y Atención Quirúrgica (Anesthesia and Surgical Care)",
+    name: "Servicios de Anestesia y Sedación Moderada/Profunda",
+    objective: "Los servicios de anestesia y sedación son dirigidos por profesionales calificados y cuentan con protocolos homogéneos en toda la institución.",
     measurableElements: [
-      "Zonificación estricta de áreas quirúrgicas (zona no restringida, semirrestringida y restringida) con control de acceso.",
-      "Control y monitoreo continuo de presión positiva de aire, humedad y temperatura en salas de operaciones.",
-      "Protocolo estandarizado para la limpieza y desinfección de pabellones entre cirugías y limpieza terminal diaria."
+      "Todos los actos anestésicos y procedimientos de sedación profunda son administrados exclusivamente por anestesiólogos o personal médico acreditado.",
+      "Evaluación preanestésica documentada previa a la inducción que incluye clasificación ASA, evaluación de vía aérea difícil y ayuno.",
+      "Plan anestésico individualizado discutido con el paciente con consentimiento informado de anestesia firmado.",
+      "Disponibilidad permanente de monitorización fisiológica continua (ECG, PANI, pulsioximetría, capnografía) durante todo el acto quirúrgico."
     ],
-    category: "PATIENT_CENTERED",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "ASC.3",
-    code: "ASC.3",
-    chapter: "Atención Anestésica y Quirúrgica (Anesthesia and Surgical Care)",
-    name: "Sedación Procedimental y Moderada",
-    objective: "La administración de sedación consciente y moderada fuera de pabellón central cumple con los mismos estándares de seguridad que la anestesia general.",
-    measurableElements: [
-      "Evaluación previa a la sedación para identificar factores de riesgo de vía aérea difícil o comorbilidades.",
-      "Monitoreo continuo de frecuencia cardíaca, saturación de oxígeno, presión arterial y nivel de conciencia durante el procedimiento.",
-      "Criterios explícitos de recuperación postanestésica antes del alta o traslado del paciente."
-    ],
-    category: "PATIENT_CENTERED",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "ASC.5",
-    code: "ASC.5",
-    chapter: "Atención Anestésica y Quirúrgica (Anesthesia and Surgical Care)",
-    name: "Evaluación Preanestésica y Consentimiento",
-    objective: "Cada paciente sometido a anestesia recibe una evaluación preanestésica documentada y otorga su consentimiento informado específico.",
-    measurableElements: [
-      "Evaluación preanestésica completa realizada por médico anestesiólogo antes del ingreso al pabellón quirúrgico (clasificación ASA, vía aérea, ayuno).",
-      "Formulación y registro del plan anestésico individualizado en la ficha clínica.",
-      "Consentimiento informado específico de anestesia firmado por el paciente o su representante legal tras recibir explicación de riesgos y alternativas."
-    ],
-    category: "PATIENT_CENTERED",
+    category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
   {
     id: "ASC.7",
     code: "ASC.7",
-    chapter: "Atención Anestésica y Quirúrgica (Anesthesia and Surgical Care)",
-    name: "Cuidados Postanestésicos y Alta de Recuperación (URPA)",
-    objective: "Los pacientes reciben atención y monitorización postanestésica continua y son dados de alta de la Unidad de Recuperación Postanestésica bajo criterios objetivos estandarizados.",
+    chapter: "Anestesia y Atención Quirúrgica (Anesthesia and Surgical Care)",
+    name: "Cuidados Postanestésicos y Criterios de Alta de Recuperación",
+    objective: "Monitorización y recuperación segura de los pacientes en la Unidad de Recuperación Postanestésica (URPA) con criterios objetivos de egreso.",
     measurableElements: [
-      "Monitoreo hemodinámico, respiratorio y de estado de conciencia continuo documentado en la hoja de recuperación.",
-      "Aplicación de escala validada (ej. Aldrete modificado o White-Fast) para autorizar el egreso de la URPA a sala de hospitalización.",
-      "Informe operatorio y protocolo quirúrgico redactado y firmado por el cirujano responsable inmediatamente al término de la intervención."
+      "Monitoreo continuo de signos vitales, nivel de conciencia, saturación de oxígeno y dolor en URPA.",
+      "Uso de escala estandarizada de recuperación postanestésica (ej. Escala de Aldrete modificada) para evaluar la recuperación.",
+      "Criterios explícitos y documentados de alta de recuperación hacia la sala de hospitalización o domicilio en cirugía mayor ambulatoria.",
+      "Registro de la indicación médica de egreso de URPA firmada por el médico anestesiólogo responsable."
     ],
-    category: "PATIENT_CENTERED",
+    category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // GESTIÓN Y USO DE MEDICAMENTOS (MMU)
+  // 6. GESTIÓN Y USO DE MEDICAMENTOS (MMU)
   // =========================================================================
   {
     id: "MMU.1",
     code: "MMU.1",
     chapter: "Gestión y Uso de Medicamentos (Medication Management and Use)",
-    name: "Organización y Selección del Arsenal Farmacológico",
-    objective: "La organización cuenta con un sistema integral de gestión de medicamentos dirigido por profesionales farmacéuticos y respaldado por un Comité de Farmacia y Terapéutica activo.",
+    name: "Organización y Gestión del Sistema de Medicamentos",
+    objective: "La organización cuenta con una gestión centralizada y segura para la selección, adquisición, almacenamiento y dispensación de medicamentos.",
     measurableElements: [
-      "Existencia de un Vademécum o Arsenal Farmacológico Institucional aprobado y revisado anualmente.",
-      "Mecanismo estandarizado para la solicitud y evaluación de medicamentos no incluidos en el arsenal ante situaciones clínicas excepcionales.",
-      "Supervisión continua por químicos farmacéuticos de todos los puntos de almacenamiento y dispensación de medicamentos."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "MMU.2",
-    code: "MMU.2",
-    chapter: "Gestión y Uso de Medicamentos (Medication Management and Use)",
-    name: "Almacenamiento Seguro y Control de Cadena de Frío",
-    objective: "Los medicamentos se almacenan bajo condiciones controladas de temperatura, humedad, seguridad y custodia para preservar su integridad y prevenir accesos no autorizados.",
-    measurableElements: [
-      "Monitoreo y registro diario continuo de temperatura y humedad en farmacias, bodegas y botiquines clínicos.",
-      "Control estricto de cadena de frío (2°C a 8°C) para medicamentos termolábiles y vacunas con alarmas sonoras y respaldo eléctrico.",
-      "Custodia bajo doble llave o código seguro de medicamentos estupefacientes y psicotrópicos con libro de control oficial al día.",
-      "Revisión mensual de fechas de vencimiento y retiro inmediato de fármacos caducados o deteriorados."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "MMU.3",
-    code: "MMU.3",
-    chapter: "Gestión y Uso de Medicamentos (Medication Management and Use)",
-    name: "Prescripción y Ordenamiento Médico Seguro",
-    objective: "Las recetas y prescripciones médicas son claras, completas, legibles, autenticadas y registradas conforme a políticas institucionales que eviten errores de dosificación.",
-    measurableElements: [
-      "Elementos obligatorios en toda prescripción: nombre del paciente, RUN, fármaco genérico/DCI, dosis exacta, vía, frecuencia y diagnóstico.",
-      "Verificación obligatoria de antecedentes de alergias a medicamentos antes de la emisión de la primera orden médica.",
-      "Proceso de conciliación medicamentosa formal al ingreso, transferencias entre servicios y al alta hospitalaria.",
-      "Uso exclusivo de abreviaturas estandarizadas autorizadas y prohibición de abreviaturas peligrosas o ambiguas."
+      "Existencia de un Arsenal Farmacológico institucional oficial aprobado por el Comité de Farmacia y Terapéutica.",
+      "Control de inventario, condiciones normadas de temperatura y humedad en almacenes y refrigeradores de farmacia con registro diario.",
+      "Gestión de medicamentos controlados (estupefacientes y psicotrópicos) bajo libro foliado oficial, doble llave y arqueos periódicos.",
+      "Sistema de trazabilidad para lotes, fechas de vencimiento y protocolos de retiro oportuno de fármacos expirados o recall sanitario."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
@@ -435,151 +340,85 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     id: "MMU.4",
     code: "MMU.4",
     chapter: "Gestión y Uso de Medicamentos (Medication Management and Use)",
-    name: "Preparación y Dispensación por Dosis Unitaria",
-    objective: "Los medicamentos se preparan y dispensan en un entorno limpio y seguro, priorizando el sistema de dosis unitaria e individualizada para cada paciente.",
+    name: "Prescripción y Ordenamiento Médico Seguro",
+    objective: "Las prescripciones médicas son legibles, completas, fechadas y registradas según estándares institucionales para prevenir errores de medicación.",
     measurableElements: [
-      "Revisión y validación farmacéutica de la orden médica previa a la dispensación (dosis, duplicidad, interacciones y compatibilidad).",
-      "Preparación de mezclas intravenosas, nutrición parenteral y quimioterapia en campanas de flujo laminar estériles por personal calificado.",
-      "Etiquetado claro de cada dosis unitaria con nombre del paciente, dos identificadores, nombre del fármaco, dosis, vía, fecha y hora de preparación y caducidad."
+      "Prescripción médica completa con nombre genérico, dosis exacta, unidad de medida, vía de administración, frecuencia y diagnóstico asociado.",
+      "Verificación obligatoria de antecedentes de alergias farmacológicas antes de emitir cualquier receta o primera dosis.",
+      "Proceso sistemático de conciliación medicamentosa al ingreso, en cada traslado interservicio y al egreso hospitalario.",
+      "Políticas institucionales claras sobre abreviaturas prohibidas de alto riesgo para evitar confusiones de dosificación."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
   {
-    id: "MMU.5",
-    code: "MMU.5",
+    id: "MMU.6",
+    code: "MMU.6",
     chapter: "Gestión y Uso de Medicamentos (Medication Management and Use)",
-    name: "Administración Segura de Medicamentos y Verificación de Correctos",
-    objective: "La administración de medicamentos es ejecutada exclusivamente por personal de enfermería legalmente facultado mediante la verificación sistemática de los correctos de seguridad.",
+    name: "Administración Segura de Medicamentos y Monitoreo",
+    objective: "Proceso seguro para la administración de medicamentos verificando sistemáticamente los correctos de enfermería y vigilando efectos adversos.",
     measurableElements: [
-      "Verificación activa de los '5 Correctos' (Paciente correcto, Medicamento correcto, Dosis correcta, Vía correcta, Hora correcta) al pie de cama.",
-      "Doble chequeo independiente documentado para la administración de electrolitos concentrados, insulina, anticoagulantes y quimioterápicos.",
-      "Registro inmediato de la administración (o motivo fundado de omisión) en la hoja de registro clínico de enfermería."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "MMU.7",
-    code: "MMU.7",
-    chapter: "Gestión y Uso de Medicamentos (Medication Management and Use)",
-    name: "Farmacovigilancia y Reporte de Eventos por Medicamentos",
-    objective: "La organización cuenta con un proceso activo de monitorización, reporte y análisis de reacciones adversas a medicamentos (RAM) y errores de medicación.",
-    measurableElements: [
-      "Monitoreo clínico del paciente posterior a la administración de medicamentos para detectar posibles efectos adversos.",
-      "Notificación no punitiva e investigación de incidentes y errores de medicación (cuasi-fallas, errores de prescripción, dispensación o administración).",
-      "Reporte obligatorio y oportuno de reacciones adversas graves al Instituto de Salud Pública (ISP) y MINSAL."
+      "Verificación estricta de los correctos de administración: Paciente correcto, Medicamento correcto, Dosis correcta, Vía correcta, Hora correcta y Registro oportuno.",
+      "Registro inmediato de la administración o motivo de suspensión/rechazo en la hoja de enfermería y ficha clínica electrónica.",
+      "Monitoreo clínico del paciente posterior a la administración de medicamentos para evaluar eficacia y detectar reacciones adversas (RAM).",
+      "Notificación obligatoria y oportuna de sospechas de Reacciones Adversas a Medicamentos (RAM) al Centro Nacional de Farmacovigilancia."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // EDUCACIÓN DEL PACIENTE Y LA FAMILIA (PFE)
+  // 7. EDUCACIÓN DEL PACIENTE Y LA FAMILIA (PFE)
   // =========================================================================
   {
     id: "PFE.1",
     code: "PFE.1",
     chapter: "Educación del Paciente y la Familia (Patient and Family Education)",
-    name: "Evaluación de Necesidades Educativas",
-    objective: "La organización evalúa las necesidades educativas individuales del paciente y su familia considerando su nivel de alfabetización en salud, idioma, cultura y barreras cognitivas.",
+    name: "Educación Integral y Participación en el Autocuidado",
+    objective: "La organización proporciona educación estructurada y adaptada culturalmente al paciente y familia para fomentar el autocuidado y la toma de decisiones informadas.",
     measurableElements: [
-      "Evaluación inicial de conocimientos y disposición para el aprendizaje del paciente y cuidador principal.",
-      "Identificación y abordaje de barreras idiomáticas, auditivas, visuales o culturales en la entrega de información médica.",
-      "Plan de educación individualizado incorporado en el plan integral de atención."
-    ],
-    category: "PATIENT_CENTERED",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "PFE.2",
-    code: "PFE.2",
-    chapter: "Educación del Paciente y la Familia (Patient and Family Education)",
-    name: "Educación en Autocuidado, Medicación y Dispositivos",
-    objective: "El equipo de salud brinda educación estructurada y verificable en el uso seguro de medicamentos, manejo de dispositivos médicos (sondas, drenajes, ostomías) y prevención de complicaciones en el hogar.",
-    measurableElements: [
-      "Instrucción práctica sobre el uso seguro de medicamentos prescritos al alta, posibles efectos secundarios e interacciones con alimentos.",
-      "Entrenamiento guiado al paciente y cuidador en el manejo de dispositivos médicos, técnicas de curación y signos de alarma para consultar a urgencias.",
-      "Verificación de la comprensión mediante la técnica de 'Teach-Back' (pedir al paciente que explique con sus palabras lo aprendido) documentada en la ficha."
+      "Evaluación inicial de las necesidades educativas del paciente considerando idioma, nivel de alfabetización, limitaciones sensoriales y preferencias culturales.",
+      "Educación personalizada sobre el uso seguro de medicamentos prescritos, interacciones con alimentos, dieta especial y manejo del dolor.",
+      "Instrucción práctica sobre el uso de dispositivos médicos en el hogar (ej. glucómetros, inhaladores, oxígeno domiciliario, sondas).",
+      "Registro documental en la ficha clínica de la educación brindada y verificación de la comprensión por parte del paciente o cuidador."
     ],
     category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // MEJORA DE LA CALIDAD Y SEGURIDAD DEL PACIENTE (QPS)
+  // 8. MEJORA DE LA CALIDAD Y SEGURIDAD (QPS)
   // =========================================================================
   {
     id: "QPS.1",
     code: "QPS.1",
     chapter: "Mejora de la Calidad y Seguridad del Paciente (Quality Improvement and Patient Safety)",
-    name: "Liderazgo del Programa Institucional de Calidad",
-    objective: "El equipo directivo lidera y asigna recursos a un programa continuo e integral de mejora de la calidad y seguridad del paciente en toda la institución.",
+    name: "Programa Institucional de Calidad y Seguridad del Paciente",
+    objective: "Liderazgo y ejecución de un programa integral y continuo de mejora de la calidad y gestión del riesgo clínico en toda la organización.",
     measurableElements: [
-      "Plan Anual de Calidad y Seguridad del Paciente aprobado por la Dirección y difundido a todo el personal.",
-      "Designación formal de un Departamento o Unidad de Calidad con profesionales competentes con dedicación exclusiva.",
-      "Presentación trimestral de informes de calidad y seguridad al Comité Directivo para la toma de decisiones estratégicas."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "QPS.3",
-    code: "QPS.3",
-    chapter: "Mejora de la Calidad y Seguridad del Paciente (Quality Improvement and Patient Safety)",
-    name: "Medición y Monitoreo de Indicadores Clínicos y de Gestión",
-    objective: "La organización recopila, analiza y utiliza sistemáticamente datos de indicadores de estructura, proceso y resultado para monitorear el desempeño de las áreas asistenciales y de soporte.",
-    measurableElements: [
-      "Tablero institucional de indicadores clínicos prioritarios (mortalidad, reingresos no programados, IAAS, tiempos de espera, satisfacción usuaria).",
-      "Metodología estandarizada de recolección, validación estadística y análisis de tendencias de datos.",
-      "Implementación de ciclos de mejora continua (PDCA / PHVA) cuando los indicadores no alcanzan las metas comprometidas."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "QPS.7",
-    code: "QPS.7",
-    chapter: "Mejora de la Calidad y Seguridad del Paciente (Quality Improvement and Patient Safety)",
-    name: "Gestión de Eventos Centinela y Análisis Causa Raíz (RCA)",
-    objective: "La organización cuenta con un sistema riguroso para la identificación, reporte obligatorio, análisis causa raíz multidisciplinario y ejecución de planes de acción correctiva ante eventos centinela.",
-    measurableElements: [
-      "Definición institucional explícita y conocida de eventos centinela y eventos adversos graves.",
-      "Obligatoriedad de notificación inmediata del evento centinela dentro de las primeras 24 horas de ocurrido.",
-      "Realización de Análisis Causa Raíz (RCA) exhaustivo completado en un plazo máximo de 45 días calendario.",
-      "Diseño e implementación de un plan de acción con responsables, plazos y mecanismos de auditoría para prevenir la recurrencia del evento."
+      "Programa anual de Calidad y Seguridad del Paciente aprobado por la Dirección y difundido a todos los estamentos del hospital.",
+      "Selección y medición mensual de indicadores clínicos prioritarios (mortalidad, reingresos, infecciones, complicaciones quirúrgicas).",
+      "Uso de metodología formal para el análisis causa-raíz (ACR / Diagrama de Ishikawa) ante la ocurrencia de eventos centinela o cuasifallas graves.",
+      "Implementación, seguimiento y reevaluación de planes de acción correctiva derivados de auditorías clínicas y comités técnicos."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // PREVENCIÓN Y CONTROL DE INFECCIONES (PCI)
+  // 9. PREVENCIÓN Y CONTROL DE INFECCIONES (PCI)
   // =========================================================================
   {
     id: "PCI.1",
     code: "PCI.1",
     chapter: "Prevención y Control de Infecciones (Prevention and Control of Infections)",
-    name: "Programa y Vigilancia Epidemiológica de IAAS",
-    objective: "La organización cuenta con un programa integral de Prevención y Control de Infecciones Asociadas a la Atención de Salud (IAAS) liderado por un Comité especializado.",
+    name: "Programa de Control de IAAS y Vigilancia Epidemiológica",
+    objective: "Programa institucional exhaustivo para la vigilancia, prevención y control de infecciones asociadas a la atención de salud (IAAS) y resistencia antimicrobiana.",
     measurableElements: [
-      "Vigilancia epidemiológica activa de infecciones prioritarias (Infección de Herida Operatoria, ITU asociada a Catéter Urinario, Bacteriemia asociada a CVC, Neumonía asociada a Ventilación Mecánica).",
-      "Cálculo mensual de tasas de incidencia y comparación contra estándares nacionales (MINSAL / CDC).",
-      "Definición de paquetes de medidas preventivas (Bundles) y supervisión periódica de su cumplimiento en terreno."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "PCI.2",
-    code: "PCI.2",
-    chapter: "Prevención y Control de Infecciones (Prevention and Control of Infections)",
-    name: "Medidas de Aislamiento y Precauciones Estándar",
-    objective: "Implementación rigurosa de precauciones estándar para todos los pacientes y precauciones basadas en el mecanismo de transmisión (Contacto, Gotitas, Aéreo).",
-    measurableElements: [
-      "Uso correcto de Elementos de Protección Personal (EPP: mascarillas N95/quirúrgicas, pecheras, guantes, protección ocular) según tipo de aislamiento.",
-      "Disponibilidad de habitaciones individuales con presión negativa y filtros HEPA para aislamiento por vía aérea (ej. Tuberculosis, Sarampión).",
-      "Señalética estandarizada y visible en el exterior de las habitaciones con las indicaciones de aislamiento requeridas."
+      "Comité de IAAS multidisciplinario liderado por médico infectólogo y enfermera de control de infecciones con dedicación exclusiva.",
+      "Vigilancia epidemiológica activa de infecciones de sitio quirúrgico, neumonía asociada a ventilación mecánica, ITU por catéter urinario e infecciones del torrente sanguíneo por CVC.",
+      "Protocolos estrictos de aislamiento de contacto, gotas y aéreo para pacientes con microorganismos multirresistentes o patógenos emergentes.",
+      "Programa de Optimización de Uso de Antimicrobianos (PROA) para prevenir la resistencia bacteriana institucional."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
@@ -588,243 +427,110 @@ export const INITIAL_JCI_CATALOG: JCIStandard[] = [
     id: "PCI.5",
     code: "PCI.5",
     chapter: "Prevención y Control de Infecciones (Prevention and Control of Infections)",
-    name: "Trazabilidad, Esterilización y Desinfección de Alto Nivel",
-    objective: "Procesos estandarizados de limpieza, desinfección de alto nivel (DAN) y esterilización de instrumental quirúrgico, equipos y dispositivos médicos de reuso.",
+    name: "Esterilización y Desinfección de Instrumental Médico",
+    objective: "Procesos estandarizados y trazables de limpieza, desinfección de alto nivel (DAN) y esterilización de instrumental y dispositivos de reuso.",
     measurableElements: [
-      "Monitoreo físico, químico y biológico documentado en cada ciclo de esterilización en autoclaves de vapor y peróxido de hidrógeno.",
-      "Trazabilidad unívoca de cada caja quirúrgica e implante mediante código de barras desde la central de esterilización hasta la ficha del paciente receptor.",
-      "Almacenamiento de material estéril en condiciones normadas de temperatura (18°-22°C), humedad (30-60%) e integridad del empaque."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "PCI.7",
-    code: "PCI.7",
-    chapter: "Prevención y Control de Infecciones (Prevention and Control of Infections)",
-    name: "Salud del Personal y Manejo de Accidentes Cortopunzantes",
-    objective: "Protección de la salud del personal de salud mediante programas de inmunización, manejo seguro de elementos cortopunzantes y profilaxis post-exposición.",
-    measurableElements: [
-      "Programa de vacunación obligatoria del personal (Hepatitis B, Influenza, COVID-19, etc.).",
-      "Disponibilidad de contenedores rígidos amarillos para descarte de material cortopunzante en los puntos de atención.",
-      "Protocolo activo y accesible las 24 horas para la atención inmediata, consejería, serología y profilaxis post-exposición a fluidos corporales de alto riesgo."
+      "Central de Esterilización centralizada con flujo unidireccional estricto (área sucia, área de preparación y área estéril).",
+      "Monitoreo físico, químico y biológico en cada ciclo de esterilización con archivo de registros por el tiempo normado.",
+      "Trazabilidad completa mediante código de barras de cada caja de instrumental desde el lavado hasta el uso en pabellón quirúrgico.",
+      "Almacenamiento de material estéril en condiciones controladas de temperatura, humedad y rotación de stock PEPS."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // GOBERNANZA, LIDERAZGO Y DIRECCIÓN (GLD)
+  // 10. GOBERNANZA, LIDERAZGO Y DIRECCIÓN (GLD)
   // =========================================================================
   {
     id: "GLD.1",
     code: "GLD.1",
     chapter: "Gobernanza, Liderazgo y Dirección (Governance, Leadership, and Direction)",
-    name: "Marco de Gobernanza y Responsabilidad Directiva",
-    objective: "La máxima autoridad y el cuerpo directivo son responsables de la calidad, seguridad, viabilidad financiera y cumplimiento ético y legal de la organización.",
+    name: "Gobernanza y Responsabilidad Directiva",
+    objective: "La estructura directiva y el gobierno institucional establecen la misión, visión, políticas éticas y garantizan los recursos para una atención de calidad y segura.",
     measurableElements: [
-      "Estructura organizacional, misión, visión y líneas de autoridad formalmente definidas y aprobadas.",
-      "Supervisión periódica de la calidad de la atención y seguridad del paciente por parte de la Junta Directiva.",
-      "Asignación equitativa y transparente de recursos humanos, tecnológicos y financieros para responder a las necesidades de la comunidad."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "GLD.3",
-    code: "GLD.3",
-    chapter: "Gobernanza, Liderazgo y Dirección (Governance, Leadership, and Direction)",
-    name: "Liderazgo de Servicios Clínicos y Departamentos",
-    objective: "Cada servicio clínico y departamento administrativo cuenta con una jefatura calificada responsable de la gestión asistencial, guías clínicas y desempeño del personal.",
-    measurableElements: [
-      "Jefaturas médicas y de enfermería designadas con perfiles de competencia acordes a la especialidad del servicio.",
-      "Elaboración, actualización y difusión de manuales de organización, procedimientos y guías clínicas basadas en evidencia.",
-      "Evaluación continua del desempeño y cumplimiento de metas operacionales del departamento."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "GLD.11",
-    code: "GLD.11",
-    chapter: "Gobernanza, Liderazgo y Dirección (Governance, Leadership, and Direction)",
-    name: "Gestión Ética y Comité de Ética Asistencial",
-    objective: "La organización establece un marco de conducta ética y cuenta con un Comité de Ética Asistencial para orientar y resolver dilemas bioéticos en la atención de pacientes.",
-    measurableElements: [
-      "Código de Ética y Conducta institucional conocido y suscrito por todo el personal de la institución.",
-      "Comité de Ética Asistencial multidisciplinario constituido formalmente para atender consultas de pacientes, familiares y profesionales.",
-      "Protocolo para el respeto a la autonomía del paciente, consentimiento informado, directrices anticipadas y objeción de conciencia."
+      "Estructura organizacional y organigrama formalmente definidos con líneas de autoridad y rendición de cuentas transparentes.",
+      "Asignación presupuestaria garantizada para los programas de calidad, seguridad del paciente y mantenimiento de infraestructura crítica.",
+      "Código de ética institucional y mecanismos formales para resolver dilemas éticos a través del Comité de Ética Asistencial.",
+      "Evaluación periódica del desempeño de los líderes de servicios clínicos y administrativos."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // GESTIÓN Y SEGURIDAD DE INSTALACIONES (FMS)
+  // 11. GESTIÓN Y SEGURIDAD DE INSTALACIONES (FMS)
   // =========================================================================
   {
     id: "FMS.1",
     code: "FMS.1",
     chapter: "Gestión y Seguridad de Instalaciones (Facility Management and Safety)",
-    name: "Plan Integral de Seguridad Física y Ambiental",
-    objective: "La organización diseña, implementa y mantiene un plan integral para garantizar instalaciones físicas seguras para pacientes, funcionarios y visitantes.",
+    name: "Plan Maestro de Seguridad de Instalaciones y Gestión de Emergencias",
+    objective: "La organización planifica e implementa un programa integral para garantizar un entorno físico seguro, mantenimiento preventivo de sistemas críticos y preparación ante catástrofes.",
     measurableElements: [
-      "Programa de inspecciones semestrales de seguridad en todas las dependencias del hospital para identificar y mitigar riesgos físicos.",
-      "Control de accesos a áreas críticas o restringidas (pabellones, farmacia, gases clínicos, subestaciones eléctricas).",
-      "Plan de contingencia y mitigación ante riesgos de desastres naturales o emergencias externas (terremotos, inundaciones)."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "FMS.4",
-    code: "FMS.4",
-    chapter: "Gestión y Seguridad de Instalaciones (Facility Management and Safety)",
-    name: "Protección y Seguridad Contra Incendios",
-    objective: "La organización cuenta con un programa activo de prevención, detección, combate de incendios y rutas de evacuación seguras y señalizadas.",
-    measurableElements: [
-      "Sistemas de detección temprana de humo y calor y red húmeda/seca de extinción inspeccionados y operativos.",
-      "Extintores de incendios adecuados al tipo de riesgo, certificados y con mantención anual vigente.",
-      "Vías de evacuación despejadas, puertas cortafuego operativas y luces de emergencia funcionales.",
-      "Realización de simulacros periódicos de evacuación ante incendios con participación del personal de todas las jornadas."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "FMS.7",
-    code: "FMS.7",
-    chapter: "Gestión y Seguridad de Instalaciones (Facility Management and Safety)",
-    name: "Gestión y Mantenimiento Preventivo de Equipos Médicos",
-    objective: "Los equipos médicos y biomédicos son inventariados, inspeccionados, calibrados y mantenidos preventivamente para asegurar su funcionamiento seguro y confiable.",
-    measurableElements: [
-      "Inventario completo y actualizado de todo el equipamiento médico con hoja de vida y clasificación por nivel de riesgo.",
-      "Programa riguroso de mantenimiento preventivo y calibración periódica ejecutado por personal técnico calificado o proveedores autorizados.",
-      "Protocolo para el retiro inmediato de servicio, etiquetado de fuera de servicio y reemplazo de equipos defectuosos o en alerta técnica."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "FMS.8",
-    code: "FMS.8",
-    chapter: "Gestión y Seguridad de Instalaciones (Facility Management and Safety)",
-    name: "Sistemas de Suministros Básicos y Gases Clínicos",
-    objective: "Garantizar el suministro ininterrumpido y seguro de electricidad, agua potable, gases medicinales y climatización en todas las áreas críticas del hospital.",
-    measurableElements: [
-      "Grupos electrógenos de respaldo de emergencia con transferencia automática en menos de 10 segundos para áreas críticas (UCI, Urgencias, Pabellón).",
-      "Pruebas mensuales documentadas de funcionamiento de generadores bajo carga real de trabajo.",
-      "Centrales de gases clínicos (oxígeno, aire medicinal, vacío) con monitoreo continuo de presión, banco de reserva y alarmas operativas.",
-      "Control bacteriológico y fisicoquímico periódico de la calidad del agua potable y de las plantas de tratamiento de diálisis."
+      "Plan maestro de seguridad de instalaciones que abarca seguridad física, materiales peligrosos, emergencias y equipos médicos.",
+      "Plan de emergencias y desastres internos/externos con realización anual de simulacros de evacuación y manejo de víctimas múltiples.",
+      "Mantenimiento preventivo e inspección periódica de sistemas de gases medicinales, red eléctrica de respaldo (generadores) y suministro de agua potable.",
+      "Sistemas de detección temprana de incendios, rociadores, extintores vigentes y brigada de emergencia capacitada."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // CALIFICACIONES Y EDUCACIÓN DEL PERSONAL (SQE)
+  // 12. CALIFICACIONES Y EDUCACIÓN DEL PERSONAL (SQE)
   // =========================================================================
   {
     id: "SQE.1",
     code: "SQE.1",
     chapter: "Calificaciones y Educación del Personal (Staff Qualifications and Education)",
-    name: "Planificación y Dotación de Personal de Salud",
-    objective: "La organización define la cantidad, perfiles y competencias del personal requeridos para satisfacer de forma segura las necesidades asistenciales de los pacientes.",
+    name: "Planificación, Selección y Competencias del Personal",
+    objective: "Procesos rigurosos para la selección, verificación de credenciales, asignación de privilegios clínicos y capacitación continua del personal de salud.",
     measurableElements: [
-      "Cálculo técnico y asignación de dotaciones de médicos, enfermeros y técnicos según nivel de complejidad y ocupación de camas.",
-      "Perfiles de cargo y descriptores de funciones actualizados para cada puesto asistencial y de apoyo.",
-      "Monitoreo de horas extraordinarias, ausentismo y cobertura oportuna de reemplazos."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "SQE.9",
-    code: "SQE.9",
-    chapter: "Calificaciones y Educación del Personal (Staff Qualifications and Education)",
-    name: "Habilitación y Otorgamiento de Privilegios Clínicos Médicos (Credentialing)",
-    objective: "Proceso uniforme y documentado para la verificación de títulos, especialidades y otorgamiento periódico de privilegios clínicos al cuerpo médico.",
-    measurableElements: [
-      "Verificación primaria de títulos universitarios, especialidades y registro en la Superintendencia de Salud (SIS) previa a la contratación.",
-      "Otorgamiento formal por la Dirección Médica de los privilegios clínicos y procedimientos específicos que cada profesional está facultado para realizar.",
-      "Reevaluación y reotorgamiento periódico de privilegios clínicos cada 2 o 3 años basada en el desempeño y resultados asistenciales."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "SQE.14",
-    code: "SQE.14",
-    chapter: "Calificaciones y Educación del Personal (Staff Qualifications and Education)",
-    name: "Capacitación Continua y Entrenamiento en Reanimación",
-    objective: "El personal de salud recibe orientación institucional, capacitación continua en seguridad del paciente y reentrenamiento periódico en soporte vital.",
-    measurableElements: [
-      "Programa de inducción y orientación general y específica para todo el personal nuevo.",
-      "Capacitaciones anuales obligatorias en Metas de Seguridad (IPSG), Prevención de IAAS, Manejo de Residuos (REAS) y Derechos del Paciente.",
-      "Entrenamiento y certificación periódica en Reanimación Cardiopulmonar (BLS / ACLS) para el personal de atención directa."
+      "Verificación formal de títulos, diplomas, especialidades y registro en la Superintendencia de Salud (RNPI) para todos los profesionales médicos y no médicos.",
+      "Proceso formal de asignación y renovación periódica de privilegios clínicos para procedimientos específicos según experiencia y competencias demostradas.",
+      "Programa de inducción institucional y orientación específica de servicio para todo el personal nuevo.",
+      "Programa anual de capacitación continua en soporte vital (BLS / ACLS), seguridad del paciente y prevención de IAAS."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
 
   // =========================================================================
-  // GESTIÓN DE LA INFORMACIÓN (MOI)
+  // 13. GESTIÓN DE LA INFORMACIÓN (MOI)
   // =========================================================================
   {
     id: "MOI.1",
     code: "MOI.1",
     chapter: "Gestión de la Información (Management of Information)",
-    name: "Confidencialidad, Seguridad e Integridad de la Ficha Clínica",
-    objective: "La ficha clínica (electrónica o física) del paciente es única, legible, confidencial, protegida contra alteraciones y accesible oportunamente al equipo de salud tratante.",
+    name: "Integridad, Seguridad y Confidencialidad de la Ficha Clínica",
+    objective: "La ficha clínica del paciente es única, protegida en su confidencialidad, accesible oportunamente para el equipo de salud autorizado y completa en todos sus registros.",
     measurableElements: [
-      "Políticas estrictas de acceso restringido, contraseñas seguras y perfiles de usuario auditables para la visualización de fichas clínicas.",
-      "Resguardo absoluto de la confidencialidad y datos sensibles conforme a la Ley 19.628 y Ley 20.584 de Derechos del Paciente.",
-      "Registro de cada atención con fecha, hora, nombre, profesión y firma o autenticación digital del profesional tratante.",
-      "Prohibición de enmiendas, borrones o sobreescritura en registros clínicos físicos o digitales."
+      "Cada paciente cuenta con una ficha clínica única que concentra todas las atenciones ambulatorias, de urgencia y hospitalización.",
+      "Mecanismos estrictos de autenticación, control de acceso por perfiles y auditoría de accesos a la Ficha Clínica Electrónica para resguardar el secreto médico.",
+      "Registros clínicos legibles, completos, fechados, cronológicos con identificación inequívoca del profesional emisor mediante firma electrónica o firma y timbre.",
+      "Procedimientos estandarizados de custodia, respaldo digital periódico (backup) y plan de contingencia ante caída del sistema informático."
     ],
     category: "HEALTHCARE_MANAGEMENT",
     supportStatus: "CUMPLIDO"
   },
+
+  // =========================================================================
+  // 14. ATENCIÓN CENTRADA EN EL PACIENTE (PCC)
+  // =========================================================================
   {
-    id: "MOI.2",
-    code: "MOI.2",
-    chapter: "Gestión de la Información (Management of Information)",
-    name: "Estandarización de Terminología, Diagnósticos y Símbolos Clínicos",
-    objective: "La organización estandariza los códigos diagnósticos, procedimientos, símbolos y define una lista de abreviaturas explícitamente prohibidas.",
+    id: "PCC.1",
+    code: "PCC.1",
+    chapter: "Atención Centrada en el Paciente (Patient-Centered Care)",
+    name: "Derechos del Paciente, Consentimiento Informado y Privacidad",
+    objective: "Respeto irrestricto de los derechos de los pacientes, su autonomía, dignidad, confidencialidad y obtención obligatoria del consentimiento informado.",
     measurableElements: [
-      "Uso de clasificaciones diagnósticas y procedimentales internacionales oficiales (CIE-10 / CIE-11, SNOMED-CT, Fonasa).",
-      "Lista institucional de abreviaturas, siglas y símbolos autorizados y su distribución a todos los servicios clínicos.",
-      "Lista formal de 'Abreviaturas Peligrosas Prohibidas' (ej. 'U' por unidades, 'QD' por diario) y auditorías de cumplimiento."
+      "Difusión visible y cumplimiento de la Carta de Derechos y Deberes de los Pacientes conforme a la Ley 20.584.",
+      "Obtención del consentimiento informado por escrito, previo a cualquier procedimiento quirúrgico, anestésico, transfusión o procedimiento invasivo mayor, tras explicar beneficios, riesgos y alternativas.",
+      "Resguardo de la privacidad e intimidad corporal del paciente durante exámenes físicos, procedimientos y traslados dentro del establecimiento.",
+      "Canalización, investigación y respuesta oportuna a reclamos, sugerencias y felicitaciones a través de la oficina OIRS y comités éticos."
     ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "MOI.3",
-    code: "MOI.3",
-    chapter: "Gestión de la Información (Management of Information)",
-    name: "Oportunidad y Completitud de los Registros Clínicos",
-    objective: "La organización establece y supervisa los plazos máximos para el registro de ingresos, evoluciones diarias, protocolos quirúrgicos y confección de epicrisis.",
-    measurableElements: [
-      "Protocolo operatorio completado y firmado inmediatamente al término de la intervención quirúrgica.",
-      "Confección y entrega obligatoria de la epicrisis al paciente al momento del alta hospitalaria.",
-      "Auditorías mensuales de calidad de la ficha clínica para medir completitud, legibilidad y oportunidad de los registros."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
-    supportStatus: "CUMPLIDO"
-  },
-  {
-    id: "MOI.7",
-    code: "MOI.7",
-    chapter: "Gestión de la Información (Management of Information)",
-    name: "Continuidad Operativa, Respaldo y Ciberseguridad TI",
-    objective: "La organización cuenta con políticas de seguridad de la información, copias de respaldo automatizadas y planes de contingencia ante caídas de los sistemas informáticos.",
-    measurableElements: [
-      "Políticas de respaldo diario automatizado y almacenamiento de copias de seguridad en ubicación externa segura.",
-      "Plan de contingencia ante caída del sistema informático (paso a formularios de registro manual en papel) y recuperación de desastres.",
-      "Medidas de ciberseguridad: cortafuegos, antivirus corporativo, cifrado de datos en reposo y en tránsito y pruebas periódicas de vulnerabilidad."
-    ],
-    category: "HEALTHCARE_MANAGEMENT",
+    category: "PATIENT_CENTERED",
     supportStatus: "CUMPLIDO"
   }
 ];

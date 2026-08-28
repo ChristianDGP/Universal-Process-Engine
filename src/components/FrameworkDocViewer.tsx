@@ -1185,7 +1185,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
             index: `${nextIdx}.1`,
             name: `Ejecutar ${newSubName}`,
             description: `Se inicia la gestión de ${newSubName} conforme al gatillo de entrada.`,
-            supportTech: "Sistema ERP / Módulo de Gestión",
+            supportTech: "Sistema de Gestión Institucional / SIH",
             infoInputs: startForm.trigger || "Gatillo de Inicio",
             result: `${newSubName} Ejecutado`,
             rules: "No tiene",
@@ -1424,7 +1424,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
             index: `${newSubIndex}.1`,
             name: initialActName,
             description: `El ${subForm.role || "operador"} realiza la acción en el sistema para la etapa de ${subForm.name}.`,
-            supportTech: "Módulo del Sistema ERP / HIS",
+            supportTech: "Sistema de Información Hospitalaria (SIH)",
             infoInputs: "Insumo o solicitud recibida",
             result: "Conforme: Registro validado y guardado / No Conforme: Inconformidad detectada",
             rules: "Aplicar procedimiento operativo estándar.",
@@ -3940,7 +3940,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                 </p>
               </div>
 
-              {/* Apoyo Tecnológico (Catálogo SIH - Módulo Multi-Selección Integrado) */}
+              {/* Apoyo Tecnológico (Catálogo SIH - Módulo Integrado) */}
               <div className="border border-slate-300 bg-slate-50/90 p-3.5 space-y-3 rounded-xs shadow-2xs">
                 <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 gap-2">
                   <div className="flex items-center gap-2">
@@ -3951,7 +3951,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       <label className="block font-black text-slate-900 text-xs uppercase tracking-wider">
                         Apoyo Tecnológico (Catálogo SIH)
                       </label>
-                      <p className="text-[10px] text-slate-500">Módulo institucional de software y sistemas hospitalarios (1 o más sistemas)</p>
+                      <p className="text-[10px] text-slate-500">Módulo institucional de software y sistemas hospitalarios</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -3959,10 +3959,10 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       type="button"
                       onClick={() => setSihPickerModalOpen(true)}
                       className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
-                      title="Abrir módulo para explorar catálogo de sistemas SIH y seleccionar 1 o más sistemas/funcionalidades"
+                      title="Abrir módulo para explorar catálogo de sistemas SIH y seleccionar funcionalidades"
                     >
                       <Server className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Explorar / Seleccionar SIH</span>
+                      <span>Explorar y Seleccionar SIH</span>
                     </button>
                     <button
                       type="button"
@@ -3979,85 +3979,25 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   </div>
                 </div>
 
-                {/* VISUAL MULTI-CARD STATUS DISPLAY OF ASSIGNED SIH */}
-                <div className="bg-white p-2.5 border border-slate-200 rounded-xs space-y-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-bold text-slate-700">Sistemas SIH Asignados:</span>
+                {/* VISUAL STATUS DISPLAY OF ASSIGNED SIH */}
+                <div className="bg-white p-2.5 border border-slate-200 rounded-xs">
+                  <div className="flex items-center justify-between text-[11px] mb-1">
+                    <span className="font-bold text-slate-700">Estado Actual de Apoyo Tecnológico:</span>
                     {actForm.supportTech && actForm.supportTech.toLowerCase().trim() !== "no tiene" && (
                       <span className="font-mono text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 border border-amber-200">
-                        {actForm.supportTech.split("||").length} Sistema(s)
+                        Sistema Vinculado
                       </span>
                     )}
                   </div>
-
                   {(!actForm.supportTech || actForm.supportTech.toLowerCase().trim() === "no tiene") ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2.5 border border-slate-200 rounded-xs">
+                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 border border-slate-200 rounded-xs">
                       <X className="w-4 h-4 text-slate-400 shrink-0" />
                       <span>Actividad clasificada como manual / presencial (sin software).</span>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {actForm.supportTech.split("||").map((rawItem, idx) => {
-                        const trimmed = rawItem.trim();
-                        if (!trimmed) return null;
-                        const [systemPart, funcsPart] = trimmed.split("| Funcionalidades:");
-                        const funcsList = funcsPart ? funcsPart.split(",").map((f) => f.trim()).filter(Boolean) : [];
-
-                        return (
-                          <div key={idx} className="bg-amber-50/70 p-2.5 border border-amber-200 rounded-xs flex flex-col gap-1.5 relative group">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-[10px] font-black shrink-0">
-                                  {idx + 1}
-                                </span>
-                                <span className="text-xs font-bold text-slate-900">
-                                  {systemPart ? systemPart.trim() : trimmed}
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const items = actForm.supportTech.split("||").map((s) => s.trim()).filter(Boolean);
-                                  const remaining = items.filter((_, i) => i !== idx);
-                                  setActForm((prev) => ({
-                                    ...prev,
-                                    supportTech: remaining.length > 0 ? remaining.join(" || ") : "No tiene"
-                                  }));
-                                }}
-                                className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded cursor-pointer transition-colors"
-                                title="Quitar este sistema de la actividad"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-
-                            {funcsList.length > 0 && (
-                              <div className="pl-7 space-y-1">
-                                <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block">
-                                  Funcionalidades activas ({funcsList.length}):
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {funcsList.map((fn, fIdx) => (
-                                    <span key={fIdx} className="inline-flex items-center gap-1 bg-white border border-amber-200 text-slate-800 text-[10px] px-2 py-0.5 rounded-xs font-medium">
-                                      <Check className="w-2.5 h-2.5 text-amber-600" />
-                                      <span>{fn}</span>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      <button
-                        type="button"
-                        onClick={() => setSihPickerModalOpen(true)}
-                        className="w-full py-1.5 border border-dashed border-amber-300 bg-amber-50/40 hover:bg-amber-50 text-amber-900 text-xs font-bold rounded-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-amber-600" />
-                        <span>+ Agregar otro Sistema / Funcionalidad SIH</span>
-                      </button>
+                    <div className="flex items-start gap-2 text-xs text-slate-900 bg-amber-50/60 p-2 border border-amber-200 rounded-xs font-semibold">
+                      <Server className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span className="leading-snug">{actForm.supportTech}</span>
                     </div>
                   )}
                 </div>
@@ -4066,9 +4006,9 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wider">
-                      Texto Asignado al Atributo (Editable):
+                      Valor Asignado al Atributo (Apoyo Tecnológico):
                     </label>
-                    <span className="text-[10px] text-slate-500 font-mono">Separador " || " para múltiples</span>
+                    <span className="text-[10px] text-slate-500 font-mono">Editable</span>
                   </div>
                   <input
                     type="text"
@@ -4087,13 +4027,13 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                     </p>
                   ) : (
                     <p className="mt-1 text-[10px] text-slate-400">
-                      * Puede ajustar el texto directamente o utilizar el botón <strong>Explorar / Seleccionar SIH</strong> para cargar y combinar múltiples módulos del catálogo.
+                      * Puede ajustar el texto directamente o utilizar el botón <strong>Explorar y Seleccionar SIH</strong> para cargar el módulo del catálogo.
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Atributo JCI (Joint Commission International - Módulo Multi-Selección Integrado) */}
+              {/* Atributo JCI (Joint Commission International - Módulo Integrado) */}
               <div className="border border-indigo-200 bg-indigo-50/40 p-3.5 space-y-3 rounded-xs shadow-2xs">
                 <div className="flex flex-wrap justify-between items-center border-b border-indigo-200 pb-2 gap-2">
                   <div className="flex items-center gap-2">
@@ -4104,7 +4044,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       <label className="block font-black text-indigo-950 text-xs uppercase tracking-wider">
                         Atributo JCI (Joint Commission International)
                       </label>
-                      <p className="text-[10px] text-slate-500">Estándares internacionales, elementos medibles y tipo de soporte (1 o más estándares)</p>
+                      <p className="text-[10px] text-slate-500">Módulo de estándares internacionales, elementos medibles y tipo de soporte</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -4115,7 +4055,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                       title="Abrir módulo para explorar catálogo de estándares JCI, requisitos y elementos medibles"
                     >
                       <Award className="w-3.5 h-3.5 text-indigo-300" />
-                      <span>Explorar / Seleccionar JCI</span>
+                      <span>Explorar y Seleccionar JCI</span>
                     </button>
                     <button
                       type="button"
@@ -4144,103 +4084,42 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                   </div>
                 </div>
 
-                {/* VISUAL MULTI-CARD STATUS DISPLAY OF ASSIGNED JCI */}
-                <div className="bg-white p-2.5 border border-indigo-200 rounded-xs space-y-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-bold text-slate-700">Estándares JCI Asignados:</span>
+                {/* VISUAL STATUS DISPLAY OF ASSIGNED JCI */}
+                <div className="bg-white p-2.5 border border-indigo-200 rounded-xs">
+                  <div className="flex items-center justify-between text-[11px] mb-1">
+                    <span className="font-bold text-slate-700">Estado Actual de Acreditación JCI:</span>
                     {actForm.jciAttribute && actForm.jciAttribute.toLowerCase().trim() !== "no aplica" && actForm.jciAttribute.toLowerCase().trim() !== "no tiene" && (
                       <span className="font-mono text-[10px] text-indigo-700 font-bold bg-indigo-50 px-1.5 py-0.2 border border-indigo-200">
-                        {actForm.jciAttribute.split("||").length} Estándar(es)
+                        Estándar Vinculado
                       </span>
                     )}
                   </div>
-
                   {(!actForm.jciAttribute || actForm.jciAttribute.toLowerCase().trim() === "no aplica" || actForm.jciAttribute.toLowerCase().trim() === "no tiene") ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2.5 border border-slate-200 rounded-xs">
+                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 border border-slate-200 rounded-xs">
                       <X className="w-4 h-4 text-slate-400 shrink-0" />
                       <span>Sin vinculación directa con Estándar JCI ("No aplica").</span>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {actForm.jciAttribute.split("||").map((rawItem, idx) => {
-                        const trimmed = rawItem.trim();
-                        if (!trimmed) return null;
-                        const [stdPart, elemsPart] = trimmed.split("| Elementos Medibles:");
-                        const elemsList = elemsPart ? elemsPart.split(",").map((e) => e.trim()).filter(Boolean) : [];
-
-                        return (
-                          <div key={idx} className="bg-indigo-50/60 p-2.5 border border-indigo-200 rounded-xs flex flex-col gap-1.5 relative group">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
-                                  {idx + 1}
-                                </span>
-                                <span className="text-xs font-bold text-indigo-950">
-                                  {stdPart ? stdPart.trim() : trimmed}
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const items = actForm.jciAttribute.split("||").map((s) => s.trim()).filter(Boolean);
-                                  const remaining = items.filter((_, i) => i !== idx);
-                                  setActForm((prev) => ({
-                                    ...prev,
-                                    jciAttribute: remaining.length > 0 ? remaining.join(" || ") : "No aplica"
-                                  }));
-                                }}
-                                className="text-slate-400 hover:text-rose-600 p-1 hover:bg-rose-50 rounded cursor-pointer transition-colors"
-                                title="Quitar este estándar JCI de la actividad"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-
-                            {elemsList.length > 0 && (
-                              <div className="pl-7 space-y-1">
-                                <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider block">
-                                  Elementos Medibles verificados ({elemsList.length}):
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {elemsList.map((elem, eIdx) => (
-                                    <span key={eIdx} className="inline-flex items-center gap-1 bg-white border border-indigo-200 text-slate-800 text-[10px] px-2 py-0.5 rounded-xs font-medium">
-                                      <Check className="w-2.5 h-2.5 text-indigo-600" />
-                                      <span>{elem}</span>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-indigo-100">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-slate-600 font-bold text-[11px]">Soporte Actual:</span>
-                          {actForm.jciSupportType === "DOCUMENTO" || actForm.jciSupportType === "DOCUMENTAL" ? (
-                            <span className="inline-flex items-center gap-1 font-bold text-blue-900 bg-blue-50 px-2 py-0.5 border border-blue-200 text-[10px]">
-                              📄 Documento (Norma / Política institucional)
-                            </span>
-                          ) : actForm.jciSupportType === "SISTEMA" || actForm.jciSupportType === "SISTEMICO" ? (
-                            <span className="inline-flex items-center gap-1 font-bold text-amber-950 bg-amber-50 px-2 py-0.5 border border-amber-300 text-[10px]">
-                              💻 Sistema (Soporte SIH)
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 font-bold text-teal-900 bg-teal-50 px-2 py-0.5 border border-teal-200 text-[10px]">
-                              🔄 Proceso (Flujo Operativo)
-                            </span>
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setJciPickerModalOpen(true)}
-                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-[11px] font-bold border border-indigo-200 rounded-xs flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <Plus className="w-3 h-3 text-indigo-600" />
-                          <span>+ Agregar otro Estándar</span>
-                        </button>
+                    <div className="space-y-1.5">
+                      <div className="flex items-start gap-2 text-xs text-indigo-950 bg-indigo-50/70 p-2 border border-indigo-200 rounded-xs font-semibold">
+                        <Award className="w-4 h-4 text-indigo-700 shrink-0 mt-0.5" />
+                        <span className="leading-snug">{actForm.jciAttribute}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs pt-0.5">
+                        <span className="text-slate-600 font-bold text-[11px]">Soporte Actual:</span>
+                        {actForm.jciSupportType === "DOCUMENTO" || actForm.jciSupportType === "DOCUMENTAL" ? (
+                          <span className="inline-flex items-center gap-1 font-bold text-blue-900 bg-blue-50 px-2 py-0.5 border border-blue-200 text-[10px]">
+                            📄 Documento (Norma / Política institucional)
+                          </span>
+                        ) : actForm.jciSupportType === "SISTEMA" || actForm.jciSupportType === "SISTEMICO" ? (
+                          <span className="inline-flex items-center gap-1 font-bold text-amber-950 bg-amber-50 px-2 py-0.5 border border-amber-300 text-[10px]">
+                            💻 Sistema (Soporte SIH)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 font-bold text-teal-900 bg-teal-50 px-2 py-0.5 border border-teal-200 text-[10px]">
+                            🔄 Proceso (Flujo Operativo)
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -4297,9 +4176,9 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-[11px] font-bold text-indigo-950 uppercase tracking-wider">
-                      Texto Asignado al Atributo JCI (Editable):
+                      Valor Asignado al Atributo (JCI):
                     </label>
-                    <span className="text-[10px] text-slate-500 font-mono">Separador " || " para múltiples</span>
+                    <span className="text-[10px] text-slate-500 font-mono">Editable</span>
                   </div>
                   <input
                     type="text"
@@ -4309,7 +4188,7 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                     className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-950 font-semibold text-xs focus:outline-none focus:border-indigo-600 rounded-xs"
                   />
                   <p className="mt-1 text-[10px] text-slate-400">
-                    * Puede ajustar el texto directamente o utilizar el botón <strong>Explorar / Seleccionar JCI</strong> para abrir el catálogo con todos los elementos medibles y combinar estándares.
+                    * Puede ajustar el texto directamente o utilizar el botón <strong>Explorar y Seleccionar JCI</strong> para abrir el catálogo con todos los elementos medibles.
                   </p>
                 </div>
               </div>

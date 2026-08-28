@@ -41,6 +41,7 @@ export async function parseSIHDocumentFile(file: File): Promise<SIHSystem[]> {
 
 /**
  * Robust text parser that extracts SIH systems structured like the SSMSO specification document.
+ * Handles single lines, multi-line paragraphs, headers with/without colons, tables, bullets, and numbers.
  */
 export function parseSIHTextContent(rawText: string): SIHSystem[] {
   if (!rawText || !rawText.trim()) return [];
@@ -59,14 +60,14 @@ export function parseSIHTextContent(rawText: string): SIHSystem[] {
   let currentSection: "NONE" | "OBJETIVO" | "FEATURES" | "INTEGRATIONS" | "LEGAL" = "NONE";
 
   function pushCurrentSystem() {
-    if (currentSystemName || currentObjective) {
+    if (currentSystemName || currentObjective || currentFeatures.length > 0) {
       const codeClean = currentSystemCode || `SIH-${systems.length + 1}`;
       systems.push({
         id: `SIH-${codeClean}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         code: codeClean,
         area: currentArea,
-        name: currentSystemName || "Sistema de Información Cargado",
-        objective: currentObjective.trim() || "Sin objetivo especificado.",
+        name: currentSystemName || `Sistema de Información ${codeClean}`,
+        objective: currentObjective.trim() || "Objetivo funcional del sistema en la operación hospitalaria.",
         features: currentFeatures.length > 0 ? [...currentFeatures] : ["Funcionalidad general de la aplicación."],
         integrations: currentIntegrations.length > 0 ? [...currentIntegrations] : ["Maestro de pacientes"],
         legalConsiderations: currentLegal.trim() || undefined,
@@ -87,85 +88,108 @@ export function parseSIHTextContent(rawText: string): SIHSystem[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Detect Category / Area headers e.g. "1.1. Apoyo administrativo a la atención clínica" or "1.2. Atención Clínica"
-    const categoryMatch = line.match(/^1\.\d+\.?\s+([A-Za-zÁÉÍÓÚáéíóúÑñ\s\-\/\(\)]+)/i);
-    if (categoryMatch && !line.match(/^1\.\d+\.\d+/)) {
-      currentArea = categoryMatch[1].trim();
+    // 1. Detect Category / Area headers e.g. "1.1. Apoyo administrativo..." or "1.6 Gestión de la Información"
+    const categoryMatch = line.match(/^(?:Área\s+|Area\s+)?(1\.[1-9])\.?\s+([A-Za-zÁÉÍÓÚáéíóúÑñ\s\-\/\(\)]+)$/i);
+    if (categoryMatch) {
+      currentArea = categoryMatch[2].trim();
       continue;
     }
 
-    // Detect System Code & Name e.g. "1.1.1. Maestro de pacientes." or "1.3.6. Farmacia"
-    const systemCodeMatch = line.match(/^(1\.\d+\.\d+)\.?\s+(.+)$/);
+    // 2. Detect System Code & Name e.g. "1.6.4. Gestión OIRS", "1.1.1 Maestro de pacientes", "SIH-1.6.4 - Gestión OIRS"
+    const systemCodeMatch = line.match(/^(?:SIH[\-_])?(1\.\d+\.\d+)\.?\s*(?:[\-–—:]\s*)?(.+)$/i);
     if (systemCodeMatch) {
       pushCurrentSystem();
       currentSystemCode = systemCodeMatch[1];
       currentSystemName = systemCodeMatch[2].replace(/\.$/, "").trim();
+      currentSection = "NONE";
       continue;
     }
 
-    // Check for table header keywords e.g. "Área", "Sistema de Información", "Objetivo"
-    if (line.toLowerCase().startsWith("área") || line.toLowerCase().startsWith("area")) {
-      const parts = line.split(/[:\t]+/);
-      if (parts.length > 1 && parts[1].trim()) {
-        currentArea = parts[1].trim();
+    // 3. Detect Explicit "Área" line e.g. "Área Gestión de la Información" or "Área: Gestión de la Información"
+    const areaExplicitMatch = line.match(/^(?:Área|Area|Área Funcional|Area Funcional)(?:\s*[:\-–—\t]|\s+)(.+)$/i);
+    if (areaExplicitMatch) {
+      const extractedArea = areaExplicitMatch[1].trim();
+      if (extractedArea.length > 2) {
+        currentArea = extractedArea;
       }
       continue;
     }
 
-    if (line.toLowerCase().startsWith("sistema de información") || line.toLowerCase().startsWith("sistema:")) {
-      const parts = line.split(/[:\t]+/);
-      if (parts.length > 1 && parts[1].trim()) {
-        if (!currentSystemName) {
-          currentSystemName = parts[1].trim();
-        }
+    // 4. Detect Explicit "Sistema de Información" line e.g. "Sistema de Información Gestión OIRS" or "Sistema: ..."
+    const sysNameExplicitMatch = line.match(/^(?:Sistema de Información|Sistema de Informacion|Sistema|Nombre del Sistema)(?:\s*[:\-–—\t]|\s+)(.+)$/i);
+    if (sysNameExplicitMatch) {
+      const extractedName = sysNameExplicitMatch[1].trim();
+      if (extractedName.length > 1) {
+        currentSystemName = extractedName.replace(/\.$/, "").trim();
       }
       continue;
     }
 
-    // Detect Objective
-    if (line.toLowerCase().startsWith("objetivo")) {
+    // 5. Detect Objective section e.g. "Objetivo Constituye una herramienta..." or "Objetivo: ..." or "Objetivo" alone
+    const objMatch = line.match(/^(?:Objetivo|Objetivo General|Propósito|Proposito)(?:\s*[:\-–—\t]|\s+)(.+)$/i);
+    if (objMatch) {
       currentSection = "OBJETIVO";
-      const parts = line.split(/[:\t]+/);
-      if (parts.length > 1 && parts[1].trim()) {
-        currentObjective = parts[1].trim();
-      }
+      currentObjective = objMatch[1].trim();
+      continue;
+    } else if (line.match(/^(?:Objetivo|Objetivo General|Propósito|Proposito)\s*[:\-–—\t]?$/i)) {
+      currentSection = "OBJETIVO";
       continue;
     }
 
-    // Detect Features section
-    if (line.toLowerCase().includes("funcionalidades más relevantes") || line.toLowerCase().includes("funcionalidades")) {
+    // 6. Detect Features section e.g. "Funcionalidades más relevantes", "Funcionalidades:", "Requerimientos Funcionales"
+    if (
+      line.match(/^(?:Funcionalidades más relevantes|Funcionalidades mas relevantes|Funcionalidades Relevantes|Funcionalidades|Requerimientos Funcionales|Requisitos Funcionales|Características Relevantes)\s*[:\-–—\t]?$/i) ||
+      line.toLowerCase().startsWith("funcionalidades más relevantes") ||
+      line.toLowerCase().startsWith("funcionalidades mas relevantes") ||
+      line.toLowerCase().startsWith("funcionalidades:") ||
+      line.toLowerCase().startsWith("requisitos funcionales")
+    ) {
       currentSection = "FEATURES";
       continue;
     }
 
-    // Detect Integrations section
-    if (line.toLowerCase().includes("interoperabilidad") || line.toLowerCase().includes("integraciones")) {
+    // 7. Detect Integrations section e.g. "Interoperabilidad / Integraciones", "Integraciones:", "Interoperabilidad"
+    if (
+      line.match(/^(?:Interoperabilidad\s*\/?\s*Integraciones|Interoperabilidad e Integraciones|Integraciones|Interoperabilidad|Integración con otros sistemas)\s*[:\-–—\t]?$/i) ||
+      line.toLowerCase().startsWith("interoperabilidad") ||
+      line.toLowerCase().startsWith("integraciones:") ||
+      line.toLowerCase().startsWith("integración con otros")
+    ) {
+      const inlineIntMatch = line.match(/^(?:Interoperabilidad|Integraciones|Integración)(?:\s*[:\-–—\t]|\s+)(.+)$/i);
       currentSection = "INTEGRATIONS";
-      continue;
-    }
-
-    // Detect Legal considerations
-    if (line.toLowerCase().includes("consideraciones legales") || line.toLowerCase().includes("normativa")) {
-      currentSection = "LEGAL";
-      const parts = line.split(/[:\t]+/);
-      if (parts.length > 1 && parts[1].trim()) {
-        currentLegal = parts[1].trim();
+      if (inlineIntMatch && inlineIntMatch[1].trim().length > 3) {
+        currentIntegrations.push(inlineIntMatch[1].trim());
       }
       continue;
     }
 
-    // Accumulate lines based on currentSection
+    // 8. Detect Legal considerations section
+    if (
+      line.match(/^(?:Consideraciones [Ll]egales\s*\/?\s*[Nn]ormativas|Consideraciones [Ll]egales|Normativa [Aa]plicable|Marco [Ll]egal|Normativa)\s*[:\-–—\t]?$/i) ||
+      line.toLowerCase().startsWith("consideraciones legales") ||
+      line.toLowerCase().startsWith("normativa aplicable") ||
+      line.toLowerCase().startsWith("marco legal")
+    ) {
+      const inlineLegMatch = line.match(/^(?:Consideraciones [Ll]egales|Normativa|Marco Legal)(?:\s*[:\-–—\t]|\s+)(.+)$/i);
+      currentSection = "LEGAL";
+      if (inlineLegMatch && inlineLegMatch[1].trim().length > 3) {
+        currentLegal = inlineLegMatch[1].trim();
+      }
+      continue;
+    }
+
+    // 9. Accumulate lines based on active currentSection
     if (currentSection === "OBJETIVO") {
       if (currentObjective) currentObjective += " " + line;
       else currentObjective = line;
     } else if (currentSection === "FEATURES") {
-      // Clean bullet/number prefix
-      const cleanLine = line.replace(/^[\d+\.\-\*\•\o]+\s*/, "").trim();
-      if (cleanLine.length > 3) {
+      // Clean bullet, number or list prefix e.g. "1.", "•", "-", "a)"
+      const cleanLine = line.replace(/^[\d+\.\-\*\•\o\▪\▫\►\)]+\s*/, "").trim();
+      if (cleanLine.length > 2) {
         currentFeatures.push(cleanLine);
       }
     } else if (currentSection === "INTEGRATIONS") {
-      const cleanLine = line.replace(/^[\d+\.\-\*\•\o]+\s*/, "").trim();
+      const cleanLine = line.replace(/^[\d+\.\-\*\•\o\▪\▫\►\)]+\s*/, "").trim();
       if (cleanLine.length > 2) {
         currentIntegrations.push(cleanLine);
       }
@@ -175,7 +199,7 @@ export function parseSIHTextContent(rawText: string): SIHSystem[] {
     }
   }
 
-  // Push final accumulator
+  // Push final accumulated system
   pushCurrentSystem();
 
   return systems;
