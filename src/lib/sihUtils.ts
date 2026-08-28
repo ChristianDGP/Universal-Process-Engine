@@ -136,12 +136,20 @@ export function findSihSystemByText(text: string, catalog?: SIHSystem[]): SIHSys
  */
 export function standardizeSihSupportTech(rawText: string, catalog?: SIHSystem[]): string {
   if (!rawText) return "No tiene";
-  const trimmed = rawText.trim();
+  let trimmed = rawText.trim();
   const lower = trimmed.toLowerCase();
 
   if (lower === "no tiene" || lower === "no aplica" || lower === "ninguno" || lower === "manual") {
     return "No tiene";
   }
+
+  // Strip invalid/unregistered phrases like "Módulo Traslado de Pacientes" -> replace with canonical catalog name
+  trimmed = trimmed
+    .replace(/módulo\s+traslado\s+de\s+pacientes/gi, "1.4.4 Traslados de pacientes")
+    .replace(/SIH\s*-\s*Módulo\s+de\s+/gi, "SIH - ")
+    .replace(/SIH\s*-\s*Módulo\s+/gi, "SIH - ")
+    .replace(/Módulo\s+de\s+/gi, "")
+    .replace(/Módulo\s+/gi, "");
 
   const activeCatalog = catalog && catalog.length > 0 ? catalog : getActiveSihCatalog();
   const matchedSys = findSihSystemByText(trimmed, activeCatalog);
@@ -158,12 +166,57 @@ export function standardizeSihSupportTech(rawText: string, catalog?: SIHSystem[]
     return `SIH - ${matchedSys.code} ${matchedSys.name}${featurePart ? ` ${featurePart}` : ""}`;
   }
 
-  // If already starts with "SIH - ", clean up redundant terms like "Módulo"
   if (trimmed.startsWith("SIH - ")) {
-    return trimmed.replace(/SIH\s*-\s*Módulo\s+de\s+/i, "SIH - ").replace(/SIH\s*-\s*Módulo\s+/i, "SIH - ");
+    return trimmed;
   }
 
   return trimmed;
+}
+
+/**
+ * Matches SIH features against an activity's name and description.
+ * Returns only the features that correspond to the activity ("marcar en función del nombre de la ficha").
+ */
+export function matchFeaturesForActivity(
+  activityName: string,
+  activityDesc?: string,
+  features?: string[]
+): {
+  matchedFeatures: string[];
+  hasMatch: boolean;
+  isBrecha: boolean;
+} {
+  if (!features || features.length === 0) {
+    return { matchedFeatures: [], hasMatch: false, isBrecha: true };
+  }
+
+  if (!activityName || !activityName.trim()) {
+    return { matchedFeatures: [...features], hasMatch: true, isBrecha: false };
+  }
+
+  const actNorm = normalizeText(`${activityName} ${activityDesc || ""}`);
+  
+  const stopWords = new Set(["para", "esta", "este", "como", "con", "del", "las", "los", "una", "uno", "por", "sobre", "entre", "hacia", "hasta"]);
+  const actWords = actNorm
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 3 && !stopWords.has(w));
+
+  const matchedFeatures: string[] = [];
+
+  features.forEach((feat) => {
+    const featNorm = normalizeText(feat);
+    // Check if significant words match or key functional terms overlap
+    const wordOverlap = actWords.filter((w) => featNorm.includes(w));
+    if (wordOverlap.length > 0) {
+      matchedFeatures.push(feat);
+    }
+  });
+
+  const hasMatch = matchedFeatures.length > 0;
+  const isBrecha = !hasMatch;
+
+  return { matchedFeatures, hasMatch, isBrecha };
 }
 
 /**

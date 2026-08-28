@@ -9,14 +9,15 @@ import {
   getActiveSihCatalog,
   saveActiveSihCatalog,
   findSihSystemByText,
-  standardizeSihSupportTech
+  standardizeSihSupportTech,
+  matchFeaturesForActivity
 } from "../lib/sihUtils";
 import { OFFICIAL_JCI_CATEGORIES, INITIAL_JCI_CATALOG } from "../data/jciCatalogPreset";
 import { jciMatchesQuery, autoDetectJCIForFicha, autoDetectJCISupportType } from "../lib/jciUtils";
 import SihCatalogPickerModal from "./SihCatalogPickerModal";
 import JciCatalogPickerModal from "./JciCatalogPickerModal";
 import {
-  FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, X,
+  FileText, Table, Layers, HelpCircle, Activity, Plus, Edit2, Trash2, AlertCircle, Check, CheckCircle2, X,
   Info, ChevronDown, ChevronUp, AlertTriangle, ArrowRight, ExternalLink, GitFork, ArrowLeft,
   MoveLeft, MoveRight, Sliders, PlusCircle, Play, StopCircle, RefreshCw, Save, GripVertical,
   Minus, Maximize2, Minimize2, Grid, ZoomIn, ZoomOut, Hand, MousePointer, ShieldCheck, Lock, ShieldAlert, Search, Server, Award
@@ -3781,29 +3782,37 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
                                           title="Haga clic para ver la ficha técnica y seleccionar funcionalidades del sistema SIH"
                                         >
                                           <Server className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                          {act.supportTech}
+                                          {standardizeSihSupportTech(act.supportTech || "", getActiveSihCatalog())}
                                         </button>
                                         {(() => {
-                                          const sihCatalog = getActiveSihCatalog();
-                                          const matchedSys = findSihSystemByText(act.supportTech, sihCatalog);
-                                          if (matchedSys) {
-                                            return (
-                                              <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setSihDetailModalSystem(matchedSys);
-                                                }}
-                                                className="inline-flex items-center gap-1 font-sans text-[10px] font-black text-slate-950 bg-amber-400 hover:bg-amber-300 px-2 py-0.5 border border-amber-500 rounded-xs shadow-2xs cursor-pointer transition-colors"
-                                                title="Abrir ventana emergente con la Ficha Técnica Oficial (14 Funcionalidades) de este sistema"
-                                              >
-                                                <Maximize2 className="w-3 h-3 text-slate-950" />
-                                                <span>Ficha Oficial ({matchedSys.features?.length || 0})</span>
-                                              </button>
-                                            );
-                                          }
-                                          return null;
-                                        })()}
+                                           const sihCatalog = getActiveSihCatalog();
+                                           const stdTech = standardizeSihSupportTech(act.supportTech || "", sihCatalog);
+                                           const matchedSys = findSihSystemByText(stdTech, sihCatalog);
+                                           if (matchedSys) {
+                                             const matchInfo = matchFeaturesForActivity(act.name, act.description, matchedSys.features);
+                                             if (matchInfo.hasMatch) {
+                                               return (
+                                                 <span
+                                                   className="inline-flex items-center gap-1 font-sans text-[10px] font-bold text-emerald-900 bg-emerald-100/90 px-2 py-0.5 border border-emerald-300 rounded-xs shadow-2xs"
+                                                   title={`Funcionalidad alineada con la ficha "${act.name}": ${matchInfo.matchedFeatures[0]}`}
+                                                 >
+                                                   <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                                   <span>Funcionalidad: {matchInfo.matchedFeatures[0]}</span>
+                                                 </span>
+                                               );
+                                             }
+                                             return (
+                                               <span
+                                                 className="inline-flex items-center gap-1 font-sans text-[10px] font-black text-rose-900 bg-rose-100 px-2 py-0.5 border border-rose-300 rounded-xs shadow-2xs animate-pulse"
+                                                 title={`BRECHA FUNCIONAL: El sistema SIH ${matchedSys.code} no cuenta con una funcionalidad específica para "${act.name}"`}
+                                               >
+                                                 <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                                 <span>BRECHA FUNCIONAL</span>
+                                               </span>
+                                             );
+                                           }
+                                           return null;
+                                         })()}
                                       </div>
                                     )}
                                   </div>
@@ -5883,6 +5892,16 @@ export default function FrameworkDocViewer({ process: rawProcess, onProcessChang
           setSihTargetDirectActivity(null);
         }}
         currentValue={sihTargetDirectActivity ? sihTargetDirectActivity.initialTech : actForm.supportTech}
+        activityName={
+          sihTargetDirectActivity
+            ? process.subprocesses?.[sihTargetDirectActivity.subIdx]?.activities?.[sihTargetDirectActivity.actIdx]?.name
+            : actForm.name
+        }
+        activityDescription={
+          sihTargetDirectActivity
+            ? process.subprocesses?.[sihTargetDirectActivity.subIdx]?.activities?.[sihTargetDirectActivity.actIdx]?.description
+            : actForm.description
+        }
         onApply={(resultText, selectedSystems) => {
           if (sihTargetDirectActivity) {
             const { subIdx, actIdx } = sihTargetDirectActivity;

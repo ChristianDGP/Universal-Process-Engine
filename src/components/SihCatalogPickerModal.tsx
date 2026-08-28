@@ -6,7 +6,8 @@ import {
   getActiveSihCatalog,
   saveActiveSihCatalog,
   findSihSystemByText,
-  standardizeSihSupportTech
+  standardizeSihSupportTech,
+  matchFeaturesForActivity
 } from "../lib/sihUtils";
 import { HighlightText } from "./HighlightText";
 import {
@@ -42,6 +43,8 @@ interface SihCatalogPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentValue: string;
+  activityName?: string;
+  activityDescription?: string;
   onApply: (resultText: string, selectedSystems?: SIHSystem[]) => void;
   catalog?: SIHSystem[];
   initialDetailSystemCode?: string;
@@ -83,6 +86,8 @@ export default function SihCatalogPickerModal({
   isOpen,
   onClose,
   currentValue,
+  activityName,
+  activityDescription,
   onApply,
   catalog: propCatalog,
   initialDetailSystemCode
@@ -251,11 +256,22 @@ export default function SihCatalogPickerModal({
       if (exists) {
         return prev.filter((c) => c.code !== sys.code);
       } else {
+        let initialFeats = sys.features ? [...sys.features] : [];
+        if (activityName && sys.features && sys.features.length > 0) {
+          const { matchedFeatures, hasMatch } = matchFeaturesForActivity(
+            activityName,
+            activityDescription,
+            sys.features
+          );
+          if (hasMatch) {
+            initialFeats = matchedFeatures;
+          }
+        }
         return [
           ...prev,
           {
             code: sys.code,
-            selectedFeatures: sys.features ? [...sys.features] : []
+            selectedFeatures: initialFeats
           }
         ];
       }
@@ -627,16 +643,6 @@ export default function SihCatalogPickerModal({
 
                                   <button
                                     type="button"
-                                    onClick={() => setDetailModalSystem(sys)}
-                                    className="px-2.5 py-1 text-[10px] font-black uppercase rounded-xs transition-colors cursor-pointer flex items-center gap-1 bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-2xs"
-                                    title="Ver Ficha Técnica Oficial Completa con todas las características"
-                                  >
-                                    <Maximize2 className="w-3 h-3 text-slate-950" />
-                                    <span>Ficha Oficial ({sys.features?.length || 0})</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
                                     onClick={() => handleToggleSystem(sys)}
                                     className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-xs transition-colors cursor-pointer flex items-center gap-1 ${
                                       isSelected
@@ -734,35 +740,60 @@ export default function SihCatalogPickerModal({
                                 </div>
 
                                 <div className="space-y-1.5 pt-1">
-                                  {sys.features.map((feat, fIdx) => {
-                                    const isFeatChecked =
-                                      selectedConfig?.selectedFeatures.includes(feat) || false;
+                                  {(() => {
+                                    const actMatch = activityName && sys.features
+                                      ? matchFeaturesForActivity(activityName, activityDescription, sys.features)
+                                      : null;
                                     return (
-                                      <label
-                                        key={fIdx}
-                                        className={`flex items-start gap-2.5 p-2 rounded-xs cursor-pointer text-xs border transition-colors ${
-                                          isFeatChecked
-                                            ? "bg-amber-100/90 text-amber-950 font-medium border-amber-300 shadow-2xs"
-                                            : "bg-white text-slate-700 border-slate-200 hover:bg-amber-50/50 hover:border-amber-200"
-                                        }`}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isFeatChecked}
-                                          onChange={() => handleToggleFeature(sys, feat)}
-                                          className="w-4 h-4 mt-0.5 text-amber-600 rounded-none focus:ring-amber-600 cursor-pointer shrink-0"
-                                        />
-                                        <div className="leading-snug flex-1 flex items-start gap-2">
-                                          <span className="font-mono font-bold text-[11px] text-amber-900/80 shrink-0">
-                                            {fIdx + 1}.
-                                          </span>
-                                          <span>
-                                            <HighlightText text={feat} query={searchTerm} />
-                                          </span>
-                                        </div>
-                                      </label>
+                                      <>
+                                        {activityName && actMatch && actMatch.isBrecha && (
+                                          <div className="p-2.5 mb-2 bg-rose-100 border border-rose-300 text-rose-950 text-xs font-bold rounded-xs flex items-center gap-2">
+                                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                                            <span>🔴 BRECHA FUNCIONAL: Ninguna funcionalidad en este sistema SIH coincide con la ficha "{activityName}".</span>
+                                          </div>
+                                        )}
+                                        {sys.features.map((feat, fIdx) => {
+                                          const isFeatChecked =
+                                            selectedConfig?.selectedFeatures.includes(feat) || false;
+                                          const isDirectMatch = actMatch ? actMatch.matchedFeatures.includes(feat) : false;
+                                          return (
+                                            <label
+                                              key={fIdx}
+                                              className={`flex items-start gap-2.5 p-2 rounded-xs cursor-pointer text-xs border transition-colors ${
+                                                isDirectMatch
+                                                  ? "bg-emerald-50 text-emerald-950 font-bold border-emerald-400 shadow-2xs"
+                                                  : isFeatChecked
+                                                  ? "bg-amber-100/90 text-amber-950 font-medium border-amber-300 shadow-2xs"
+                                                  : "bg-white text-slate-700 border-slate-200 hover:bg-amber-50/50 hover:border-amber-200"
+                                              }`}
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isFeatChecked}
+                                                onChange={() => handleToggleFeature(sys, feat)}
+                                                className="w-4 h-4 mt-0.5 text-amber-600 rounded-none focus:ring-amber-600 cursor-pointer shrink-0"
+                                              />
+                                              <div className="leading-snug flex-1 flex items-center justify-between gap-2">
+                                                <div className="flex items-start gap-2">
+                                                  <span className="font-mono font-bold text-[11px] text-amber-900/80 shrink-0">
+                                                    {fIdx + 1}.
+                                                  </span>
+                                                  <span>
+                                                    <HighlightText text={feat} query={searchTerm} />
+                                                  </span>
+                                                </div>
+                                                {isDirectMatch && (
+                                                  <span className="px-1.5 py-0.5 bg-emerald-200 text-emerald-950 text-[9px] font-black rounded-xs shrink-0 border border-emerald-300">
+                                                    ✓ Coincide con Ficha
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </label>
+                                          );
+                                        })}
+                                      </>
                                     );
-                                  })}
+                                  })()}
                                 </div>
                               </td>
                             </tr>
@@ -854,16 +885,6 @@ export default function SihCatalogPickerModal({
 
                           <button
                             type="button"
-                            onClick={() => setDetailModalSystem(sys)}
-                            className="px-2.5 py-1 text-[10px] font-black uppercase rounded-xs transition-colors cursor-pointer flex items-center gap-1 bg-slate-900 text-amber-300 hover:bg-slate-800 hover:text-white shadow-2xs border border-slate-700"
-                            title="Ver Ficha Técnica Formal Completa con todas las características"
-                          >
-                            <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Ver Ficha ({sys.features?.length || 0})</span>
-                          </button>
-
-                          <button
-                            type="button"
                             onClick={() => handleToggleSystem(sys)}
                             className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-xs transition-colors cursor-pointer flex items-center gap-1 ${
                               isSelected
@@ -928,30 +949,53 @@ export default function SihCatalogPickerModal({
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
-                            {sys.features.map((feat, idx) => {
-                              const isFeatChecked =
-                                selectedConfig?.selectedFeatures.includes(feat) || false;
+                            {(() => {
+                              const actMatch = activityName && sys.features
+                                ? matchFeaturesForActivity(activityName, activityDescription, sys.features)
+                                : null;
                               return (
-                                <label
-                                  key={idx}
-                                  className={`flex items-start gap-2 p-1.5 rounded-xs cursor-pointer text-[11px] transition-colors border ${
-                                    isFeatChecked
-                                      ? "bg-amber-100/90 text-amber-950 font-medium border-amber-300 shadow-2xs"
-                                      : "bg-white/80 hover:bg-amber-100/40 text-slate-700 border-amber-200/50"
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isFeatChecked}
-                                    onChange={() => handleToggleFeature(sys, feat)}
-                                    className="w-3.5 h-3.5 mt-0.5 text-amber-600 rounded-none focus:ring-amber-600 cursor-pointer shrink-0"
-                                  />
-                                  <span className="leading-snug flex-1">
-                                    <HighlightText text={feat} query={searchTerm} />
-                                  </span>
-                                </label>
+                                <>
+                                  {activityName && actMatch && actMatch.isBrecha && (
+                                    <div className="col-span-1 sm:col-span-2 p-2 mb-1 bg-rose-100 border border-rose-300 text-rose-950 text-xs font-bold rounded-xs flex items-center gap-2">
+                                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                                      <span>🔴 BRECHA FUNCIONAL: Ninguna funcionalidad coincide con "{activityName}".</span>
+                                    </div>
+                                  )}
+                                  {sys.features.map((feat, idx) => {
+                                    const isFeatChecked =
+                                      selectedConfig?.selectedFeatures.includes(feat) || false;
+                                    const isDirectMatch = actMatch ? actMatch.matchedFeatures.includes(feat) : false;
+                                    return (
+                                      <label
+                                        key={idx}
+                                        className={`flex items-start gap-2 p-1.5 rounded-xs cursor-pointer text-[11px] transition-colors border ${
+                                          isDirectMatch
+                                            ? "bg-emerald-50 text-emerald-950 font-bold border-emerald-400 shadow-2xs"
+                                            : isFeatChecked
+                                            ? "bg-amber-100/90 text-amber-950 font-medium border-amber-300 shadow-2xs"
+                                            : "bg-white/80 hover:bg-amber-100/40 text-slate-700 border-amber-200/50"
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isFeatChecked}
+                                          onChange={() => handleToggleFeature(sys, feat)}
+                                          className="w-3.5 h-3.5 mt-0.5 text-amber-600 rounded-none focus:ring-amber-600 cursor-pointer shrink-0"
+                                        />
+                                        <span className="leading-snug flex-1">
+                                          <HighlightText text={feat} query={searchTerm} />
+                                        </span>
+                                        {isDirectMatch && (
+                                          <span className="px-1 py-0.2 bg-emerald-200 text-emerald-950 text-[8px] font-black rounded-xs shrink-0 border border-emerald-300">
+                                            ✓ Coincide
+                                          </span>
+                                        )}
+                                      </label>
+                                    );
+                                  })}
+                                </>
                               );
-                            })}
+                            })()}
                           </div>
                         </div>
                       )}
